@@ -1,5 +1,6 @@
 .idea/
 venv/
+robotom/robotom/test-reports/
 
 *.py[cod]
 *.log

@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block content %}
+
+   <script type="text/javascript">
+        function Disable() {
+            document.getElementById('picture_exposure_submit').value="Получение...";
+            document.getElementById('picture_exposure_submit').disabled = true;
+            document.getElementById('picture_exposure_submit').readonly = true;
+            document.forms['picture_exposure_form'].submit();
+            return false;
+        }
+
+        function post(path, params) {
+		    var form = document.createElement("form");
+		    form.setAttribute("method", "post");
+		    form.setAttribute("action", path);
+
+		    for(var key in params) {
+		        if(params.hasOwnProperty(key)) {
+		            var hiddenField = document.createElement("input");
+		            hiddenField.setAttribute("type", "hidden");
+		            hiddenField.setAttribute("name", key);
+		            hiddenField.setAttribute("value", params[key]);
+
+		            form.appendChild(hiddenField);
+		         }
+		    }
+
+		    var hiddenField = document.createElement("input");
+		    hiddenField.setAttribute("type", "hidden");
+		    hiddenField.setAttribute("name", "csrfmiddlewaretoken");
+	        hiddenField.setAttribute("value", "{{ csrf_token }}");
+            form.appendChild(hiddenField);
+
+		    document.body.appendChild(form);
+		    form.submit();
+		}
+    </script> 
+
+    {% if messages %}
+        <div class="row">
+            {% for message in messages %}
+                <div class="col-sm-6 col-sm-offset-3 col-lg-4 col-lg-offset-3">
+                    <div class="alert alert-{% if message.tags %}{% if message.tags == "error" %}danger{% else %}{{ message.tags }}{% endif %}{% else %}info{% endif %}">
+                        {{ message }}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-xs-12 col-md-6 col-lg-6">
+                <div class="panel panel-default">
+
+                    <div class="panel-heading">
+                        <h3>Юстировка томографа</h3>
+                    </div>
+
+                    <div class="panel-body">
+                        <div class="row">
+                            <div class="col-xs-6">
+                                <form method="POST" action="">
+                                    <div class="control-group">
+                                        {% csrf_token %}
+                                        <label for="voltage">Напряжение</label> 
+                                       	<div class="current_value"><small>Текущее напряжение: 
+                                       	<span id="current_voltage">неизвестно</span>   	
+                                       	</small></div>
+
+                                        <div class="input-group">
+                                            <input type="number" step="0.01" min="2" max="60"
+                                                   class="form-control ntSaveForms" required
+                                                   id="voltage" name="voltage" placeholder="2-60">
+                                            <div class="input-group-addon">кВ</div>
+                                        </div>
+
+                                        <input type="submit"
+                                           style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                           class="btn btn-default btn-md" name="experiment_on_voltage"
+                                           value="Отправить" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="col-xs-6">
+                                <form method="POST" action="">
+                                    {% csrf_token %}
+                                    <label for="current">Ток</label>
+                                       	<div class="current_value"><small>Текущая сила тока: 
+                                       	<span id="current_current">неизвестна</span>   	
+                                       	</small></div>
+
+                                    <div class="input-group">
+                                        <input type="number" step="0.01" min="2" max="80"
+                                               class="form-control ntSaveForms" required id="current" name="current" placeholder="2-80">
+
+                                        <div class="input-group-addon">мА</div>
+                                    </div>
+                                    <input type="submit"
+                                           style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                           class="btn btn-default btn-md" name="experiment_on_current"
+                                           value="Отправить" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-xs-6">
+                                <form method="POST" action="">
+                                    <div class="control-group">
+                                        {% csrf_token %}
+                                        <label for="move_hor">Сдвиг по горизонтали</label> 
+                                       	<div class="current_value"><small>Текущий сдвиг по горизонтали: 
+                                       	<span id="current_horiz">неизвестен</span>    	
+                                       	</small></div>
+
+                                        <input type="number" step="1" class="form-control ntSaveForms"
+                                               required id="move_hor" name="move_hor" placeholder="">
+                                        <input type="submit"
+                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                               class="btn btn-default btn-md" name="move_hor_submit"
+                                               value="Сдвинуть образец" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="col-xs-6">
+                                <form method="POST" action="">
+                                    <div class="control-group">
+                                        {% csrf_token %}
+                                        <label for="move_ver">Сдвиг по вертикали</label> 
+                                       	<div class="current_value"><small>Текущий сдвиг по вертикали: 
+                                       	<span id="current_vert">неизвестен</span>    	
+                                       	</small></div>
+
+                                        <input type="number" step="1" min="0" class="form-control ntSaveForms"
+                                               required disabled
+                                               id="move_ver" name="move_ver" placeholder="">
+                                        <input type="submit"
+                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                               class="btn btn-default btn-md" name="move_ver_submit"
+                                               value="Сдвинуть образец" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} disabled {% else %} disabled {% endif %}>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-xs-6">
+                                <form method="POST" action="">
+                                    <div class="control-group">
+                                        {% csrf_token %}
+                                        <label for="rotate">Изменить угловое положение</label>
+                                       	<div class="current_value"><small>Текущий угол: 
+                                       	<span id="current_angle">неизвестен</span>    	
+                                       	</small></div>
+
+                                        <div class="input-group">
+                                            <input type="number" step="0.01" min="0" class="form-control ntSaveForms"
+                                                   required id="rotate" name="rotate" placeholder="">
+
+                                            <div class="input-group-addon">&deg;</div>
+                                        </div>
+                                        <input type="submit"
+                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                               class="btn btn-default btn-md" name="rotate_submit"
+                                               value="Повернуть" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="col-xs-6">
+                                <form method="POST" action="">
+                                    <div class="control-group">
+                                        {% csrf_token %}
+                                        <label for="text_gate">Заслонка</label>
+                                       	<div class="current_value"><small>Текущее состояние заслонки: 
+                                       	<span id="current_shutter">неизвестно</span>   	
+                                       	</small></div>
+
+                                        <div id="text_gate" class="btn-group" data-toggle="buttons">
+                                            <label class="btn btn-default" id="open"> <input id="open" name="gate_state" type="radio" value="open">Открыта</label>
+                                            <label class="btn btn-default" id="close"> <input id="close" name="gate_state" type="radio" value="close">Закрыта</label>
+                                        </div>
+
+                                        <input type="submit"
+                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                               class="btn btn-default btn-md" name="text_gate"
+                                               value="Установить заслонку" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-xs-6">
+                                <form method="POST" action="">
+                                    <div class="control-group">
+                                        {% csrf_token %}
+                                        <input type="submit"
+                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                               class="btn btn-default btn-md" name="reset_submit"
+                                               value="Принять текущий угол поворота за 0" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                    </div>
+                                </form>
+
+                            </div>
+                            <div class="col-xs-6">
+                                <form name="picture_exposure_form" method="POST" action="">
+                                    <div class="control-group">
+                                        {% csrf_token %}
+                                        <label for="picture_exposure">Экспозиция</label>
+
+                                        <div class="input-group">
+                                            <input type="number" min="0" step="0.01" name="picture_exposure" id=
+                                                    "picture_exposure" class="form-control ntSaveForms" required>
+
+                                            <div class="input-group-addon">мс</div>
+                                        </div>
+
+                                        <input type="submit"
+                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                               class="btn btn-default btn-md" name="picture_exposure_submit"
+                                               id="picture_exposure_submit"
+                                               value="Предпросмотр" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xs-12 col-md-6 col-lg-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3>Предпросмотр  {% if preview %}
+                            <small>Экспозиция: {{ exposure }} мс</small>{% endif %}</h3>
+                    </div>
+                    <div class="panel-body">
+                        {% if preview %}
+                            <img class="img-responsive center-block" src="{{ preview_path }}">
+                        {% else %}
+                            {% load staticfiles %}
+                            <img class="img-responsive center-block" height="75%" width="75%"
+                                 src="{% static 'experiment/images/noimage.png' %}">
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--<button type="submit" style="white-space:normal; margin-top:7px; margin-bottom:7px" class="btn btn-default ntSaveFormsSubmit">Очистить поля</button>-->
+    </div>
+
+    {% load staticfiles %}
+
+    <script type="text/javascript">
+    	var createCORSRequest = function(method, url) {
+			var xhr = new XMLHttpRequest();
+			if ("withCredentials" in xhr) {
+			    // Most browsers.
+				xhr.open(method, url, true);
+			} else if (typeof XDomainRequest != "undefined") {
+			    // IE8 & IE9
+			    xhr = new XDomainRequest();
+			    xhr.open(method, url);
+			} else {
+			    // CORS not supported.
+			    xhr = null;
+			}
+			  return xhr;
+		};
+
+
+		function setSpanValue(spanId, text) {
+			var span = document.getElementById(spanId);
+			span.innerHTML = text;
+		}
+
+		function setValueOnload(spanId, respJSON, measure) {
+			try {
+    			response = jQuery.parseJSON(respJSON);
+    			if (response.success) {
+            var value_to_set = response.result;
+            // format the angle float value
+            if (spanId === "current_angle") {
+              // FORMAT ANGLE HERE!!!1!
+              value_to_set = parseFloat(value_to_set).toFixed(4);
+            }
+            // set the shutter state depending on 
+            if (spanId === "current_shutter") {
+              var dict = eval("(" + value_to_set + ")");
+              if (dict["state"] === "OPEN") {
+                value_to_set = "открыта";
+              } else {
+                value_to_set = "закрыта";
+              }
+            }
+
+  					setSpanValue(spanId, value_to_set + measure);
+  				} else {
+  					setSpanValue(spanId, response.exception_message);
+  				}
+  			} catch (e) {
+    			setValueOnerror(spanId);
+    		return;
+  			}
+		}
+
+		function setValueOnerror(spanId) {
+			setSpanValue(spanId, "ошибка загрузки");
+		}
+
+		function reloadValue(url, spanId, measure) {
+			var xhr = createCORSRequest('GET', url);
+
+			xhr.onload = function() {
+				setValueOnload(spanId, this.response, measure);
+			};
+
+			xhr.onerror = function() {
+				setValueOnerror(spanId);
+			};
+
+			xhr.send();
+		}
+
+		function display() {
+			reloadValue("{{ get_voltage_url }}", "current_voltage", " кВ");
+			reloadValue("{{ get_current_url }}", "current_current", " мА");
+			reloadValue("{{ get_angle_url }}", "current_angle", "&deg;");
+			reloadValue("{{ get_vert_url }}", "current_vert", "");
+			reloadValue("{{ get_horiz_url }}", "current_horiz", "");
+			reloadValue("{{ get_shutter_url }}", "current_shutter", "");
+			setTimeout("display()", 3000)
+		}
+
+		display()
+
+
+    </script> 
+    <!--<script type='text/javascript' src="{% static 'experiment/js/ntsaveforms.js' %}"></script>-->
+{% endblock content %}

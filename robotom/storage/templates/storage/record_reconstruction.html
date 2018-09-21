@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>Реконструкция эксперимента {{ record_id }}</title>
+		<style type="text/css">
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+			#container {
+				position: absolute;
+			    top: 0px;
+			    left: 0px;
+			    width: 85%;
+			    height: 100%
+			}
+			#for_plane {
+			    position: absolute;
+			    bottom: 0px;
+			    right: 0px;
+			    height: 60%;
+			    width: 30%;
+    			border: solid 1px green;
+			}
+			#slider_out {
+			    position: absolute;
+			    top: 40px;
+			    right: 0px;
+			    width: 60px;
+			    height: 20px;
+    			border: solid 1px green;
+			}
+			#slider {
+			    position: absolute;
+			    top: 10px;
+			    right: 0px;
+			}
+
+			#sliderX {
+			    position: absolute;
+			    top: 60px;
+			    right: 0px;
+			}
+			#sliderY {
+			    position: absolute;
+			    top: 90px;
+			    right: 0px;
+			}
+			#sliderZ {
+			    position: absolute;
+			    top: 120px;
+			    right: 0px;
+			}
+		</style>
+	</head>
+	<body>
+  		<input id="slider" type="range" />
+  		<output id="slider_out"></output>
+  		<input id="sliderX" type="range" />
+  		<input id="sliderY" type="range" />
+  		<input id="sliderZ" type="range" />
+		<div id="container"></div>
+		<div id="for_plane"></div>
+        {% load staticfiles %}
+		<script src="{% static 'storage/visualization/js/three.min.js' %}"></script>
+		<script src="{% static 'storage/visualization/js/TrackballControls.js' %}"></script>
+		<script src="{% static 'storage/visualization/js/Detector.js' %}"></script>
+		<script src="{% static 'storage/visualization/js/stats.min.js' %}"></script>
+		<script type="x-shader/x-vertex" id="vertexshader">
+			precision mediump float;
+			precision mediump int;
+
+			uniform mat4 modelViewMatrix; // optional
+			uniform mat4 projectionMatrix; // optional
+			uniform float median_pSize;
+
+		    attribute vec3 position;
+		    attribute vec3 color;
+		    attribute float alpha;
+
+		    varying vec4 vColor;
+
+		    void main() {
+		        vColor= vec4(color, alpha);
+
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+		        gl_PointSize = median_pSize * 2.0 * alpha;
+
+		    }
+		</script>
+
+		<script type="x-shader/x-fragment" id="fragmentshader">
+			precision mediump float;
+			precision mediump int;
+
+			uniform float time;
+
+		    varying vec4 vColor;
+		    void main() {
+				gl_FragColor = vColor;
+		    }
+		</script>
+
+
+        <script type="text/javascript">
+            var N = {{ n }};
+            var M = {{ m }};
+            var K = {{ k }};
+            var R_arr = {{ R_arr }};
+            var G_arr = {{ G_arr }};
+            var B_arr = {{ B_arr }};
+            var A_arr = {{ A_arr }};
+            var X_arr = {{ X_arr }};
+            var Y_arr = {{ Y_arr }};
+            var Z_arr = {{ Z_arr }};
+            var numVertices = {{ num_vertices }};
+        </script>
+		<script src="{% static 'storage/visualization/main.js' %}"></script>
+	</body>
+</html>

@@ -20,13 +20,16 @@ class LoginTest(TestCase):
 
         self.c = Client()
 
+    def check_login_response(self, data, status_code):
+        login_route = '/accounts/login/'
+        response = self.c.post(login_route, data)
+        self.assertEqual(response.status_code, status_code)
+
     def test_login_page(self):
-        response = self.c.post('/accounts/login/', {'username': 'admin', 'password': 'admin'})
-        self.assertEqual(response.status_code, 302)
-        response = self.c.post('/accounts/login/', {'username': 'guest', 'password': 'guest'})
-        self.assertEqual(response.status_code, 302)
-        response = self.c.post('/accounts/login/', {'username': 'guest', 'password': 'wrongpass'})
-        self.assertEqual(response.status_code, 200)
+
+        self.check_login_response(data={'username': 'admin', 'password': 'admin'}, status_code=302)
+        self.check_login_response(data={'username': 'guest', 'password': 'guest'}, status_code=302)
+        self.check_login_response(data={'username': 'guest', 'password': 'wrongpass'}, status_code=200)
 
     def test_register_ok(self):
         response = self.c.post('/accounts/register/',

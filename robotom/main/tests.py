@@ -1,9 +1,7 @@
 from django.test import TestCase
 from django.test import Client
 from django.contrib.auth.models import User
-from django.forms import ValidationError
 from main.models import UserProfile
-from bootstrap3.exceptions import BootstrapError
 
 
 class LoginTest(TestCase):

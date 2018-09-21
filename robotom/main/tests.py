@@ -7,16 +7,16 @@ from .models import UserProfile
 class LoginTest(TestCase):
     def setUp(self):
         self.u_adm = User.objects.create_user(username='admin', password='admin', email='mailadmin@mail.ru')
-        self.up_adm = UserProfile.objects.create(user=self.u_adm, role='ADM')
+        self.up_adm = UserProfile.objects.create(user=self.u_adm, is_admin=True)
 
         self.u_exp = User.objects.create_user(username='exprm', password='exprm')
-        self.up_exp = UserProfile.objects.create(user=self.u_exp, role='EXP')
+        self.up_exp = UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
 
         self.u_res = User.objects.create_user(username='resch', password='resch')
-        self.up_res = UserProfile.objects.create(user=self.u_res, role='RES')
+        self.up_res = UserProfile.objects.create(user=self.u_res, is_researcher=True)
 
         self.u_gst = User.objects.create_user(username='guest', password='guest')
-        self.up_gst = UserProfile.objects.create(user=self.u_gst, role='GST')
+        self.up_gst = UserProfile.objects.create(user=self.u_gst, is_guest=True)
 
         self.c = Client()
 

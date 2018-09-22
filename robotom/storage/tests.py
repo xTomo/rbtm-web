@@ -5,6 +5,8 @@ from django.contrib.auth.models import User
 from main.models import UserProfile
 
 
+# TODO: it may be storage tests should be in storage service
+
 class StorageIndexTest(TestCase):
     def setUp(self):
         self.u_gst = User.objects.create_user(username='guest', password='guest')

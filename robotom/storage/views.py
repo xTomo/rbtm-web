@@ -48,6 +48,63 @@ class ExperimentRecord:
         self.datetime = record['datetime']
 
 
+class FrameRecord:
+    def __init__(self, frame):
+        self.id = ""
+        self.num = "0"
+        self.type = ""
+        self.date_time = ""
+        self.detector_model = ""
+        self.exposure = ""
+        self.shutter_open = ""
+        self.angle_position = ""
+        self.current = ""
+        self.voltage = ""
+        self.horizontal_position = ""
+        self.present = ""
+        self.mode = ""
+
+        if "_id" in frame:
+            if "$oid" in frame['_id']:
+                self.id = str(frame["_id"]['$oid'])
+            else:
+                self.id = str(frame["_id"])
+
+        if "type" in frame:
+            self.type = frame["type"]
+        if "frame" in frame:
+            if "mode" in frame["frame"]:
+                self.mode = frame["frame"]["mode"]
+            if "number" in frame['frame']:
+                self.num = frame["frame"]["number"]
+            if "image_data" in frame["frame"]:
+                if "datetime" in frame["frame"]["image_data"]:
+                    self.date_time = frame["frame"]["image_data"]["datetime"]
+                if "detector" in frame["frame"]["image_data"]:
+                    if "model" in frame["frame"]["image_data"]["detector"]:
+                        self.detector_model = frame["frame"]["image_data"]["detector"]["model"]
+                if "exposure" in frame["frame"]["image_data"]:
+                    self.exposure = frame["frame"]["image_data"]["exposure"]
+            if "shutter" in frame["frame"]:
+                if "open" in frame["frame"]["shutter"]:
+                    self.shutter_open = frame["frame"]["shutter"]["open"]
+            if "object" in frame["frame"]:
+                if "angle position" in frame["frame"]["object"]:
+                    self.angle_position = frame["frame"]["object"]["angle position"]
+                if "horizontal position" in frame["frame"]["object"]:
+                    self.horizontal_position = frame["frame"]["object"]["horizontal position"]
+                if "present" in frame["frame"]["object"]:
+                    if frame["frame"]["object"]["present"]:
+                        self.present = u"Да"
+                    else:
+                        self.present = u"Нет"
+            if "X-ray source" in frame["frame"]:
+                if "current" in frame["frame"]["X-ray source"]:
+                    self.current = frame["frame"]["X-ray source"]["current"]
+                if "voltage" in frame["frame"]["X-ray source"]:
+                    self.voltage = frame["frame"]["X-ray source"]["voltage"]
+
+
 def make_info(post_args):
     # for arg in post_args:
     #     storage_logger.debug(u'PostArgs: {} {}'.format(arg, post_args[arg]))
@@ -183,63 +240,6 @@ def storage_view(request):
         'toShowResult': to_show,
         'pages': range(1, num_pages + 2),
     })
-
-
-class FrameRecord:
-    def __init__(self, frame):
-        self.id = ""
-        self.num = "0"
-        self.type = ""
-        self.date_time = ""
-        self.detector_model = ""
-        self.exposure = ""
-        self.shutter_open = ""
-        self.angle_position = ""
-        self.current = ""
-        self.voltage = ""
-        self.horizontal_position = ""
-        self.present = ""
-        self.mode = ""
-
-        if "_id" in frame:
-            if "$oid" in frame['_id']:
-                self.id = str(frame["_id"]['$oid'])
-            else:
-                self.id = str(frame["_id"])
-
-        if "type" in frame:
-            self.type = frame["type"]
-        if "frame" in frame:
-            if "mode" in frame["frame"]:
-                self.mode = frame["frame"]["mode"]
-            if "number" in frame['frame']:
-                self.num = frame["frame"]["number"]
-            if "image_data" in frame["frame"]:
-                if "datetime" in frame["frame"]["image_data"]:
-                    self.date_time = frame["frame"]["image_data"]["datetime"]
-                if "detector" in frame["frame"]["image_data"]:
-                    if "model" in frame["frame"]["image_data"]["detector"]:
-                        self.detector_model = frame["frame"]["image_data"]["detector"]["model"]
-                if "exposure" in frame["frame"]["image_data"]:
-                    self.exposure = frame["frame"]["image_data"]["exposure"]
-            if "shutter" in frame["frame"]:
-                if "open" in frame["frame"]["shutter"]:
-                    self.shutter_open = frame["frame"]["shutter"]["open"]
-            if "object" in frame["frame"]:
-                if "angle position" in frame["frame"]["object"]:
-                    self.angle_position = frame["frame"]["object"]["angle position"]
-                if "horizontal position" in frame["frame"]["object"]:
-                    self.horizontal_position = frame["frame"]["object"]["horizontal position"]
-                if "present" in frame["frame"]["object"]:
-                    if frame["frame"]["object"]["present"]:
-                        self.present = u"Да"
-                    else:
-                        self.present = u"Нет"
-            if "X-ray source" in frame["frame"]:
-                if "current" in frame["frame"]["X-ray source"]:
-                    self.current = frame["frame"]["X-ray source"]["current"]
-                if "voltage" in frame["frame"]["X-ray source"]:
-                    self.voltage = frame["frame"]["X-ray source"]["voltage"]
 
 
 @login_required

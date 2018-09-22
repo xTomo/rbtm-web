@@ -73,6 +73,7 @@ class UserProfile(models.Model):
     def get_requested_roles(self):
         return [request.get_role_display() for request in self.get_requests()]
 
+
 class RoleRequest(models.Model):
     user = models.ForeignKey(UserProfile)
     role = models.CharField('Запрос на изменение роли', max_length=15, choices=USER_REQUESTS, default='NONE')

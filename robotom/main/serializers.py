@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from models import UserProfile, RoleRequest
+from main.models import UserProfile, RoleRequest
 
 
 class UserSerializer(serializers.ModelSerializer):

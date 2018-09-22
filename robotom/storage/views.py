@@ -306,6 +306,7 @@ def storage_record_view(request, storage_record_id):
     })
 
 
+# TODO: route w/o user check?
 def frames_downloading(request, storage_record_id):
     try:
         frame_request = json.dumps({"exp_id": storage_record_id})
@@ -373,6 +374,7 @@ def frames_downloading(request, storage_record_id):
     return HttpResponse(u'Изображения получены успешно', content_type='text/plain')
 
 
+# TODO: route w/o user check?
 def delete_experiment(request, experiment_id):
     try:
         storage_logger.debug(u'Удаление эксперимента: {}'.format(experiment_id))
@@ -409,6 +411,7 @@ def delete_experiment(request, experiment_id):
             content_type='text/plain')
 
 
+# TODO: route w/o user check?
 def record_reconstruction(request, storage_record_id):
     with h5py.File(os.path.join(settings.RECONSTRUCTION_ROOT, storage_record_id + '.hdf5')) as f:
         return render(request, 'storage/record_reconstruction.html', {
@@ -428,12 +431,14 @@ def record_reconstruction(request, storage_record_id):
         })
 
 
+# TODO: route w/o user check?
 def record_reconstruction_loading(request, storage_record_id):
     return render(request, 'storage/record_reconstruction_loading.html', {
         'record_id': storage_record_id
     })
 
 
+# TODO: route w/o user check?
 def record_reconstruction_downloading(request, storage_record_id):
     file_name = storage_record_id + '.hdf5'
     if not os.path.exists(os.path.join(settings.RECONSTRUCTION_ROOT, file_name)):

@@ -8,7 +8,7 @@ from main.models import UserProfile
 class StorageIndexTest(TestCase):
     def setUp(self):
         self.u_gst = User.objects.create_user(username='guest', password='guest')
-        self.up_gst = UserProfile.objects.create(user=self.u_gst, role='GST')
+        self.up_gst = UserProfile.objects.create(user=self.u_gst, is_guest=True)
         self.client.login(username='guest', password='guest')
     
     def test_login(self):

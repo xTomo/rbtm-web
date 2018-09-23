@@ -20,7 +20,7 @@ REQUEST_DEBUG = True
 
 TIMEOUT_DEFAULT = 120  # timeout in secs
 
-STORAGE_HOST = 'http://storage_server_1:5006/'
+STORAGE_HOST = 'http://localhost:5006/'
 EXPERIMENT_HOST = 'http://10.0.3.104:5001/'
 
 # STORAGE routes

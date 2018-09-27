@@ -7,6 +7,7 @@
 **Run in development mode:**
 
 `export DJANGO_SETTINGS_MODULE=robotom.dev_settings`(Unix shell)
+
 `set DJANGO_SETTINGS_MODULE=robotom.dev_settings`(Windows shell)
 
 `./robotom/manage.py runserver`

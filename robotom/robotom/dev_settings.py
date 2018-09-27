@@ -21,7 +21,7 @@ REQUEST_DEBUG = True
 TIMEOUT_DEFAULT = 120  # timeout in secs
 
 STORAGE_HOST = 'http://localhost:5006/'
-EXPERIMENT_HOST = 'http://localhost:5000/'
+EXPERIMENT_HOST = 'http://localhost:5001/'
 
 # STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')

@@ -1,6 +1,7 @@
 .idea/
 venv/
 test-reports/
+media/
 
 *.py[cod]
 *.log

@@ -339,7 +339,7 @@ def experiment_interface(request):
                         'EMPTY':
                             {
                                 'count': int(float(request.POST['empty_quantity'])),
-                                'exposure': float(request.POST['dark_exposure'])
+                                'exposure': float(request.POST['dark_exposure'])  # TODO: typo? 'empty_exposure'?
                             },
                         'DATA':
                             {

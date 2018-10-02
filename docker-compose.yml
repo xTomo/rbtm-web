@@ -3,7 +3,7 @@ database:
   ports:
     - "15432:5432"
   volumes:
-     - ./db:/var/lib/postgresql/data
+     - /home/robotom/rbtm/web/db:/var/lib/postgresql/data
   restart: unless-stopped
   #environment:
   #   - POSTGRES_PASSWORD=postgres
@@ -15,7 +15,7 @@ server:
   links:
     - database
   external_links:
-    - storage_server_1
+    - rbtmstorage_server_1
   # volumes:
   #   - ./robotom/logs:/var/www/web/robotom/logs
   restart: unless-stopped

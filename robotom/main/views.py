@@ -22,6 +22,7 @@ main_logger = logging.getLogger('main_logger')
 
 
 def index(request):
+    main_logger.info('index request')  # TODO: don't forget to remove it!
     return render(request, 'main/index.html', {'caption': 'ROBO-TOM'})
 
 @login_required

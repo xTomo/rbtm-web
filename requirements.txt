@@ -1,5 +1,5 @@
 colorama==0.2.5
-Cython==0.23.4
+Cython==0.26
 Django==1.8
 django-bootstrap3==5.1.1
 django-registration-redux==1.1
@@ -8,7 +8,7 @@ docutils==0.11
 html5lib==0.999
 Jinja2==2.7.2
 MarkupSafe==0.18
-numpy==1.10.4
+numpy==1.13
 psycopg2-binary==2.7.5
 Pygments==1.6
 python-memcached==1.54
@@ -21,4 +21,4 @@ unittest-xml-reporting==1.11.0
 urllib3==1.7.1
 virtualenv==1.11.4
 wheel==0.24.0
-h5py==2.5.0
+h5py==2.7

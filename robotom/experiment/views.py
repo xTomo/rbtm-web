@@ -140,12 +140,6 @@ def check_result(response_dict, request, tomo, success_msg=''):
                     response_dict['error']))
         messages.warning(request, 
             u'Модуль "Эксперимент" работает некорректно в данный момент. Попробуйте позже {}'.format(response_dict['error']))
-        return render(request, 'experiment/adjustment.html', {
-            'full_access': request.user.userprofile.is_experimentator,
-            'caption': 'Эксперимент',
-            'tomograph': tomo,
-            'js_url_settings': js_url_settings,
-        })
 
 
 def set_current_state_msg(request, tomo):

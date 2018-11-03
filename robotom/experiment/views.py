@@ -181,23 +181,27 @@ def update_state_before_run(view):
 @login_required
 @user_passes_test(has_experiment_access)
 def experiment_view(request):
+
     migrations()
+
     tomo = get_object_or_404(Tomograph, pk=1)
+    result = None
+    success_msg = ''
+
     if request.method == 'POST':
-        if 'on_exp' in request.POST: 
+        if 'on_exp' in request.POST:
+            success_msg = u'Томограф включен'
             result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_ON.format(1), 'experiment:index')
-            if result['error']:
-                return result['error']
 
-            check_result(result, request, tomo, success_msg=u'Томограф включен')
-            
         if 'of_exp' in request.POST:
+            success_msg = u'Томограф выключен'
             result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(1), 'experiment:index')
-            if result['error']:
-                return result['error']
 
-            check_result(result, request, tomo, success_msg=u'Томограф выключен')
-    
+    if result['error']:
+        return result['error']
+
+    check_result(result, request, tomo, success_msg)
+
     get_current_state(request, tomo)
     set_current_state_msg(request, tomo)
     return render(request, 'experiment/start.html', {

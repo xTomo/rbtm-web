@@ -145,12 +145,12 @@ function reloadValue(url, spanId, measure) {
 
 function display() {
 
-    reloadValue(get_voltage_url, "current_voltage", " кВ");
-    reloadValue(get_current_url, "current_current", " мА");
-    reloadValue(get_angle_url, "current_angle", "&deg;");
-    reloadValue(get_vert_url, "current_vert", "");
-    reloadValue(get_horiz_url, "current_horiz", "");
-    reloadValue(get_shutter_url, "current_shutter", "");
+    reloadValue(js_url_settings.get_voltage_url, "current_voltage", " кВ");
+    reloadValue(js_url_settings.get_current_url, "current_current", " мА");
+    reloadValue(js_url_settings.get_angle_url, "current_angle", "&deg;");
+    reloadValue(js_url_settings.get_vert_url, "current_vert", "");
+    reloadValue(js_url_settings.get_horiz_url, "current_horiz", "");
+    reloadValue(js_url_settings.get_shutter_url, "current_shutter", "");
     setTimeout("display()", 3000)
 
 }

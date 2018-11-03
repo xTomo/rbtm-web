@@ -24,16 +24,25 @@ import datetime
 
 experiment_logger = logging.getLogger('experiment_logger')
 
-url_settings = {
-        'get_voltage_url': settings.EXPERIMENT_SOURCE_GET_VOLT.format(1),
-        'get_current_url': settings.EXPERIMENT_SOURCE_GET_CURR.format(1),
-        'get_vert_url': settings.EXPERIMENT_MOTOR_GET_VERT.format(1),
-        'get_horiz_url': settings.EXPERIMENT_MOTOR_GET_HORIZ.format(1),
-        'get_angle_url': settings.EXPERIMENT_MOTOR_GET_ANGLE.format(1),
-        'get_shutter_url': settings.EXPERIMENT_SHUTTER_GET_STATUS.format(1),
+GET_VOLT = 'get-voltage'
+GET_CURR = 'get-current'
+GET_VERT = 'get-vertical-position'
+GET_HOR = 'get-horizontal-position'
+GET_ANGL = 'get-angle-position'
+GET_SHUT = 'get-shutter-state'
+
     }
 
-js_url_settings = json.dumps(url_settings)
+local_url_settings = {
+        'get_voltage_url': '../tomograph/{}'.format(GET_VOLT),
+        'get_current_url': '../tomograph/{}'.format(GET_CURR),
+        'get_vert_url': '../tomograph/{}'.format(GET_VERT),
+        'get_horiz_url': '../tomograph/{}'.format(GET_HOR),
+        'get_angle_url': '../tomograph/{}'.format(GET_ANGL),
+        'get_shutter_url': '../tomograph/{}'.format(GET_SHUT),
+    }
+
+js_url_settings = json.dumps(local_url_settings)
 
 def has_experiment_access(user):
     return user.userprofile.is_admin or user.userprofile.is_experimentator

@@ -55,8 +55,10 @@ def try_request_post(request, address, content, source_page, stream=False):
         result['error'] = redirect(reverse(source_page))
     except BaseException as e:
         experiment_logger.error(e)
-        messages.warning(request, 
-            'Ошибка связи с модулем "Эксперимент", невозможно сохранить данные. Возможно, отсутствует подключение к сети. Попробуйте снова через некоторое время или свяжитесь с администратором')
+        messages.warning(request,
+                         '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
+                         Возможно, отсутствует подключение к сети.
+                         Попробуйте снова через некоторое время или свяжитесь с администратором''')
         result['error'] = redirect(reverse(source_page))
     return result
 
@@ -83,12 +85,17 @@ def try_request_get(request, address, source_page=''):
 
     except BaseException as e:
         experiment_logger.error(e)
-        messages.warning(request, 
-            'Ошибка связи с модулем "Эксперимент", невозможно сохранить данные. Возможно, отсутствует подключение к сети. Попробуйте снова через некоторое время или свяжитесь с администратором')
+        messages.warning(request,
+                         '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
+                         Возможно, отсутствует подключение к сети.
+                         Попробуйте снова через некоторое время или свяжитесь с администратором''')
         if source_page:
             result['error'] = redirect(reverse(source_page))
         else:
-            result['error'] = 'Ошибка связи с модулем "Эксперимент", невозможно сохранить данные. Возможно, отсутствует подключение к сети. Попробуйте снова через некоторое время или свяжитесь с администратором'
+            result['error'] = '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
+                                Возможно, отсутствует подключение к сети.
+                                Попробуйте снова через некоторое время или свяжитесь с администратором'''
+
 
     return result
 
@@ -223,7 +230,7 @@ def experiment_adjustment(request):
             check_result(response_dict, request, tomo, success_msg=u'Текущий угол поворота принят за 0')
         
         if 'text_gate' in request.POST:
-            if request.POST['gate_state'] == 'open': 
+            if request.POST.get('gate_state', None) == 'open':
                 result = try_request_get(request, settings.EXPERIMENT_SHUTTER_OPEN.format(1), 'experiment:index_adjustment')
                 if result['error']:
                     return result['error']
@@ -231,7 +238,7 @@ def experiment_adjustment(request):
                 response_dict = result['response_dict']
                 check_result(response_dict, request, tomo, success_msg=u'Заслонка открыта')
 
-            elif request.POST['gate_state'] == 'close': 
+            elif request.POST.get('gate_state', None) == 'close':
                 result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(1), 'experiment:index_adjustment')
                 if result['error']:
                     return result['error']
@@ -332,7 +339,7 @@ def experiment_interface(request):
                         'EMPTY':
                             {
                                 'count': int(float(request.POST['empty_quantity'])),
-                                'exposure': float(request.POST['dark_exposure'])
+                                'exposure': float(request.POST['dark_exposure'])  # TODO: typo? 'empty_exposure'?
                             },
                         'DATA':
                             {

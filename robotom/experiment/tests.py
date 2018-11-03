@@ -5,10 +5,12 @@ from django.contrib.auth.models import User
 from main.models import UserProfile
 
 
+# TODO: it may be experiment tests should be in experiment service
+
 class ExpPageTest(TestCase):
     def setUp(self):
         self.u_exp = User.objects.create_user(username='exprm', password='exprm')
-        self.up_exp = UserProfile.objects.create(user=self.u_exp, role='EXP')
+        self.up_exp = UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
         self.c = Client()
         self.c.login(username='exprm', password='exprm')
 

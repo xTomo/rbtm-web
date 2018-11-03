@@ -9,5 +9,6 @@ TOMO_STATES = (
     ('experiment', 'experiment'),
 )
 
+
 class Tomograph(models.Model):
     state = models.CharField(max_length=12, default='unavailable', choices=TOMO_STATES)

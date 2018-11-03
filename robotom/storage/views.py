@@ -9,8 +9,6 @@ import requests
 import json
 from django.shortcuts import render
 from requests.exceptions import Timeout
-from robotom.settings import STORAGE_EXPERIMENTS_GET_HOST, STORAGE_FRAMES_INFO_HOST, MEDIA_ROOT, RECONSTRUCTION_ROOT, \
-    STORAGE_FRAMES_PNG, STORAGE_EXPERIMENTS_HOST, STORAGE_RECONSTRUCTION, STORAGE_HDF5_FILE
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 import h5py
@@ -46,8 +44,65 @@ class ExperimentRecord:
         self.data_exposure = record['experiment parameters']['DATA']['exposure']
         self.empty_count = record['experiment parameters']['EMPTY']['count']
         self.empty_exposure = record['experiment parameters']['EMPTY']['exposure']
-        self.hdf_host = STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
+        self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.datetime = record['datetime']
+
+
+class FrameRecord:
+    def __init__(self, frame):
+        self.id = ""
+        self.num = "0"
+        self.type = ""
+        self.date_time = ""
+        self.detector_model = ""
+        self.exposure = ""
+        self.shutter_open = ""
+        self.angle_position = ""
+        self.current = ""
+        self.voltage = ""
+        self.horizontal_position = ""
+        self.present = ""
+        self.mode = ""
+
+        if "_id" in frame:
+            if "$oid" in frame['_id']:
+                self.id = str(frame["_id"]['$oid'])
+            else:
+                self.id = str(frame["_id"])
+
+        if "type" in frame:
+            self.type = frame["type"]
+        if "frame" in frame:
+            if "mode" in frame["frame"]:
+                self.mode = frame["frame"]["mode"]
+            if "number" in frame['frame']:
+                self.num = frame["frame"]["number"]
+            if "image_data" in frame["frame"]:
+                if "datetime" in frame["frame"]["image_data"]:
+                    self.date_time = frame["frame"]["image_data"]["datetime"]
+                if "detector" in frame["frame"]["image_data"]:
+                    if "model" in frame["frame"]["image_data"]["detector"]:
+                        self.detector_model = frame["frame"]["image_data"]["detector"]["model"]
+                if "exposure" in frame["frame"]["image_data"]:
+                    self.exposure = frame["frame"]["image_data"]["exposure"]
+            if "shutter" in frame["frame"]:
+                if "open" in frame["frame"]["shutter"]:
+                    self.shutter_open = frame["frame"]["shutter"]["open"]
+            if "object" in frame["frame"]:
+                if "angle position" in frame["frame"]["object"]:
+                    self.angle_position = frame["frame"]["object"]["angle position"]
+                if "horizontal position" in frame["frame"]["object"]:
+                    self.horizontal_position = frame["frame"]["object"]["horizontal position"]
+                if "present" in frame["frame"]["object"]:
+                    if frame["frame"]["object"]["present"]:
+                        self.present = u"Да"
+                    else:
+                        self.present = u"Нет"
+            if "X-ray source" in frame["frame"]:
+                if "current" in frame["frame"]["X-ray source"]:
+                    self.current = frame["frame"]["X-ray source"]["current"]
+                if "voltage" in frame["frame"]["X-ray source"]:
+                    self.voltage = frame["frame"]["X-ray source"]["voltage"]
 
 
 def make_info(post_args):
@@ -145,7 +200,7 @@ def storage_view(request):
     elif request.method == "POST":
         info = make_info(request.POST)
     try:
-        answer = requests.post(STORAGE_EXPERIMENTS_GET_HOST, info, timeout=settings.TIMEOUT_DEFAULT)
+        answer = requests.post(settings.STORAGE_EXPERIMENTS_GET_HOST, info, timeout=settings.TIMEOUT_DEFAULT)
         if answer.status_code == 200:
             experiments = json.loads(answer.content)
             storage_logger.debug(u'Найденные эксперименты: {}'.format(experiments))
@@ -187,63 +242,6 @@ def storage_view(request):
     })
 
 
-class FrameRecord:
-    def __init__(self, frame):
-        self.id = ""
-        self.num = "0"
-        self.type = ""
-        self.date_time = ""
-        self.detector_model = ""
-        self.exposure = ""
-        self.shutter_open = ""
-        self.angle_position = ""
-        self.current = ""
-        self.voltage = ""
-        self.horizontal_position = ""
-        self.present = ""
-        self.mode = ""
-
-        if "_id" in frame:
-            if "$oid" in frame['_id']:
-                self.id = str(frame["_id"]['$oid'])
-            else:
-                self.id = str(frame["_id"])
-
-        if "type" in frame:
-            self.type = frame["type"]
-        if "frame" in frame:
-            if "mode" in frame["frame"]:
-                self.mode = frame["frame"]["mode"]
-            if "number" in frame['frame']:
-                self.num = frame["frame"]["number"]
-            if "image_data" in frame["frame"]:
-                if "datetime" in frame["frame"]["image_data"]:
-                    self.date_time = frame["frame"]["image_data"]["datetime"]
-                if "detector" in frame["frame"]["image_data"]:
-                    if "model" in frame["frame"]["image_data"]["detector"]:
-                        self.detector_model = frame["frame"]["image_data"]["detector"]["model"]
-                if "exposure" in frame["frame"]["image_data"]:
-                    self.exposure = frame["frame"]["image_data"]["exposure"]
-            if "shutter" in frame["frame"]:
-                if "open" in frame["frame"]["shutter"]:
-                    self.shutter_open = frame["frame"]["shutter"]["open"]
-            if "object" in frame["frame"]:
-                if "angle position" in frame["frame"]["object"]:
-                    self.angle_position = frame["frame"]["object"]["angle position"]
-                if "horizontal position" in frame["frame"]["object"]:
-                    self.horizontal_position = frame["frame"]["object"]["horizontal position"]
-                if "present" in frame["frame"]["object"]:
-                    if frame["frame"]["object"]["present"]:
-                        self.present = u"Да"
-                    else:
-                        self.present = u"Нет"
-            if "X-ray source" in frame["frame"]:
-                if "current" in frame["frame"]["X-ray source"]:
-                    self.current = frame["frame"]["X-ray source"]["current"]
-                if "voltage" in frame["frame"]["X-ray source"]:
-                    self.voltage = frame["frame"]["X-ray source"]["voltage"]
-
-
 @login_required
 @user_passes_test(is_active)
 def storage_record_view(request, storage_record_id):
@@ -251,7 +249,7 @@ def storage_record_view(request, storage_record_id):
     to_show = True
     try:
         exp_info = json.dumps({"_id": storage_record_id})
-        experiment = requests.post(STORAGE_EXPERIMENTS_GET_HOST, exp_info, timeout=settings.TIMEOUT_DEFAULT)
+        experiment = requests.post(settings.STORAGE_EXPERIMENTS_GET_HOST, exp_info, timeout=settings.TIMEOUT_DEFAULT)
         if experiment.status_code == 200:
             experiment_info = json.loads(experiment.content)
             storage_logger.debug(u'Страница записи: Данные эксперимента: {}'.format(experiment_info))
@@ -278,7 +276,7 @@ def storage_record_view(request, storage_record_id):
     try:
         frame_info = json.dumps({"exp_id": storage_record_id})
         # storage_logger.debug(u'Страница записи: {}'.format(frame_info))
-        frames = requests.post(STORAGE_FRAMES_INFO_HOST, frame_info, timeout=settings.TIMEOUT_DEFAULT)
+        frames = requests.post(settings.STORAGE_FRAMES_INFO_HOST, frame_info, timeout=settings.TIMEOUT_DEFAULT)
         if frames.status_code == 200:
             frames_info = json.loads(frames.content)
             storage_logger.debug(u'Страница записи: Список изображений: {}'.format(frames_info))
@@ -308,11 +306,12 @@ def storage_record_view(request, storage_record_id):
     })
 
 
+# TODO: route w/o user check?
 def frames_downloading(request, storage_record_id):
     try:
         frame_request = json.dumps({"exp_id": storage_record_id})
         storage_logger.debug(u'Получение изображений: Запрос списка изображений {}'.format(frame_request))
-        frames = requests.post(STORAGE_FRAMES_INFO_HOST, frame_request, timeout=settings.TIMEOUT_DEFAULT)
+        frames = requests.post(settings.STORAGE_FRAMES_INFO_HOST, frame_request, timeout=settings.TIMEOUT_DEFAULT)
         if frames.status_code == 200:
             frames_info = json.loads(frames.content)
             storage_logger.debug(u'Получение изображений: Список изображений: {}'.format(frames_info))
@@ -340,11 +339,11 @@ def frames_downloading(request, storage_record_id):
 
     for frame in frames_list:
         file_name = frame.id + '.png'
-        if not os.path.exists(os.path.join(MEDIA_ROOT, file_name)):
+        if not os.path.exists(os.path.join(settings.MEDIA_ROOT, file_name)):
             try:
                 storage_logger.debug(
                     u'Получение изображений: Запрос на получение изображения номер {}'.format(frame.id))
-                frame_response = requests.get(STORAGE_FRAMES_PNG.format(exp_id=storage_record_id, frame_id=frame.id),
+                frame_response = requests.get(settings.STORAGE_FRAMES_PNG.format(exp_id=storage_record_id, frame_id=frame.id),
                                               timeout=settings.TIMEOUT_DEFAULT, stream=True)
                 if frame_response.status_code == 200:
                     temp_file = tempfile.TemporaryFile()
@@ -352,7 +351,7 @@ def frames_downloading(request, storage_record_id):
                         if not block:
                             break
                         temp_file.write(block)
-                    default_storage.save(os.path.join(MEDIA_ROOT, file_name), temp_file)
+                    default_storage.save(os.path.join(settings.MEDIA_ROOT, file_name), temp_file)
                 else:
                     storage_logger.error(u'Не удается получить изображениe {}. Ошибка: {}'.format(
                         frame.num, frame_response.status_code))
@@ -375,10 +374,11 @@ def frames_downloading(request, storage_record_id):
     return HttpResponse(u'Изображения получены успешно', content_type='text/plain')
 
 
+# TODO: route w/o user check?
 def delete_experiment(request, experiment_id):
     try:
         storage_logger.debug(u'Удаление эксперимента: {}'.format(experiment_id))
-        response = requests.delete(STORAGE_EXPERIMENTS_HOST + '/' + experiment_id, timeout=settings.TIMEOUT_DEFAULT)
+        response = requests.delete(settings.STORAGE_EXPERIMENTS_HOST + '/' + experiment_id, timeout=settings.TIMEOUT_DEFAULT)
 
         if response.status_code == 200:
             response_content = json.loads(response.content)
@@ -411,8 +411,9 @@ def delete_experiment(request, experiment_id):
             content_type='text/plain')
 
 
+# TODO: route w/o user check?
 def record_reconstruction(request, storage_record_id):
-    with h5py.File(os.path.join(RECONSTRUCTION_ROOT, storage_record_id + '.hdf5')) as f:
+    with h5py.File(os.path.join(settings.RECONSTRUCTION_ROOT, storage_record_id + '.hdf5')) as f:
         return render(request, 'storage/record_reconstruction.html', {
             "record_id": storage_record_id,
             'caption': 'Реконструкция эксперимента ' + str(storage_record_id),
@@ -430,19 +431,21 @@ def record_reconstruction(request, storage_record_id):
         })
 
 
+# TODO: route w/o user check?
 def record_reconstruction_loading(request, storage_record_id):
     return render(request, 'storage/record_reconstruction_loading.html', {
         'record_id': storage_record_id
     })
 
 
+# TODO: route w/o user check?
 def record_reconstruction_downloading(request, storage_record_id):
     file_name = storage_record_id + '.hdf5'
-    if not os.path.exists(os.path.join(RECONSTRUCTION_ROOT, file_name)):
+    if not os.path.exists(os.path.join(settings.RECONSTRUCTION_ROOT, file_name)):
         try:
             storage_logger.debug(
                 u'Получение реконструции: {}'.format(storage_record_id))
-            reconstruction_response = requests.get(STORAGE_RECONSTRUCTION.format(exp_id=storage_record_id,
+            reconstruction_response = requests.get(settings.STORAGE_RECONSTRUCTION.format(exp_id=storage_record_id,
                                                                                  rarefaction=1, level1=8, level2=8),
                                                    timeout=settings.TIMEOUT_DEFAULT, stream=True)
             if reconstruction_response.status_code == 200:
@@ -451,7 +454,7 @@ def record_reconstruction_downloading(request, storage_record_id):
                     if not block:
                         break
                     temp_file.write(block)
-                default_storage.save(os.path.join(RECONSTRUCTION_ROOT, file_name), temp_file)
+                default_storage.save(os.path.join(settings.RECONSTRUCTION_ROOT, file_name), temp_file)
             else:
                 storage_logger.error(u'Не удается получить реконструкцию {}. Ошибка: {}'.format(
                     storage_record_id, reconstruction_response.status_code))

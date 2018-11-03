@@ -3,14 +3,27 @@
 from urlparse import urljoin
 import os
 
-DEBUG = False
-TEMPLATE_DEBUG = DEBUG
-REQUEST_DEBUG = False
+# This settings is for local development
+# For production u have to create settings.py with actual production settings
+# (
+# DEBUG,
+# TEMPLATE_DEBUG,
+# REQUEST_DEBUG,
+# ALLOWED_HOSTS,
+# SECRET_KEY,
+# DATABASES
+# )
+
+DEBUG = True
+TEMPLATE_DEBUG = True
+REQUEST_DEBUG = True
 
 TIMEOUT_DEFAULT = 120  # timeout in secs
 
-STORAGE_HOST = 'http://storage_server_1:5006/'
+STORAGE_HOST = 'http://localhost:5006/'
+EXPERIMENT_HOST = 'http://localhost:5001/'
 
+# STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')
 STORAGE_FRAMES_INFO_HOST = urljoin(STORAGE_HOST, '/storage/frames_info/get')
 STORAGE_FRAMES_HOST = urljoin(STORAGE_HOST, '/storage/frames/get')
@@ -21,7 +34,7 @@ STORAGE_EXPERIMENTS_HOST = urljoin(STORAGE_HOST, '/storage/experiments')
 STORAGE_HDF5_FILE = '/storage/experiments/{exp_id}.h5'
 STORAGE_RECONSTRUCTION = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/3d/{rarefaction}/{level1}/{level2}')
 
-EXPERIMENT_HOST = 'http://10.0.3.104:5001/'
+# EXPERIMENT routes
 # address templates, where {} is a placeholder for tomograph number
 EXPERIMENT_SOURCE_POWER_ON = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/power-on')
 EXPERIMENT_SOURCE_POWER_OFF = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/power-off')
@@ -80,7 +93,7 @@ DATABASES = {
 
 # Hosts/domain names that are valid for this site; required if DEBUG is False
 # See https://docs.djangoproject.com/en/1.5/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = ['109.234.38.83', 'xtomo.ru', 'www.xtomo.ru']
+ALLOWED_HOSTS = ['localhost']
 
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
@@ -144,7 +157,7 @@ STATICFILES_FINDERS = (
 )
 
 # Make this unique, and don't share it with anybody.
-SECRET_KEY = 'vn)82k3mmx_41^em04jxb-ri=asbcs(=(^=r1h89d%gk4d7*v='
+SECRET_KEY = 'The most secret key, it should consist of random numbers, letters and symbols'
 
 # List of callables that know how to import templates from various sources.
 TEMPLATE_LOADERS = (
@@ -278,7 +291,12 @@ CACHES = {
     }
 }
 
-try:
-    from robotom.local_settings import *
-except BaseException:
-    pass
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Have to uncomment and fill this params in production settings.py
+# EMAIL_USE_TLS = True
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_HOST_USER = 'email@example.com'
+# EMAIL_HOST_PASSWORD = 'password'

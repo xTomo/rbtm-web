@@ -187,15 +187,16 @@ def experiment_view(request):
     tomo = get_object_or_404(Tomograph, pk=1)
     result = None
     success_msg = ''
+    source_page = 'experiment:index'
 
     if request.method == 'POST':
         if 'on_exp' in request.POST:
             success_msg = u'Томограф включен'
-            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_ON.format(TOMO_NUM), 'experiment:index')
+            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_ON.format(TOMO_NUM), source_page)
 
         if 'of_exp' in request.POST:
             success_msg = u'Томограф выключен'
-            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(TOMO_NUM), 'experiment:index')
+            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(TOMO_NUM), source_page)
 
     if result:
         if result['error']:
@@ -220,44 +221,45 @@ def experiment_adjustment(request):
     tomo = get_object_or_404(Tomograph, pk=1)
     result = None
     success_msg = ''
+    source_page = 'experiment:index_adjustment'
 
     if request.method == 'POST':
         if 'move_hor_submit' in request.POST:
             info = json.dumps(int(request.POST['move_hor']))
-            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_HORIZ.format(TOMO_NUM), info, 'experiment:index_adjustment')
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_HORIZ.format(TOMO_NUM), info, source_page)
             success_msg = u'Горизонтальное положение образца изменено'
 
         if 'move_ver_submit' in request.POST: 
             info = json.dumps(int(request.POST['move_ver']))
-            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_VERT.format(TOMO_NUM), info, 'experiment:index_adjustment')
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_VERT.format(TOMO_NUM), info, source_page)
             success_msg = u'Вертикальное положение образца изменено'
 
         if 'rotate_submit' in request.POST: 
             info = json.dumps(float(request.POST['rotate']))
-            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_ANGLE.format(TOMO_NUM), info, 'experiment:index_adjustment')
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_ANGLE.format(TOMO_NUM), info, source_page)
             success_msg = u'Образец повернут'
 
         if 'reset_submit' in request.POST: 
-            result = try_request_get(request, settings.EXPERIMENT_MOTOR_RESET_ANGLE.format(TOMO_NUM), 'experiment:index_adjustment')
+            result = try_request_get(request, settings.EXPERIMENT_MOTOR_RESET_ANGLE.format(TOMO_NUM), source_page)
             success_msg = u'Текущий угол поворота принят за 0'
 
         if 'text_gate' in request.POST:
             if request.POST.get('gate_state', None) == 'open':
-                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_OPEN.format(TOMO_NUM), 'experiment:index_adjustment')
+                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_OPEN.format(TOMO_NUM), source_page)
                 success_msg = u'Заслонка открыта'
 
             elif request.POST.get('gate_state', None) == 'close':
-                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(TOMO_NUM), 'experiment:index_adjustment')
+                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(TOMO_NUM), source_page)
                 success_msg = u'Заслонка закрыта'
 
         if 'experiment_on_voltage' in request.POST: 
             info = json.dumps(float(request.POST['voltage']))
-            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_VOLT.format(TOMO_NUM), info, 'experiment:index_adjustment')
+            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_VOLT.format(TOMO_NUM), info, source_page)
             success_msg = u'Напряжение установлено'
 
         if 'experiment_on_current' in request.POST: 
             info = json.dumps(float(request.POST['current']))
-            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_CURR.format(TOMO_NUM), info, 'experiment:index_adjustment')
+            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_CURR.format(TOMO_NUM), info, source_page)
             success_msg = u'Сила тока установлена'
 
         if 'picture_exposure_submit' in request.POST: 
@@ -307,6 +309,7 @@ def experiment_adjustment(request):
 def experiment_interface(request):
     migrations()
     tomo = get_object_or_404(Tomograph, pk=1)
+    source_page = 'experiment:index_interface'
 
     if request.method == 'POST':
         if 'parameters' in request.POST:
@@ -342,14 +345,14 @@ def experiment_interface(request):
                     }
             })
 
-            result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), simple_experiment, 'experiment:index_interface')
+            result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), simple_experiment, source_page)
             if result['error']:
                 return result['error']
 
             check_result(result, request, tomo, success_msg=u'Эксперимент успешно начался')
 
         if 'turn_down' in request.POST:
-            result = try_request_get(request, settings.EXPERIMENT_STOP.format(TOMO_NUM), 'experiment:index_interface')
+            result = try_request_get(request, settings.EXPERIMENT_STOP.format(TOMO_NUM), source_page)
             if result['error']:
                 return result['error']
 

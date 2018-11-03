@@ -1,5 +1,8 @@
+// TODO: check it
+// this function seems to not be used
 function Disable() {
 
+    console.log('the "unused" function Disable() was still used, please remove corresponding TODO')
 
     document.getElementById('picture_exposure_submit').value="Получение...";
     document.getElementById('picture_exposure_submit').disabled = true;
@@ -10,8 +13,11 @@ function Disable() {
 
 }
 
+// TODO: check it
+// this function seems to not be used
 function post(path, params) {
 
+    console.log('the "unused" function post(path, params) was still used, please remove corresponding TODO')
 
     var form = document.createElement("form");
     form.setAttribute("method", "post");

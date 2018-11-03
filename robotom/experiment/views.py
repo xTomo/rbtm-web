@@ -31,6 +31,15 @@ GET_HOR = 'get-horizontal-position'
 GET_ANGL = 'get-angle-position'
 GET_SHUT = 'get-shutter-state'
 
+TOMO_NUM = 1
+
+remote_url_settings = {
+        GET_VOLT: settings.EXPERIMENT_SOURCE_GET_VOLT.format(TOMO_NUM),
+        GET_CURR: settings.EXPERIMENT_SOURCE_GET_CURR.format(TOMO_NUM),
+        GET_VERT: settings.EXPERIMENT_MOTOR_GET_VERT.format(TOMO_NUM),
+        GET_HOR: settings.EXPERIMENT_MOTOR_GET_HORIZ.format(TOMO_NUM),
+        GET_ANGL: settings.EXPERIMENT_MOTOR_GET_ANGLE.format(TOMO_NUM),
+        GET_SHUT: settings.EXPERIMENT_SHUTTER_GET_STATUS.format(TOMO_NUM),
     }
 
 local_url_settings = {

@@ -307,11 +307,16 @@ def experiment_adjustment(request):
 @login_required
 @user_passes_test(has_experiment_access)
 def experiment_interface(request):
+
     migrations()
+
     tomo = get_object_or_404(Tomograph, pk=1)
+    result = None
+    success_msg = ''
     source_page = 'experiment:index_interface'
 
     if request.method == 'POST':
+
         if 'parameters' in request.POST:
             exp_id = uuid.uuid4()
             timestamp = time.time()
@@ -344,19 +349,17 @@ def experiment_interface(request):
                             }
                     }
             })
-
             result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), simple_experiment, source_page)
-            if result['error']:
-                return result['error']
-
-            check_result(result, request, tomo, success_msg=u'Эксперимент успешно начался')
+            success_msg = u'Эксперимент успешно начался'
 
         if 'turn_down' in request.POST:
             result = try_request_get(request, settings.EXPERIMENT_STOP.format(TOMO_NUM), source_page)
-            if result['error']:
-                return result['error']
+            success_msg = u'Эксперимент окончен'
 
-            check_result(result, request, tomo, success_msg=u'Эксперимент окончен')
+    if result:
+        if result['error']:
+            return result['error']
+        check_result(result, request, tomo, success_msg)
 
     get_current_state(request, tomo)
     set_current_state_msg(request, tomo)

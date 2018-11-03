@@ -197,10 +197,10 @@ def experiment_view(request):
             success_msg = u'Томограф выключен'
             result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(TOMO_NUM), 'experiment:index')
 
-    if result['error']:
-        return result['error']
-
-    check_result(result, request, tomo, success_msg)
+    if result:
+        if result['error']:
+            return result['error']
+        check_result(result, request, tomo, success_msg)
 
     get_current_state(request, tomo)
     set_current_state_msg(request, tomo)

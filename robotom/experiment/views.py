@@ -5,21 +5,22 @@ from django.conf import settings
 from django.core.urlresolvers import reverse
 from django.contrib import messages
 from django.contrib.messages import get_messages
+from django.core.files.storage import default_storage
+
+from models import Tomograph
+from requests.exceptions import Timeout
+from functools import wraps
+
 import logging
 import hashlib
 import random
 import requests
 import tempfile
 import os
-from models import Tomograph
-from django.shortcuts import get_object_or_404
 import json
-from requests.exceptions import Timeout
 import uuid
 import time
 import datetime
-from django.core.files.storage import default_storage
-from functools import wraps
 
 experiment_logger = logging.getLogger('experiment_logger')
 

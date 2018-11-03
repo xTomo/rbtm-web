@@ -130,7 +130,10 @@ def try_request_get(request, address, source_page=''):
     return result
 
 
-def check_result(response_dict, request, tomo, success_msg=''):
+def check_result(result, request, tomo, success_msg=''):
+
+    response_dict = result['response_dict']
+
     if response_dict['success']:
         if success_msg:
             messages.success(request, success_msg)
@@ -186,16 +189,14 @@ def experiment_view(request):
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Томограф включен')
+            check_result(result, request, tomo, success_msg=u'Томограф включен')
             
         if 'of_exp' in request.POST:
             result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(1), 'experiment:index')
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Томограф выключен')
+            check_result(result, request, tomo, success_msg=u'Томограф выключен')
     
     get_current_state(request, tomo)
     set_current_state_msg(request, tomo)
@@ -219,8 +220,7 @@ def experiment_adjustment(request):
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Горизонтальное положение образца изменено')
+            check_result(result, request, tomo, success_msg=u'Горизонтальное положение образца изменено')
         
         if 'move_ver_submit' in request.POST: 
             info = json.dumps(int(request.POST['move_ver']))
@@ -228,8 +228,7 @@ def experiment_adjustment(request):
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Вертикальное положение образца изменено')
+            check_result(result, request, tomo, success_msg=u'Вертикальное положение образца изменено')
     
         if 'rotate_submit' in request.POST: 
             info = json.dumps(float(request.POST['rotate']))
@@ -237,16 +236,14 @@ def experiment_adjustment(request):
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Образец повернут')
+            check_result(result, request, tomo, success_msg=u'Образец повернут')
 
         if 'reset_submit' in request.POST: 
             result = try_request_get(request, settings.EXPERIMENT_MOTOR_RESET_ANGLE.format(1), 'experiment:index_adjustment')
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Текущий угол поворота принят за 0')
+            check_result(result, request, tomo, success_msg=u'Текущий угол поворота принят за 0')
         
         if 'text_gate' in request.POST:
             if request.POST.get('gate_state', None) == 'open':
@@ -254,16 +251,14 @@ def experiment_adjustment(request):
                 if result['error']:
                     return result['error']
 
-                response_dict = result['response_dict']
-                check_result(response_dict, request, tomo, success_msg=u'Заслонка открыта')
+                check_result(result, request, tomo, success_msg=u'Заслонка открыта')
 
             elif request.POST.get('gate_state', None) == 'close':
                 result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(1), 'experiment:index_adjustment')
                 if result['error']:
                     return result['error']
 
-                response_dict = result['response_dict']
-                check_result(response_dict, request, tomo, success_msg=u'Заслонка закрыта')
+                check_result(result, request, tomo, success_msg=u'Заслонка закрыта')
 
         if 'experiment_on_voltage' in request.POST: 
             info = json.dumps(float(request.POST['voltage']))
@@ -271,8 +266,7 @@ def experiment_adjustment(request):
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Напряжение установлено')
+            check_result(result, request, tomo, success_msg=u'Напряжение установлено')
 
         if 'experiment_on_current' in request.POST: 
             info = json.dumps(float(request.POST['current']))
@@ -280,8 +274,7 @@ def experiment_adjustment(request):
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Сила тока установлена')
+            check_result(result, request, tomo, success_msg=u'Сила тока установлена')
 
         if 'picture_exposure_submit' in request.POST: 
             try:
@@ -364,16 +357,14 @@ def experiment_interface(request):
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Эксперимент успешно начался')
+            check_result(result, request, tomo, success_msg=u'Эксперимент успешно начался')
 
         if 'turn_down' in request.POST:
             result = try_request_get(request, settings.EXPERIMENT_STOP.format(1), 'experiment:index_interface')
             if result['error']:
                 return result['error']
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Эксперимент окончен')
+            check_result(result, request, tomo, success_msg=u'Эксперимент окончен')
 
     get_current_state(request, tomo)
     set_current_state_msg(request, tomo)

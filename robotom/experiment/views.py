@@ -6,6 +6,7 @@ from django.core.urlresolvers import reverse
 from django.contrib import messages
 from django.contrib.messages import get_messages
 from django.core.files.storage import default_storage
+from django.http import HttpResponse
 
 from models import Tomograph
 from requests.exceptions import Timeout
@@ -386,3 +387,19 @@ def experiment_interface(request):
         'caption': 'Эксперимент',
         'tomograph': tomo,
     })
+
+
+@login_required
+@user_passes_test(has_experiment_access)
+def experiment_tomograph(request, value_to_get):
+
+    experiment_url = remote_url_settings[value_to_get]
+    requests_response = requests.get(experiment_url, timeout=settings.TIMEOUT_DEFAULT)
+
+    django_response = HttpResponse(
+        content=requests_response.content,
+        status=requests_response.status_code,
+        content_type=requests_response.headers['Content-Type']
+    )
+
+    return django_response

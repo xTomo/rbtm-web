@@ -218,9 +218,11 @@
 
                                         <input type="submit"
                                                style="white-space:normal; margin-top:7px; margin-bottom:7px"
-                                               class="btn btn-default btn-md" name="picture_exposure_submit"
+                                               class="btn btn-default btn-md"
+                                               name="picture_exposure_submit"
                                                id="picture_exposure_submit"
-                                               value="Предпросмотр" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                               value="Предпросмотр"
+                                               {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
                                     </div>
                                 </form>
                             </div>

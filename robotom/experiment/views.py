@@ -43,16 +43,17 @@ remote_url_settings = {
         GET_SHUT: settings.EXPERIMENT_SHUTTER_GET_STATUS.format(TOMO_NUM),
     }
 
+tomo_path = '../tomograph/{}'
+
 local_url_settings = {
-        'get_voltage_url': '../tomograph/{}'.format(GET_VOLT),
-        'get_current_url': '../tomograph/{}'.format(GET_CURR),
-        'get_vert_url': '../tomograph/{}'.format(GET_VERT),
-        'get_horiz_url': '../tomograph/{}'.format(GET_HOR),
-        'get_angle_url': '../tomograph/{}'.format(GET_ANGL),
-        'get_shutter_url': '../tomograph/{}'.format(GET_SHUT),
+        'get_voltage_url': tomo_path.format(GET_VOLT),
+        'get_current_url': tomo_path.format(GET_CURR),
+        'get_vert_url': tomo_path.format(GET_VERT),
+        'get_horiz_url': tomo_path.format(GET_HOR),
+        'get_angle_url': tomo_path.format(GET_ANGL),
+        'get_shutter_url': tomo_path.format(GET_SHUT),
     }
 
-js_url_settings = json.dumps(local_url_settings)
 
 def has_experiment_access(user):
     return user.userprofile.is_admin or user.userprofile.is_experimentator
@@ -217,6 +218,9 @@ def experiment_view(request):
 def experiment_adjustment(request):
 
     migrations()
+
+    js_urls = {k: request.build_absolute_uri(v) for k, v in local_url_settings.iteritems()}
+    js_url_settings = json.dumps(js_urls)
 
     tomo = get_object_or_404(Tomograph, pk=1)
     result = None

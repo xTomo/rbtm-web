@@ -193,6 +193,7 @@ def make_info(post_args):
 def storage_view(request):
     records = []
     num_pages = 0
+    page_size = 8
     to_show = False
     storage_url = request.build_absolute_uri(reverse('storage:index'))
 
@@ -218,7 +219,7 @@ def storage_view(request):
                 messages.error(request, u'Не найдено ни одной записи')
             else:
                 to_show = True
-            num_pages = len(records) / 8
+            num_pages = len(records) / page_size
         else:
             storage_logger.error(u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
             messages.error(request, u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))

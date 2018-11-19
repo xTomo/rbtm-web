@@ -268,6 +268,8 @@
         var page_size = '{{ page_size }}'
    </script>
 
+{% load staticfiles %}
 
+    <script type='text/javascript' src="{% static 'storage/js/storage_index.js' %}"></script>
 
 {% endblock content %}

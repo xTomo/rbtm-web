@@ -12,6 +12,7 @@ from requests.exceptions import Timeout
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 import h5py
+from django.core.urlresolvers import reverse
 
 storage_logger = logging.getLogger('storage_logger')
 
@@ -193,6 +194,7 @@ def storage_view(request):
     records = []
     num_pages = 0
     to_show = False
+    storage_url = request.build_absolute_uri(reverse('storage:index'))
 
     info = ""
     if request.method == "GET":

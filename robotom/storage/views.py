@@ -2,17 +2,20 @@
 import logging
 import os
 import tempfile
+import requests
+import json
+import h5py
+
 from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.http import HttpResponseBadRequest, HttpResponse
-import requests
-import json
 from django.shortcuts import render
-from requests.exceptions import Timeout
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
-import h5py
 from django.core.urlresolvers import reverse
+
+from requests.exceptions import Timeout
+
 
 storage_logger = logging.getLogger('storage_logger')
 

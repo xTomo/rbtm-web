@@ -245,6 +245,8 @@ def storage_view(request):
         'record_range': records,
         'toShowResult': to_show,
         'pages': range(1, num_pages + 2),
+        'storage_url': storage_url,
+        'page_size': page_size
     })
 
 

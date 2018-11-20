@@ -1,5 +1,6 @@
-//console.log(`storage_url: ${ storage_url }`)
-//console.log(`page_size: ${ page_size }`)
+console.log(`storage_url: ${ storage_url }`)
+console.log(`page_size: ${ page_size }`)
+console.log(`request_is_secure: ${ request_is_secure }`)
 
 function showPage(page) {
     var divs = $(".paginated-content");

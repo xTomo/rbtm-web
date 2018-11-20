@@ -22,7 +22,8 @@ main_logger = logging.getLogger('main_logger')
 
 
 def index(request):
-    return render(request, 'main/index.html', {'caption': 'ROBO-TOM'})
+    host_is_secure = 'secure' if request.is_secure() else 'not secure'
+    return render(request, 'main/index.html', {'caption': 'ROBO-TOM', 'host_is_secure': host_is_secure})
 
 
 @login_required

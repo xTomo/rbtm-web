@@ -198,7 +198,7 @@ def storage_view(request):
     num_pages = 0
     page_size = 8
     to_show = False
-    request_is_secure = 'secure' if request.is_secure() else 'non secure'
+
     storage_url = request.build_absolute_uri(reverse('storage:index'))
 
     info = ""
@@ -248,7 +248,6 @@ def storage_view(request):
         'pages': range(1, num_pages + 2),
         'storage_url': storage_url,
         'page_size': page_size,
-        'request_is_secure': request_is_secure,
     })
 
 

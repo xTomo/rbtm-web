@@ -5,6 +5,7 @@ import tempfile
 import requests
 import json
 import h5py
+import math
 
 from django.contrib import messages
 from django.core.files.storage import default_storage
@@ -234,7 +235,7 @@ def storage_view(request):
                 messages.error(request, u'Не найдено ни одной записи')
             else:
                 to_show = True
-            num_pages = len(records) / page_size
+            num_pages = int(math.ceil(1.0 * len(records) / page_size))
         else:
             storage_logger.error(u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
             messages.error(request, u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
@@ -256,7 +257,7 @@ def storage_view(request):
         'caption': 'Хранилище',
         'record_range': records,
         'toShowResult': to_show,
-        'pages': range(1, num_pages + 2),
+        'pages': range(1, num_pages + 1),
         'storage_url': storage_url,
         'page_size': page_size,
     })

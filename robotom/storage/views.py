@@ -205,11 +205,12 @@ def storage_view(request):
 
     storage_url = request.build_absolute_uri(reverse('storage:index'))
 
-    # # force https in urls
-    # host = request.get_host()
-    # prod = ('127.0.0.1' not in host) and ('localhost' not in host)
-    # if prod:
-    #     storage_url = storage_url.replace('http', 'https')
+    # force https in urls — kludged until build_absolute_uri not return correct protocol
+    host = request.get_host()
+    prod = ('127.0.0.1' not in host) and ('localhost' not in host)
+    if prod:
+        storage_url = force_https(storage_url)
+    # end of force https kludge
 
     info = ""
     if request.method == "GET":

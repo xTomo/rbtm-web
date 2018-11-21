@@ -21,7 +21,7 @@ $(".pagination").find("li").find("a").click(function () {
 function deleteExperiment(experiment_id) {
     if (confirm("Вы действительно хотите удалить эксперимент? Его невозможно будет восстановить.")) {
         $.ajax({
-            url: storage_url + 'delete_experiment_' + experiment_id,
+            url: storage_url + 'delete_experiment_' + experiment_id + '/',
             method: 'GET',
             dataType: 'text',
             success: function () {

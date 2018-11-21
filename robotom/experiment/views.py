@@ -43,7 +43,7 @@ remote_url_settings = {
         GET_SHUT: settings.EXPERIMENT_SHUTTER_GET_STATUS.format(TOMO_NUM),
     }
 
-tomo_path = '../tomograph/{}'
+tomo_path = '../tomograph/{}/'
 
 local_url_settings = {
         'get_voltage_url': tomo_path.format(GET_VOLT),

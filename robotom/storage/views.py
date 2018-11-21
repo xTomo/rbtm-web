@@ -191,6 +191,10 @@ def make_info(post_args):
     return json.dumps(request)
 
 
+def force_https(url):
+    return url.replace('http', 'https') if not url.startswith('https') else url
+
+
 @login_required
 @user_passes_test(is_active)
 def storage_view(request):

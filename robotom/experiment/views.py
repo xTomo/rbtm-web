@@ -394,3 +394,7 @@ def experiment_tomograph(request, value_to_get):
     )
 
     return django_response
+
+
+def force_https(url):
+    return url.replace('http', 'https') if not url.startswith('https') else url

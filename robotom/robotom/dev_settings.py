@@ -294,6 +294,10 @@ CACHES = {
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
+if not DEBUG:
+    os.environ['HTTPS'] = "on"
+    os.environ['wsgi.url_scheme'] = 'https'
+
 # Have to uncomment and fill this params in production settings.py
 # EMAIL_USE_TLS = True
 # EMAIL_HOST = 'smtp.gmail.com'

@@ -221,10 +221,11 @@ def experiment_adjustment(request):
 
     js_urls = {k: request.build_absolute_uri(v) for k, v in local_url_settings.iteritems()}
 
-    host = request.get_host()
-    prod = ('127.0.0.1' not in host) and ('localhost' not in host)
-    if prod:
-        js_urls = {k: v.replace('http', 'https') for k, v in js_urls.iteritems()}
+    # # force https in urls
+    # host = request.get_host()
+    # prod = ('127.0.0.1' not in host) and ('localhost' not in host)
+    # if prod:
+    #     js_urls = {k: v.replace('http', 'https') for k, v in js_urls.iteritems()}
 
     js_url_settings = json.dumps(js_urls)
 

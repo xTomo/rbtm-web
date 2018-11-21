@@ -201,10 +201,11 @@ def storage_view(request):
 
     storage_url = request.build_absolute_uri(reverse('storage:index'))
 
-    host = request.get_host()
-    prod = ('127.0.0.1' not in host) and ('localhost' not in host)
-    if prod:
-        storage_url = storage_url.replace('http', 'https')
+    # # force https in urls
+    # host = request.get_host()
+    # prod = ('127.0.0.1' not in host) and ('localhost' not in host)
+    # if prod:
+    #     storage_url = storage_url.replace('http', 'https')
 
     info = ""
     if request.method == "GET":

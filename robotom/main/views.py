@@ -17,13 +17,12 @@ import datetime
 import random
 import requests
 from django.forms import ValidationError
-import os
 
 main_logger = logging.getLogger('main_logger')
 
 
 def index(request):
-    host_is_secure = os.environ['HTTPS'] # 'secure' if request.is_secure() else 'not secure'
+    host_is_secure = 'secure' if request.is_secure() else 'not secure'
     return render(request, 'main/index.html', {'caption': 'ROBO-TOM', 'host_is_secure': host_is_secure})
 
 

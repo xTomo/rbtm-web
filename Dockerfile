@@ -7,6 +7,8 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
+ENV HTTPS=on
+
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y pkg-config python python-pip python-dev apache2 libapache2-mod-wsgi libpq-dev libaugeas0 git libhdf5-dev && \
     rm -rf /var/lib/apt/lists/*

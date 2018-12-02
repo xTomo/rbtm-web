@@ -97,14 +97,8 @@ function setValueOnload(spanId, respJSON, measure) {
             // set the shutter state depending on
             if (spanId === "current_shutter") {
 
-                // TODO: I don't understand next line, value_to_set is a dictionary, why it should be eval()-uated?
-                var dict = eval("(" + value_to_set + ")");
-
-                if (dict["state"] === "OPEN") {
-                    value_to_set = "открыта";
-                } else {
-                    value_to_set = "закрыта";
-                }
+                var dict = JSON.parse(value_to_set);
+                value_to_set = dict.state === "OPEN" ? "открыта" : "закрыта";
 
             }
 

@@ -302,6 +302,7 @@ def storage_record_view(request, storage_record_id):
             frames_info = json.loads(frames.content)
             storage_logger.debug(u'Страница записи: Список изображений: {}'.format(frames_info))
             frames_list = [FrameRecord(frame) for frame in frames_info]
+            frames_list.sort(key=lambda k: k.num, reverse=True)
         else:
             storage_logger.error(
                 u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(frames.status_code))

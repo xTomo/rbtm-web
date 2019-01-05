@@ -1,8 +1,8 @@
 colorama==0.2.5
 Cython==0.26
-Django==1.8
+django==1.8.19
 django-bootstrap3==5.1.1
-django-registration-redux==1.1
+django-registration-redux==1.11
 djangorestframework==3.1.1
 docutils==0.11
 html5lib==0.999

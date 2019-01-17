@@ -263,61 +263,13 @@
         </div>
     {% endif %}
 
-    <script type="text/javascript">
-        pageSize = 8;
+   <script type="text/javascript">
+        var storage_url = '{{ storage_url }}'
+        var page_size = '{{ page_size }}'
+   </script>
 
-        showPage = function (page) {
-            var divs = $(".paginated-content");
-            divs.hide();
-            divs.each(function (n) {
-                if (n >= pageSize * (page - 1) && n < pageSize * page)
-                    $(this).show();
-            });
-        };
+{% load staticfiles %}
 
-        showPage(1);
+    <script type='text/javascript' src="{% static 'storage/js/storage_index.js' %}"></script>
 
-        $(".pagination").find("li").find("a").click(function () {
-            $(".pagination").find("li").removeClass("active");
-            $(this).parent().addClass("active");
-            showPage(parseInt($(this).text()))
-        });
-
-        function deleteExperiment(experiment_id) {
-            if (confirm("Вы действительно хотите удалить эксперимент? Его невозможно будет восстановить.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ")) {
-                $.ajax({
-                    url: '{% url 'storage:index' %}' + 'delete_experiment_' + experiment_id,
-                    method: 'GET',
-                    dataType: 'text',
-                    success: function () {
-                        var errorMessage = document.createElement('div');
-                        errorMessage.className = 'row';
-                        errorMessage.innerHTML = '<div class="col-sm-6 col-sm-offset-3 col-lg-4 col-lg-offset-3">' +
-                                '<div class="alert alert-success">' + '<a class="close" data-dismiss="alert"">&times;</a>' +
-                                'Эксперимент успешно удален</div></div>';
-
-                        var searchResult = document.getElementsByClassName('container-fluid')[2];
-                        searchResult.parentNode.insertBefore(errorMessage, searchResult);
-
-                        var td = document.getElementById('id' + experiment_id);
-                        td.parentNode.removeChild(td);
-                    },
-                    error: function () {
-                        var errorMessage = document.createElement('div');
-                        errorMessage.className = 'row';
-                        errorMessage.innerHTML = '<div class="col-sm-6 col-sm-offset-3 col-lg-4 col-lg-offset-3">' +
-                                '<div class="alert alert-danger">' + '<a class="close" data-dismiss="alert"">&times;</a>' +
-                                'Не удалось удалить эксперимент</div></div>';
-
-                        var searchResult = document.getElementsByClassName('container-fluid')[2];
-                        searchResult.parentNode.insertBefore(errorMessage, searchResult);
-                    }
-                });
-            }
-        }
-
-        function redirectToHdf5Load(host) {
-            location.href = host;
-        }
-    </script>
 {% endblock content %}

@@ -5,23 +5,54 @@ from django.conf import settings
 from django.core.urlresolvers import reverse
 from django.contrib import messages
 from django.contrib.messages import get_messages
+from django.core.files.storage import default_storage
+from django.http import HttpResponse
+
+from models import Tomograph
+from requests.exceptions import Timeout
+from functools import wraps
+
 import logging
 import hashlib
 import random
 import requests
 import tempfile
 import os
-from models import Tomograph
-from django.shortcuts import get_object_or_404
 import json
-from requests.exceptions import Timeout
 import uuid
 import time
 import datetime
-from django.core.files.storage import default_storage
-from functools import wraps
 
 experiment_logger = logging.getLogger('experiment_logger')
+
+GET_VOLT = 'get-voltage'
+GET_CURR = 'get-current'
+GET_VERT = 'get-vertical-position'
+GET_HOR = 'get-horizontal-position'
+GET_ANGL = 'get-angle-position'
+GET_SHUT = 'get-shutter-state'
+
+TOMO_NUM = 1
+
+remote_url_settings = {
+        GET_VOLT: settings.EXPERIMENT_SOURCE_GET_VOLT.format(TOMO_NUM),
+        GET_CURR: settings.EXPERIMENT_SOURCE_GET_CURR.format(TOMO_NUM),
+        GET_VERT: settings.EXPERIMENT_MOTOR_GET_VERT.format(TOMO_NUM),
+        GET_HOR: settings.EXPERIMENT_MOTOR_GET_HORIZ.format(TOMO_NUM),
+        GET_ANGL: settings.EXPERIMENT_MOTOR_GET_ANGLE.format(TOMO_NUM),
+        GET_SHUT: settings.EXPERIMENT_SHUTTER_GET_STATUS.format(TOMO_NUM),
+    }
+
+tomo_path = '../tomograph/{}/'
+
+local_url_settings = {
+        'get_voltage_url': tomo_path.format(GET_VOLT),
+        'get_current_url': tomo_path.format(GET_CURR),
+        'get_vert_url': tomo_path.format(GET_VERT),
+        'get_horiz_url': tomo_path.format(GET_HOR),
+        'get_angle_url': tomo_path.format(GET_ANGL),
+        'get_shutter_url': tomo_path.format(GET_SHUT),
+    }
 
 
 def has_experiment_access(user):
@@ -100,7 +131,10 @@ def try_request_get(request, address, source_page=''):
     return result
 
 
-def check_result(response_dict, request, tomo, success_msg=''):
+def check_result(result, request, tomo, success_msg=''):
+
+    response_dict = result['response_dict']
+
     if response_dict['success']:
         if success_msg:
             messages.success(request, success_msg)
@@ -110,17 +144,6 @@ def check_result(response_dict, request, tomo, success_msg=''):
                     response_dict['error']))
         messages.warning(request, 
             u'Модуль "Эксперимент" работает некорректно в данный момент. Попробуйте позже {}'.format(response_dict['error']))
-        return render(request, 'experiment/adjustment.html', {
-            'full_access': request.user.userprofile.is_experimentator,
-            'caption': 'Эксперимент',
-            'tomograph': tomo,
-            'get_voltage_url': settings.EXPERIMENT_SOURCE_GET_VOLT.format(1),
-            'get_current_url': settings.EXPERIMENT_SOURCE_GET_CURR.format(1),
-            'get_vert_url': settings.EXPERIMENT_MOTOR_GET_VERT.format(1),
-            'get_horiz_url': settings.EXPERIMENT_MOTOR_GET_HORIZ.format(1),
-            'get_angle_url': settings.EXPERIMENT_MOTOR_GET_ANGLE.format(1),
-            'get_shutter_url': settings.EXPERIMENT_SHUTTER_GET_STATUS.format(1),
-        })
 
 
 def set_current_state_msg(request, tomo):
@@ -134,7 +157,7 @@ def set_current_state_msg(request, tomo):
 
 def get_current_state(request, tomo):
     try:
-        result = try_request_get(request, settings.EXPERIMENT_GET_STATE.format(1))
+        result = try_request_get(request, settings.EXPERIMENT_GET_STATE.format(TOMO_NUM))
         if result['error']:
             tomo.state = 'unavailable'
         else:
@@ -159,25 +182,28 @@ def update_state_before_run(view):
 @login_required
 @user_passes_test(has_experiment_access)
 def experiment_view(request):
+
     migrations()
+
     tomo = get_object_or_404(Tomograph, pk=1)
+    result = None
+    success_msg = ''
+    source_page = 'experiment:index'
+
     if request.method == 'POST':
-        if 'on_exp' in request.POST: 
-            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_ON.format(1), 'experiment:index')
-            if result['error']:
-                return result['error']
+        if 'on_exp' in request.POST:
+            success_msg = u'Томограф включен'
+            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_ON.format(TOMO_NUM), source_page)
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Томограф включен')
-            
         if 'of_exp' in request.POST:
-            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(1), 'experiment:index')
-            if result['error']:
-                return result['error']
+            success_msg = u'Томограф выключен'
+            result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(TOMO_NUM), source_page)
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Томограф выключен')
-    
+    if result:
+        if result['error']:
+            return result['error']
+        check_result(result, request, tomo, success_msg)
+
     get_current_state(request, tomo)
     set_current_state_msg(request, tomo)
     return render(request, 'experiment/start.html', {
@@ -190,85 +216,69 @@ def experiment_view(request):
 @login_required
 @user_passes_test(has_experiment_access)
 def experiment_adjustment(request):
+
     migrations()
+
+    js_urls = {k: request.build_absolute_uri(v) for k, v in local_url_settings.iteritems()}
+
+    # force https in urls — kludged until build_absolute_uri not return correct protocol
+    host = request.get_host()
+    prod = ('127.0.0.1' not in host) and ('localhost' not in host)
+    if prod:
+        js_urls = {k: force_https(v) for k, v in js_urls.iteritems()}
+    # end of force https kludge
+
+    js_url_settings = json.dumps(js_urls)
+
     tomo = get_object_or_404(Tomograph, pk=1)
+    result = None
+    success_msg = ''
+    source_page = 'experiment:index_adjustment'
 
     if request.method == 'POST':
         if 'move_hor_submit' in request.POST:
             info = json.dumps(int(request.POST['move_hor']))
-            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_HORIZ.format(1), info, 'experiment:index_adjustment')
-            if result['error']:
-                return result['error']
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_HORIZ.format(TOMO_NUM), info, source_page)
+            success_msg = u'Горизонтальное положение образца изменено'
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Горизонтальное положение образца изменено')
-        
         if 'move_ver_submit' in request.POST: 
             info = json.dumps(int(request.POST['move_ver']))
-            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_VERT.format(1), info, 'experiment:index_adjustment')
-            if result['error']:
-                return result['error']
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_VERT.format(TOMO_NUM), info, source_page)
+            success_msg = u'Вертикальное положение образца изменено'
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Вертикальное положение образца изменено')
-    
         if 'rotate_submit' in request.POST: 
             info = json.dumps(float(request.POST['rotate']))
-            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_ANGLE.format(1), info, 'experiment:index_adjustment')
-            if result['error']:
-                return result['error']
-
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Образец повернут')
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_ANGLE.format(TOMO_NUM), info, source_page)
+            success_msg = u'Образец повернут'
 
         if 'reset_submit' in request.POST: 
-            result = try_request_get(request, settings.EXPERIMENT_MOTOR_RESET_ANGLE.format(1), 'experiment:index_adjustment')
-            if result['error']:
-                return result['error']
+            result = try_request_get(request, settings.EXPERIMENT_MOTOR_RESET_ANGLE.format(TOMO_NUM), source_page)
+            success_msg = u'Текущий угол поворота принят за 0'
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Текущий угол поворота принят за 0')
-        
         if 'text_gate' in request.POST:
             if request.POST.get('gate_state', None) == 'open':
-                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_OPEN.format(1), 'experiment:index_adjustment')
-                if result['error']:
-                    return result['error']
-
-                response_dict = result['response_dict']
-                check_result(response_dict, request, tomo, success_msg=u'Заслонка открыта')
+                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_OPEN.format(TOMO_NUM), source_page)
+                success_msg = u'Заслонка открыта'
 
             elif request.POST.get('gate_state', None) == 'close':
-                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(1), 'experiment:index_adjustment')
-                if result['error']:
-                    return result['error']
-
-                response_dict = result['response_dict']
-                check_result(response_dict, request, tomo, success_msg=u'Заслонка закрыта')
+                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(TOMO_NUM), source_page)
+                success_msg = u'Заслонка закрыта'
 
         if 'experiment_on_voltage' in request.POST: 
             info = json.dumps(float(request.POST['voltage']))
-            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_VOLT.format(1), info, 'experiment:index_adjustment')
-            if result['error']:
-                return result['error']
-
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Напряжение установлено')
+            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_VOLT.format(TOMO_NUM), info, source_page)
+            success_msg = u'Напряжение установлено'
 
         if 'experiment_on_current' in request.POST: 
             info = json.dumps(float(request.POST['current']))
-            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_CURR.format(1), info, 'experiment:index_adjustment')
-            if result['error']:
-                return result['error']
-
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Сила тока установлена')
+            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_CURR.format(TOMO_NUM), info, source_page)
+            success_msg = u'Сила тока установлена'
 
         if 'picture_exposure_submit' in request.POST: 
             try:
                 exposure = request.POST['picture_exposure']
                 data = json.dumps(float(exposure))
-                response = requests.post(settings.EXPERIMENT_DETECTOR_GET_FRAME.format(1), data, stream=True)
+                response = requests.post(settings.EXPERIMENT_DETECTOR_GET_FRAME.format(TOMO_NUM), data, stream=True)
                 if response.status_code != 200:
                     messages.warning(request, u'Не удалось получить картинку')
                     experiment_logger.error(u'Не удалось получить картинку, код ошибки: {}'.format(response.status_code))
@@ -287,37 +297,38 @@ def experiment_adjustment(request):
                         'preview_path': os.path.join(settings.MEDIA_URL, file_name),
                         'preview': True,
                         'exposure': exposure,
-                        'get_voltage_url': settings.EXPERIMENT_SOURCE_GET_VOLT.format(1),
-                        'get_current_url': settings.EXPERIMENT_SOURCE_GET_CURR.format(1),
-                        'get_vert_url': settings.EXPERIMENT_MOTOR_GET_VERT.format(1),
-                        'get_horiz_url': settings.EXPERIMENT_MOTOR_GET_HORIZ.format(1),
-                        'get_angle_url': settings.EXPERIMENT_MOTOR_GET_ANGLE.format(1),
-                        'get_shutter_url': settings.EXPERIMENT_SHUTTER_GET_STATUS.format(1),
                         'tomograph': tomo,
+                        'js_url_settings': js_url_settings,
                     })
             except BaseException as e:
                 messages.warning(request, u'Не удалось выполнить предпросмотр. Попробуйте повторно')
                 experiment_logger.error(e)
 
+    if result:
+        if result['error']:
+            return result['error']
+        check_result(result, request, tomo, success_msg)
+
     return render(request, 'experiment/adjustment.html', {
         'caption': 'Эксперимент',
-        'get_voltage_url': settings.EXPERIMENT_SOURCE_GET_VOLT.format(1),
-        'get_current_url': settings.EXPERIMENT_SOURCE_GET_CURR.format(1),
-        'get_vert_url': settings.EXPERIMENT_MOTOR_GET_VERT.format(1),
-        'get_horiz_url': settings.EXPERIMENT_MOTOR_GET_HORIZ.format(1),
-        'get_angle_url': settings.EXPERIMENT_MOTOR_GET_ANGLE.format(1),
-        'get_shutter_url': settings.EXPERIMENT_SHUTTER_GET_STATUS.format(1),
         'tomograph': tomo,
+        'js_url_settings': js_url_settings,
     })
 
 
 @login_required
 @user_passes_test(has_experiment_access)
 def experiment_interface(request):
+
     migrations()
+
     tomo = get_object_or_404(Tomograph, pk=1)
+    result = None
+    success_msg = ''
+    source_page = 'experiment:index_interface'
 
     if request.method == 'POST':
+
         if 'parameters' in request.POST:
             exp_id = uuid.uuid4()
             timestamp = time.time()
@@ -339,7 +350,7 @@ def experiment_interface(request):
                         'EMPTY':
                             {
                                 'count': int(float(request.POST['empty_quantity'])),
-                                'exposure': float(request.POST['dark_exposure'])  # TODO: typo? 'empty_exposure'?
+                                'exposure': float(request.POST['empty_exposure'])
                             },
                         'DATA':
                             {
@@ -350,21 +361,17 @@ def experiment_interface(request):
                             }
                     }
             })
-
-            result = try_request_post(request, settings.EXPERIMENT_START.format(1), simple_experiment, 'experiment:index_interface')
-            if result['error']:
-                return result['error']
-
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Эксперимент успешно начался')
+            result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), simple_experiment, source_page)
+            success_msg = u'Эксперимент успешно начался'
 
         if 'turn_down' in request.POST:
-            result = try_request_get(request, settings.EXPERIMENT_STOP.format(1), 'experiment:index_interface')
-            if result['error']:
-                return result['error']
+            result = try_request_get(request, settings.EXPERIMENT_STOP.format(TOMO_NUM), source_page)
+            success_msg = u'Эксперимент окончен'
 
-            response_dict = result['response_dict']
-            check_result(response_dict, request, tomo, success_msg=u'Эксперимент окончен')
+    if result:
+        if result['error']:
+            return result['error']
+        check_result(result, request, tomo, success_msg)
 
     get_current_state(request, tomo)
     set_current_state_msg(request, tomo)
@@ -372,3 +379,23 @@ def experiment_interface(request):
         'caption': 'Эксперимент',
         'tomograph': tomo,
     })
+
+
+@login_required
+@user_passes_test(has_experiment_access)
+def experiment_tomograph(request, value_to_get):
+
+    experiment_url = remote_url_settings[value_to_get]
+    requests_response = requests.get(experiment_url, timeout=settings.TIMEOUT_DEFAULT)
+
+    django_response = HttpResponse(
+        content=requests_response.content,
+        status=requests_response.status_code,
+        content_type=requests_response.headers['Content-Type']
+    )
+
+    return django_response
+
+
+def force_https(url):
+    return url.replace('http', 'https') if not url.startswith('https') else url

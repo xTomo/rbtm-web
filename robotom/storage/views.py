@@ -2,16 +2,21 @@
 import logging
 import os
 import tempfile
+import requests
+import json
+import h5py
+import math
+
 from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.http import HttpResponseBadRequest, HttpResponse
-import requests
-import json
 from django.shortcuts import render
-from requests.exceptions import Timeout
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
-import h5py
+from django.core.urlresolvers import reverse
+
+from requests.exceptions import Timeout
+
 
 storage_logger = logging.getLogger('storage_logger')
 
@@ -187,12 +192,26 @@ def make_info(post_args):
     return json.dumps(request)
 
 
+def force_https(url):
+    return url.replace('http', 'https') if not url.startswith('https') else url
+
+
 @login_required
 @user_passes_test(is_active)
 def storage_view(request):
     records = []
     num_pages = 0
+    page_size = 8
     to_show = False
+
+    storage_url = request.build_absolute_uri(reverse('storage:index'))
+
+    # force https in urls — kludged until build_absolute_uri not return correct protocol
+    host = request.get_host()
+    prod = ('127.0.0.1' not in host) and ('localhost' not in host)
+    if prod:
+        storage_url = force_https(storage_url)
+    # end of force https kludge
 
     info = ""
     if request.method == "GET":
@@ -216,7 +235,7 @@ def storage_view(request):
                 messages.error(request, u'Не найдено ни одной записи')
             else:
                 to_show = True
-            num_pages = len(records) / 8
+            num_pages = int(math.ceil(1.0 * len(records) / page_size))
         else:
             storage_logger.error(u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
             messages.error(request, u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
@@ -238,7 +257,9 @@ def storage_view(request):
         'caption': 'Хранилище',
         'record_range': records,
         'toShowResult': to_show,
-        'pages': range(1, num_pages + 2),
+        'pages': range(1, num_pages + 1),
+        'storage_url': storage_url,
+        'page_size': page_size,
     })
 
 
@@ -281,6 +302,7 @@ def storage_record_view(request, storage_record_id):
             frames_info = json.loads(frames.content)
             storage_logger.debug(u'Страница записи: Список изображений: {}'.format(frames_info))
             frames_list = [FrameRecord(frame) for frame in frames_info]
+            frames_list.sort(key=lambda k: k.num, reverse=True)
         else:
             storage_logger.error(
                 u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(frames.status_code))

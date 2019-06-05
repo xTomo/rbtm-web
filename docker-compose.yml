@@ -1,6 +1,7 @@
 version: '2.3'
 services:
   database:
+    container_name: rbtmweb_database_1
     image: postgres:9.4
     # ports:
       # - "15432:5432"
@@ -12,10 +13,11 @@ services:
 
   server:
     build: .
+    container_name: rbtmweb_server_1
     ports:
       - "5080:80"
-    links:
-      - database
+    # links:
+    #   - rbtmstorage_database_1
     external_links:
       - rbtmstorage_server_1
     networks:

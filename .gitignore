@@ -6,3 +6,4 @@ media/
 *.py[cod]
 *.log
 robotom/robotom/settings.py
+.DS_Store

@@ -23,7 +23,7 @@ WORKDIR /var/www/web/
 
 RUN pip install -r requirements.txt
 
-RUN a2enmod rewrite ssl
+RUN a2enmod rewrite ssl proxy proxy_http
 
 COPY . /var/www/web/
 

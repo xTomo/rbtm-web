@@ -319,8 +319,12 @@ def storage_record_view(request, storage_record_id):
                        u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
 
+    recon_base_path = '../reconstruct/{}'
+    recon_path = recon_base_path.format(storage_record_id)
+
     return render(request, 'storage/storage_record.html', {
-        "record_id": storage_record_id,
+        'record_id': storage_record_id,
+        'recon_path': recon_path,
         'caption': 'Запись хранилища ' + str(storage_record_id),
         'to_show': to_show,
         'info': record,

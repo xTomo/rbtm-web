@@ -45,6 +45,7 @@ class ExperimentRecord:
             self.advanced = u'Стандартный'
         self.data_angle_step = record['experiment parameters']['DATA']['angle step']
         self.data_count_per_step = record['experiment parameters']['DATA']['count per step']
+        self.data_delay = record['experiment parameters']['DATA']['delay'] or 0
         self.data_step_count = record['experiment parameters']['DATA']['step count']
         self.data_exposure = record['experiment parameters']['DATA']['exposure']
         self.empty_count = record['experiment parameters']['EMPTY']['count']

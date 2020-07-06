@@ -357,7 +357,8 @@ def experiment_interface(request):
                                 'step count': int(float(request.POST['data_shots_quantity'])),
                                 'exposure': float(request.POST['data_shots_exposure']),
                                 'angle step': float(request.POST['data_angle']),
-                                'count per step': int(float(request.POST['data_same']))
+                                'count per step': int(float(request.POST['data_same'])),
+                                'delay': int(float(request.POST['data_delay'])) if request.POST['data_delay'] else 0,
                             }
                     }
             })

@@ -30,7 +30,7 @@
                             <thead>
                             <tr>
                                 <th rowspan="2" style="vertical-align: middle">Образец</th>
-                                <th colspan="4" style="text-align: center">DATA</th>
+                                <th colspan="5" style="text-align: center">DATA</th>
                                 <th colspan="2" style="text-align: center">EMPTY</th>
                                 <th colspan="2" style="text-align: center">DARK</th>
                             </tr>
@@ -38,6 +38,7 @@
                                 <th style="vertical-align: middle">Шаг угла</th>
                                 <th style="vertical-align: middle">Изображений на шаг</th>
                                 <th style="vertical-align: middle">Количество шагов</th>
+                                <th style="vertical-align: middle">Задержка</th>
                                 <th style="vertical-align: middle">Экспозиция</th>
                                 <th style="vertical-align: middle">Количество</th>
                                 <th style="vertical-align: middle">Экспозиция</th>
@@ -51,6 +52,7 @@
                                 <td>{{ info.data_angle_step }}&deg;</td>
                                 <td>{{ info.data_count_per_step }}</td>
                                 <td>{{ info.data_step_count }}</td>
+                                <td>{{ info.data_delay }} с</td>
                                 <td>{{ info.data_exposure|floatformat }} мс</td>
                                 <td>{{ info.empty_count }}</td>
                                 <td>{{ info.empty_exposure|floatformat }} мс</td>

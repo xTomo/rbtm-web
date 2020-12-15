@@ -48,9 +48,11 @@
                                         </div>
 
                                         <input type="submit"
-                                           style="white-space:normal; margin-top:7px; margin-bottom:7px"
-                                           class="btn btn-default btn-md" name="experiment_on_voltage"
-                                           value="Отправить" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
+                                               class="btn btn-default btn-md" name="experiment_on_voltage"
+                                               value="Отправить"
+                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
+                                               disabled {% endif %}>
                                     </div>
                                 </form>
                             </div>
@@ -58,20 +60,23 @@
                                 <form method="POST" action="">
                                     {% csrf_token %}
                                     <label for="current">Ток</label>
-                                        <div class="current_value"><small>Текущая сила тока:
+                                    <div class="current_value"><small>Текущая сила тока:
                                         <span id="current_current">неизвестна</span>
-                                        </small></div>
+                                    </small></div>
 
                                     <div class="input-group">
                                         <input type="number" step="0.01" min="2" max="80"
-                                               class="form-control ntSaveForms" required id="current" name="current" placeholder="2-80">
+                                               class="form-control ntSaveForms" required id="current" name="current"
+                                               placeholder="2-80">
 
                                         <div class="input-group-addon">мА</div>
                                     </div>
                                     <input type="submit"
                                            style="white-space:normal; margin-top:7px; margin-bottom:7px"
                                            class="btn btn-default btn-md" name="experiment_on_current"
-                                           value="Отправить" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                           value="Отправить"
+                                            {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
+                                           disabled {% endif %}>
                                 </form>
                             </div>
                         </div>
@@ -83,7 +88,7 @@
                                         {% csrf_token %}
                                         <label for="move_hor">Сдвиг по горизонтали</label>
                                         <div class="current_value"><small>Текущий сдвиг по горизонтали:
-                                        <span id="current_horiz">неизвестен</span>
+                                            <span id="current_horiz">неизвестен</span>
                                         </small></div>
 
                                         <input type="number" step="1" class="form-control ntSaveForms"
@@ -91,7 +96,9 @@
                                         <input type="submit"
                                                style="white-space:normal; margin-top:7px; margin-bottom:7px"
                                                class="btn btn-default btn-md" name="move_hor_submit"
-                                               value="Сдвинуть образец" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                               value="Сдвинуть образец"
+                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
+                                               disabled {% endif %}>
                                     </div>
                                 </form>
                             </div>
@@ -101,7 +108,7 @@
                                         {% csrf_token %}
                                         <label for="move_ver">Сдвиг по вертикали</label>
                                         <div class="current_value"><small>Текущий сдвиг по вертикали:
-                                        <span id="current_vert">неизвестен</span>
+                                            <span id="current_vert">неизвестен</span>
                                         </small></div>
 
                                         <input type="number" step="1" min="0" class="form-control ntSaveForms"
@@ -110,7 +117,9 @@
                                         <input type="submit"
                                                style="white-space:normal; margin-top:7px; margin-bottom:7px"
                                                class="btn btn-default btn-md" name="move_ver_submit"
-                                               value="Сдвинуть образец" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} disabled {% else %} disabled {% endif %}>
+                                               value="Сдвинуть образец"
+                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %}
+                                               disabled {% else %} disabled {% endif %}>
                                     </div>
                                 </form>
                             </div>
@@ -134,7 +143,9 @@
                                         <input type="submit"
                                                style="white-space:normal; margin-top:7px; margin-bottom:7px"
                                                class="btn btn-default btn-md" name="rotate_submit"
-                                               value="Повернуть" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                               value="Повернуть"
+                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
+                                               disabled {% endif %}>
                                     </div>
                                 </form>
                             </div>
@@ -144,18 +155,24 @@
                                         {% csrf_token %}
                                         <label for="text_gate">Заслонка</label>
                                         <div class="current_value"><small>Текущее состояние заслонки:
-                                        <span id="current_shutter">неизвестно</span>
+                                            <span id="current_shutter">неизвестно</span>
                                         </small></div>
 
                                         <div id="text_gate" class="btn-group" data-toggle="buttons">
-                                            <label class="btn btn-default" id="open"> <input id="open" name="gate_state" type="radio" value="open">Открыта</label>
-                                            <label class="btn btn-default" id="close"> <input id="close" name="gate_state" type="radio" value="close">Закрыта</label>
+                                            <label class="btn btn-default" id="open"> <input id="open" name="gate_state"
+                                                                                             type="radio" value="open">Открыта</label>
+                                            <label class="btn btn-default" id="close"> <input id="close"
+                                                                                              name="gate_state"
+                                                                                              type="radio"
+                                                                                              value="close">Закрыта</label>
                                         </div>
 
                                         <input type="submit"
                                                style="white-space:normal; margin-top:7px; margin-bottom:7px"
                                                class="btn btn-default btn-md" name="text_gate"
-                                               value="Установить заслонку" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                               value="Установить заслонку"
+                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
+                                               disabled {% endif %}>
 
                                     </div>
                                 </form>
@@ -169,7 +186,9 @@
                                         <input type="submit"
                                                style="white-space:normal; margin-top:7px; margin-bottom:7px"
                                                class="btn btn-default btn-md" name="reset_submit"
-                                               value="Принять текущий угол поворота за 0" {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                               value="Принять текущий угол поворота за 0"
+                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
+                                               disabled {% endif %}>
                                     </div>
                                 </form>
 
@@ -193,7 +212,8 @@
                                                name="picture_exposure_submit"
                                                id="picture_exposure_submit"
                                                value="Предпросмотр"
-                                               {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state = "ready" %} {% else %} disabled {% endif %}>
+                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
+                                               disabled {% endif %}>
                                     </div>
                                 </form>
                             </div>

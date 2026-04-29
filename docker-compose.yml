@@ -1,4 +1,4 @@
-version: '3.8'
+version: '2.4'
 services:
   database:
     container_name: rbtmweb_database_1
@@ -11,7 +11,12 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
-      POSTGRES_DB: robotom_users_1
+      POSTGRES_DB: robotom_users
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d robotom_users"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   server:
     build: .
@@ -19,7 +24,8 @@ services:
     ports:
       - "5080:80"
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     external_links:
       - rbtmstorage_server_1
     networks:

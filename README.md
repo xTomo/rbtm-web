@@ -202,98 +202,116 @@ python robotom/manage.py collectstatic --settings=robotom.dev_settings
 
 ### Контекст
 
-Старая база работала под Django 1.8. Схема таблиц приложений (`main`, `experiment`) практически не изменилась — добавлен только `on_delete=CASCADE` на уровне Django ORM, PostgreSQL это не хранит отдельно. Поэтому дамп данных можно перелить напрямую.
+Старая база работала под Django 1.8 / PostgreSQL 9.4. Схема таблиц приложений (`main`, `experiment`) практически не изменилась. Поэтому дамп данных можно перелить напрямую.
 
-### Шаг 1. Дамп старой базы
+**Важно:** PostgreSQL 16 **не может читать** файлы данных от PostgreSQL 9.4 — они физически несовместимы. Если том `/home/robotom/rbtm_data/rbtm_web/db` содержит старые данные, контейнер postgres:16 будет падать с ошибкой:
 
-Старая БД живёт в контейнере `rbtmweb_database_1` (postgres:9.4), имя базы — `robotom_users`.
-
-```bash
-# Из Docker-контейнера (plain SQL)
-docker exec rbtmweb_database_1 pg_dump -U postgres robotom_users > robotom_backup.sql
-
-# Или бинарный формат (более компактный)
-docker exec rbtmweb_database_1 pg_dump -U postgres -F c robotom_users > robotom_backup.dump
+```
+FATAL: database files are incompatible with server
+DETAIL: The data directory was initialized by PostgreSQL version 9.4
 ```
 
-### Шаг 2. Создать новую базу и восстановить дамп
+Необходимо сначала сделать **логический дамп** (SQL), очистить том, и восстановить данные в postgres:16.
 
-Новый контейнер PostgreSQL 16 поднимается через `docker-compose up`. Имя контейнера — `rbtm-web_database_1`.
+---
+
+### Полный сценарий миграции (рекомендуется)
+
+#### Шаг 1. Остановить новый стек (если уже запущен)
 
 ```bash
-# Создать базу в новом контейнере
-docker exec rbtm-web_database_1 psql -U postgres -c "CREATE DATABASE robotom_users;"
-
-# Восстановить из plain SQL
-docker exec -i rbtm-web_database_1 psql -U postgres -d robotom_users < robotom_backup.sql
-
-# Или из бинарного дампа
-docker exec -i rbtm-web_database_1 pg_restore -U postgres -d robotom_users --no-owner --no-acl robotom_backup.dump
+docker-compose down
 ```
 
-### Шаг 3. Применить новые миграции Django
+#### Шаг 2. Сделать дамп через временный postgres:9.4
 
-Django определяет, какие миграции уже применены, по таблице `django_migrations` в базе. Запустите:
+Поднимаем временный контейнер postgres:9.4, монтирующий **тот же том** с данными:
 
 ```bash
-python robotom/manage.py migrate --settings=robotom.dev_settings
+docker run --rm \
+  -v /home/robotom/rbtm_data/rbtm_web/db:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=postgres \
+  --name pg94_temp \
+  -d postgres:9.4
+
+# Дождаться старта (несколько секунд)
+sleep 5
+
+# Сделать дамп базы
+docker exec pg94_temp pg_dump -U postgres robotom_users > robotom_backup.sql
+
+# Остановить временный контейнер
+docker stop pg94_temp
 ```
 
-Django пропустит миграции приложений (`main`, `experiment`), уже записанные в базе, и применит только новые системные миграции Django 5.2.
-
-Если возникает ошибка `relation already exists` (таблица уже есть, но запись о миграции отсутствует):
+#### Шаг 3. Очистить том от старых файлов
 
 ```bash
-python robotom/manage.py migrate --fake-initial --settings=robotom.dev_settings
+# ВНИМАНИЕ: это удаляет все файлы PostgreSQL 9.4 из тома
+sudo rm -rf /home/robotom/rbtm_data/rbtm_web/db/*
+```
+
+#### Шаг 4. Поднять новый стек
+
+```bash
+docker-compose up --build -d
+```
+
+PostgreSQL 16 инициализирует чистую базу данных. Контейнер `rbtmweb_database_1` должен быть в статусе `Up`.
+
+#### Шаг 5. Восстановить дамп в postgres:16
+
+База `robotom_users` создаётся автоматически через `POSTGRES_DB` в `docker-compose.yml`:
+
+```bash
+# Восстановить данные (база уже существует)
+docker exec -i rbtmweb_database_1 psql -U postgres -d robotom_users < robotom_backup.sql
+```
+
+#### Шаг 6. Применить миграции Django 5.2
+
+```bash
+# Применить миграции (--fake-initial — если таблицы уже существуют из дампа)
+docker-compose exec server python robotom/manage.py migrate --fake-initial
 ```
 
 > `--fake-initial` помечает `0001_initial`-миграции как выполненные без создания таблиц — только если таблицы уже существуют в базе.
 
-### Шаг 4. Проверка
+#### Шаг 7. Проверка
 
 ```bash
 # Все миграции должны быть [X]
-python robotom/manage.py showmigrations --settings=robotom.dev_settings
+docker-compose exec server python robotom/manage.py showmigrations
 
-# Системная проверка
-python robotom/manage.py check --settings=robotom.dev_settings
+# Системная проверка Django
+docker-compose exec server python robotom/manage.py check
 ```
 
-### Через Docker (полный сценарий)
+---
+
+### Если старая база ещё не была запущена через новый docker-compose
+
+Если у вас ещё работает старый контейнер с postgres:9.4 под другим именем:
 
 ```bash
-# 1. Дамп из старого контейнера (postgres:9.4, контейнер rbtmweb_database_1)
-docker exec rbtmweb_database_1 pg_dump -U postgres robotom_users > robotom_backup.sql
+# Дамп из старого контейнера
+docker exec <старый_контейнер_pg94> pg_dump -U postgres robotom_users > robotom_backup.sql
 
-# 2. Остановить старый сервер (базу пока не трогать)
-docker stop rbtmweb_server_1
+# Очистить том
+sudo rm -rf /home/robotom/rbtm_data/rbtm_web/db/*
 
-# 3. Поднять новый стек
-docker-compose up --build -d
-
-# 4. Создать базу в новом контейнере (rbtm-web_database_1, postgres:16)
-docker exec rbtm-web_database_1 psql -U postgres -c "CREATE DATABASE robotom_users;"
-
-# 5. Восстановить дамп
-docker exec -i rbtm-web_database_1 psql -U postgres -d robotom_users < robotom_backup.sql
-
-# 6. Применить миграции Django 5.2
-docker-compose exec server python robotom/manage.py migrate --fake-initial
-
-# 7. Проверка
-docker-compose exec server python robotom/manage.py showmigrations
-docker-compose exec server python robotom/manage.py check
-
-# 8. Если всё ОК — остановить старую БД
-docker stop rbtmweb_database_1
+# Поднять новый стек и восстановить (шаги 4-7 выше)
 ```
+
+---
 
 ### Возможные проблемы
 
 | Проблема | Причина | Решение |
 |---|---|---|
-| `relation already exists` | Таблица есть в дампе и в новой базе | Использовать `--fake-initial` |
+| `database files are incompatible with server` | Том содержит данные postgres:9.4, а контейнер postgres:16 | Выполнить полный сценарий выше (дамп → очистить том → восстановить) |
+| `relation already exists` | Таблица есть в дампе и в новой базе | Использовать `--fake-initial` при `migrate` |
 | `column ... does not exist` | В Django 5.2 добавились поля в системные таблицы | Запустить `migrate` без `--fake-initial` |
-| Пользователи не могут войти | Старые хэши MD5 (удалены из `PASSWORD_HASHERS`) | Отправить пользователям ссылку для сброса пароля через `/accounts/password_reset/` |
-| `UnicodeDecodeError` при восстановлении | Дамп не в UTF-8 | Добавить `--encoding=UTF8` при создании дампа |
-| `pg_dump: server version mismatch` | Версия `pg_dump` не совпадает с сервером | Использовать `pg_dump` той же версии, что и сервер (9.4) |
+| Пользователи не могут войти | Старые хэши MD5/SHA1 | Отправить ссылку сброса пароля через `/accounts/password_reset/` |
+| `UnicodeDecodeError` при восстановлении | Дамп не в UTF-8 | Добавить `--encoding=UTF8` при `pg_dump` |
+| `pg_dump: server version mismatch` | Версия `pg_dump` не совпадает с версией сервера | Использовать временный контейнер postgres:9.4 (шаг 2) |

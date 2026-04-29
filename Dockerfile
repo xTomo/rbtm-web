@@ -47,4 +47,5 @@ COPY apache2-foreground /usr/local/bin/
 
 EXPOSE 80
 
+RUN chmod u+x apache2-foreground
 CMD ["apache2-foreground"]

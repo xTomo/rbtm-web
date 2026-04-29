@@ -13,7 +13,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends \
         pkg-config \
         apache2 \
-        libapache2-mod-wsgi-py3 \
+        apache2-dev \
         libpq-dev \
         libhdf5-dev \
         git \
@@ -23,6 +23,12 @@ COPY requirements.txt /var/www/web/requirements.txt
 WORKDIR /var/www/web/
 
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Установить mod_wsgi скомпилированный против Python 3.12 (из pip, а не из apt)
+# apt-версия линкуется к системному Python и не видит наши пакеты
+RUN pip install --no-cache-dir mod_wsgi && \
+    mod_wsgi-express install-module > /etc/apache2/mods-available/wsgi.load && \
+    a2enmod wsgi
 
 RUN a2enmod rewrite ssl proxy proxy_http
 

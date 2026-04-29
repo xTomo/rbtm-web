@@ -31,8 +31,11 @@ services:
     networks:
       - default
       - rbtmstorage_default
-    # volumes:
-    #   - ./robotom/logs:/var/www/web/robotom/logs
+    volumes:
+      # Медиафайлы — монтируем с хоста, чтобы не потерять при пересборке образа
+      - /home/robotom/rbtm_data/rbtm_web/media:/var/www/web/robotom/media
+      # Логи — опционально, для просмотра логов на хосте
+      # - /home/robotom/rbtm_data/rbtm_web/logs:/var/www/web/robotom/logs
     restart: unless-stopped
 
 networks:

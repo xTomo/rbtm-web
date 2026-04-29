@@ -1,4 +1,3 @@
-# coding=utf-8
 from unittest import skip
 from django.test import TestCase
 from django.contrib.auth.models import User
@@ -38,7 +37,7 @@ class StorageIndexTest(TestCase):
                                      'DataFromAngleStep': '', 'DataToAngleStep': '', 'DataFromCountPerStep': '',
                                      'DataToCountPerStep': '', 'DataFromStepCount': '', 'DataToStepCount': ''})
         self.assertEqual(response.status_code, 200)
-        self.assertTrue("alert alert-danger" in response.content)
+        self.assertTrue(b"alert alert-danger" in response.content)
 
     def test_record_page_prohibit_symbols(self):
         response = self.client.get('/storage/storage_record_unreal_record/')
@@ -56,4 +55,4 @@ class StorageIndexTest(TestCase):
         response = self.client.get('/storage/storage_record_unreal-record/')
         self.assertEqual(response.status_code, 200)
 
-        self.assertTrue("alert alert-danger" in response.content)
+        self.assertTrue(b"alert alert-danger" in response.content)

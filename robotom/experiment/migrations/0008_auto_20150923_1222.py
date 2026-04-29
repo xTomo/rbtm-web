@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 from django.db import models, migrations
 
 
@@ -38,7 +35,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='tomograph',
             name='state',
-            field=models.CharField(default=b'unavailable', max_length=12, choices=[(b'unavailable', b'unavailable'), (b'ready', b'ready'), (b'experiment', b'experiment')]),
+            field=models.CharField(default='unavailable', max_length=12, choices=[('unavailable', 'unavailable'), ('ready', 'ready'), ('experiment', 'experiment')]),
             preserve_default=True,
         ),
     ]

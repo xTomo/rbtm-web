@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-    {% load staticfiles %}
+    {% load static %}
     <link rel="stylesheet" href="{% static 'group_styles.css' %}">
     <div class="content">
         <div class="local_title">
@@ -10,7 +10,7 @@
         <table>
             <tr>
                 <td class="cell_photo">
-                    {% load staticfiles %}
+                    {% load static %}
                     <img src="{% static 'images/ichalova_diana.png' %}" alt="Where is an img???" class="img-circle" style="border: 1px solid black"/>
                 </td>
                 <td class="cell_text">

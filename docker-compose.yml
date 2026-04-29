@@ -1,23 +1,25 @@
-version: '2.3'
+version: '3.8'
 services:
   database:
     container_name: rbtmweb_database_1
-    image: postgres:9.4
+    image: postgres:16
     # ports:
-      # - "15432:5432"
+    #   - "15432:5432"
     volumes:
       - /home/robotom/rbtm_data/rbtm_web/db:/var/lib/postgresql/data
     restart: unless-stopped
-    #environment:
-    #   - POSTGRES_PASSWORD=postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: robotom_users_1
 
   server:
     build: .
     container_name: rbtmweb_server_1
     ports:
       - "5080:80"
-    # links:
-    #   - rbtmstorage_database_1
+    depends_on:
+      - database
     external_links:
       - rbtmstorage_server_1
     networks:
@@ -26,6 +28,7 @@ services:
     # volumes:
     #   - ./robotom/logs:/var/www/web/robotom/logs
     restart: unless-stopped
+
 networks:
   rbtmstorage_default:
     external: true

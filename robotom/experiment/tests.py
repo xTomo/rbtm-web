@@ -1,4 +1,3 @@
-# coding=utf-8
 from django.test import TestCase
 from django.test import Client
 from django.contrib.auth.models import User
@@ -16,7 +15,7 @@ class ExpPageTest(TestCase):
 
     def test_exp_available(self):
         response = self.c.get('/experiment/')
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
     '''def test_search_empty(self):
         self.c.login(username='exprm', password='exprm')

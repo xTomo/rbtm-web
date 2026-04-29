@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.conf import settings
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.contrib import messages
 from django.contrib.messages import get_messages
 from django.core.files.storage import default_storage
 from django.http import HttpResponse
 
-from models import Tomograph
+from .models import Tomograph
 from requests.exceptions import Timeout
 from functools import wraps
 
@@ -219,13 +218,13 @@ def experiment_adjustment(request):
 
     migrations()
 
-    js_urls = {k: request.build_absolute_uri(v) for k, v in local_url_settings.iteritems()}
+    js_urls = {k: request.build_absolute_uri(v) for k, v in local_url_settings.items()}
 
     # force https in urls — kludged until build_absolute_uri not return correct protocol
     host = request.get_host()
     prod = ('127.0.0.1' not in host) and ('localhost' not in host)
     if prod:
-        js_urls = {k: force_https(v) for k, v in js_urls.iteritems()}
+        js_urls = {k: force_https(v) for k, v in js_urls.items()}
     # end of force https kludge
 
     js_url_settings = json.dumps(js_urls)
@@ -283,8 +282,8 @@ def experiment_adjustment(request):
                     messages.warning(request, u'Не удалось получить картинку')
                     experiment_logger.error(u'Не удалось получить картинку, код ошибки: {}'.format(response.status_code))
                 else:
-                    salt = hashlib.sha1(str(random.random())).hexdigest()[:5]
-                    file_name = hashlib.sha1(salt + str(request.user.id)).hexdigest() + '.png'
+                    salt = hashlib.sha1(str(random.random()).encode()).hexdigest()[:5]
+                    file_name = hashlib.sha1((salt + str(request.user.id)).encode()).hexdigest() + '.png'
                     temp_file = tempfile.TemporaryFile()
                     for block in response.iter_content(1024 * 8):
                         if not block:

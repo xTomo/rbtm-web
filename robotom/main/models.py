@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -25,7 +23,7 @@ USER_REQUESTS = (
 
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     full_name = models.CharField('ФИО', max_length=100, blank=False)
     
     is_guest = models.BooleanField('Гость', default=True)
@@ -75,6 +73,6 @@ class UserProfile(models.Model):
 
 
 class RoleRequest(models.Model):
-    user = models.ForeignKey(UserProfile)
+    user = models.ForeignKey(UserProfile, on_delete=models.CASCADE)
     role = models.CharField('Запрос на изменение роли', max_length=15, choices=USER_REQUESTS, default='NONE')
     comment = models.TextField('Комментарий', max_length=300, blank=True)

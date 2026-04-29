@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
 import json
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import login as auth_login, authenticate
-from forms import UserRegistrationForm, UserProfileRegistrationForm, UserRoleRequestForm, UserProfileFormDisabled, \
+from .forms import UserRegistrationForm, UserProfileRegistrationForm, UserRoleRequestForm, UserProfileFormDisabled, \
     UserProfileFormEnabled, InactiveAuthenticationForm
-from models import UserProfile, RoleRequest
+from .models import UserProfile, RoleRequest
 from django.core.mail import send_mail
 from django.conf import settings
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.contrib import messages
 import logging
 import hashlib
@@ -99,8 +98,8 @@ def registration_view(request):
 
             user.save()
 
-            salt = hashlib.sha1(str(random.random())).hexdigest()[:5]
-            activation_key = hashlib.sha1(salt + user.email).hexdigest()
+            salt = hashlib.sha1(str(random.random()).encode()).hexdigest()[:5]
+            activation_key = hashlib.sha1((salt + user.email).encode()).hexdigest()
             new_profile.user = user
             new_profile.activation_key = activation_key
             activation_link = u'{}/accounts/confirm/{}'.format(request.get_host(), activation_key)
@@ -176,8 +175,8 @@ def profile_view(request):
     if request.method == 'POST':
         if 'resend' in request.POST:
             user = request.user
-            salt = hashlib.sha1(str(random.random())).hexdigest()[:5]
-            activation_key = hashlib.sha1(salt + user.email).hexdigest()
+            salt = hashlib.sha1(str(random.random()).encode()).hexdigest()[:5]
+            activation_key = hashlib.sha1((salt + user.email).encode()).hexdigest()
             new_profile = user.userprofile
             new_profile.activation_key = activation_key
             activation_link = u'{}/accounts/confirm/{}'.format(request.get_host(), activation_key)

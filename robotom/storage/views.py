@@ -1,4 +1,3 @@
-# coding=utf-8
 import logging
 import os
 import tempfile
@@ -13,7 +12,7 @@ from django.http import HttpResponseBadRequest, HttpResponse
 from django.shortcuts import render
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 from requests.exceptions import Timeout
 
@@ -240,18 +239,12 @@ def storage_view(request):
             storage_logger.error(u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
             messages.error(request, u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
     except Timeout as e:
-        storage_logger.error(u'Не удается найти эксперименты. Ошибка: {}'.format(e.message))
+        storage_logger.error(u'Не удается найти эксперименты. Ошибка: {}'.format(str(e)))
         messages.error(request, u'Не удается найти эксперименты. Сервер хранилища не отвечает. Попробуйте позже.')
     except BaseException as e:
-        try:
-            storage_logger.error(u'Не удается найти эксперименты1. Ошибка: {}'.format(e.message))
-            storage_logger.error(u'Не удается найти эксперименты1. Ошибка: {}'.format(e.message))
-            messages.error(request,
-                           u'Не удается найти эксперименты. Сервер хранилища не отвечает. Попробуйте позже.')
-        except BaseException as e2:
-            storage_logger.error(u'Не удается найти эксперименты2. Ошибка: {}'.format(e2.message))
-            messages.error(request,
-                           u'Не удается найти эксперименты. Сервер хранилища не отвечает. Попробуйте позже.')
+        storage_logger.error(u'Не удается найти эксперименты. Ошибка: {}'.format(str(e)))
+        messages.error(request,
+                       u'Не удается найти эксперименты. Сервер хранилища не отвечает. Попробуйте позже.')
 
     return render(request, 'storage/storage_index.html', {
         'caption': 'Хранилище',
@@ -284,11 +277,11 @@ def storage_record_view(request, storage_record_id):
             messages.error(request, u'Не удается получить эксперимент. Ошибка: {}'.format(experiment.status_code))
             to_show = False
     except Timeout as e:
-        storage_logger.error(u'Не удается получить эксперимент. Ошибка: {}'.format(e.message))
+        storage_logger.error(u'Не удается получить эксперимент. Ошибка: {}'.format(str(e)))
         messages.error(request, u'Не удается получить эксперимент. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
     except BaseException as e:
-        storage_logger.error(u'Не удается получить эксперимент. Ошибка: {}'.format(e.message))
+        storage_logger.error(u'Не удается получить эксперимент. Ошибка: {}'.format(str(e)))
         messages.error(request, u'Не удается получить эксперимент. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
 
@@ -309,7 +302,7 @@ def storage_record_view(request, storage_record_id):
             messages.error(request, u'Не удается получить список изображений. Ошибка: {}'.format(frames.status_code))
             to_show = False
     except Timeout as e:
-        storage_logger.error(u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(e.message))
+        storage_logger.error(u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(str(e)))
         messages.error(request,
                        u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
@@ -350,7 +343,7 @@ def frames_downloading(request, storage_record_id):
                                           content_type='text/plain')
     except Timeout as e:
         storage_logger.error(
-            u'Получение изображений: Не удается получить список изображений. Ошибка: {}'.format(e.message))
+            u'Получение изображений: Не удается получить список изображений. Ошибка: {}'.format(str(e)))
         messages.error(request,
                        u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
         return HttpResponseBadRequest(u"Не удалось получить список изображений. Истекло время ожидания ответа",
@@ -386,13 +379,13 @@ def frames_downloading(request, storage_record_id):
                         content_type='text/plain')
             except Timeout as e:
                 storage_logger.error(
-                    u'Получение изображений: Не удается получить изображения. Ошибка: {}'.format(e.message))
+                    u'Получение изображений: Не удается получить изображения. Ошибка: {}'.format(str(e)))
                 return HttpResponseBadRequest(
                     u'Не удалось получить изображение номер {}. Истекло время ожидания ответа'.format(frame.num),
                     content_type='text/plain')
             except BaseException as e:
                 storage_logger.error(
-                    u'Получение изображений: Не удается получить изображения. Ошибка: {}'.format(e.message))
+                    u'Получение изображений: Не удается получить изображения. Ошибка: {}'.format(str(e)))
                 return HttpResponseBadRequest(
                     u'Не удалось получить изображение номер {}. Сервер хранилища не отвечает.'.format(frame.num),
                     content_type='text/plain')
@@ -425,13 +418,13 @@ def delete_experiment(request, experiment_id):
                 content_type='text/plain')
     except Timeout as e:
         storage_logger.error(
-            u'Удаление эксперимента: Не удается удалить эксперимент. Ошибка: {}'.format(e.message))
+            u'Удаление эксперимента: Не удается удалить эксперимент. Ошибка: {}'.format(str(e)))
         return HttpResponseBadRequest(
             u'Не удается удалить эксперимент. Истекло время ожидания ответа',
             content_type='text/plain')
     except BaseException as e:
         storage_logger.error(
-            u'Удаление эксперимента: Не удается удалить эксперимент. Ошибка: {}'.format(e.message))
+            u'Удаление эксперимента: Не удается удалить эксперимент. Ошибка: {}'.format(str(e)))
         return HttpResponseBadRequest(
             u'Не удается удалить эксперимент.',
             content_type='text/plain')

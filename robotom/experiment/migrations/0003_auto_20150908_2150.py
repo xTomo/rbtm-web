@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 from django.db import models, migrations
 
 
@@ -38,7 +35,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='tomograph',
             name='shutter',
-            field=models.CharField(default=b'closed', max_length=6, choices=[(b'open', b'open'), (b'closed', b'closed')]),
+            field=models.CharField(default='closed', max_length=6, choices=[('open', 'open'), ('closed', 'closed')]),
             preserve_default=True,
         ),
         migrations.AddField(
@@ -56,7 +53,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='tomograph',
             name='state',
-            field=models.CharField(default=b'off', max_length=15, choices=[(b'off', b'off'), (b'waiting', b'waiting'), (b'experiment', b'experiment'), (b'adjustment', b'adjustment')]),
+            field=models.CharField(default='off', max_length=15, choices=[('off', 'off'), ('waiting', 'waiting'), ('experiment', 'experiment'), ('adjustment', 'adjustment')]),
             preserve_default=True,
         ),
     ]

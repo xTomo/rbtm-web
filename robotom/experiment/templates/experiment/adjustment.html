@@ -231,7 +231,7 @@
                         {% if preview %}
                             <img class="img-responsive center-block" src="{{ preview_path }}">
                         {% else %}
-                            {% load staticfiles %}
+                            {% load static %}
                             <img class="img-responsive center-block" height="75%" width="75%"
                                  src="{% static 'experiment/images/noimage.png' %}">
                         {% endif %}
@@ -242,7 +242,7 @@
         <!--<button type="submit" style="white-space:normal; margin-top:7px; margin-bottom:7px" class="btn btn-default ntSaveFormsSubmit">Очистить поля</button>-->
     </div>
 
-    {% load staticfiles %}
+    {% load static %}
 
     <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}"></script>
 

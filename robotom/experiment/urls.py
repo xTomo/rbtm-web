@@ -1,6 +1,8 @@
 from django.urls import re_path
 from experiment import views
 
+app_name = 'experiment'
+
 urlpatterns = [
 
     re_path(r'^$', views.experiment_view, name='index'),

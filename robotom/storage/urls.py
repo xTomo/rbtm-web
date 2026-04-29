@@ -1,6 +1,8 @@
 from django.urls import re_path
 from storage import views
 
+app_name = 'storage'
+
 urlpatterns = [
 
     re_path(

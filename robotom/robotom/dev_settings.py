@@ -78,7 +78,7 @@ DEFAULT_FROM_EMAIL = 'robotomproject@gmail.com'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'robotom_users_1',
+        'NAME': 'robotom_users',
         'USER': 'postgres',
         'PASSWORD': 'postgres',
         'HOST': 'localhost',

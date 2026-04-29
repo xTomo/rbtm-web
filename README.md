@@ -206,32 +206,29 @@ python robotom/manage.py collectstatic --settings=robotom.dev_settings
 
 ### Шаг 1. Дамп старой базы
 
-На сервере со старым PostgreSQL 9.4:
+Старая БД живёт в контейнере `rbtmweb_database_1` (postgres:9.4), имя базы — `robotom_users`.
 
 ```bash
-# Бинарный формат (рекомендуется)
-pg_dump -h localhost -U postgres -d robotom_users_1 -F c -f robotom_backup.dump
+# Из Docker-контейнера (plain SQL)
+docker exec rbtmweb_database_1 pg_dump -U postgres robotom_users > robotom_backup.sql
 
-# Или plain SQL
-pg_dump -h localhost -U postgres -d robotom_users_1 --encoding=UTF8 > robotom_backup.sql
-```
-
-Из старого Docker-контейнера:
-
-```bash
-docker exec <old_container> pg_dump -U postgres robotom_users_1 > robotom_backup.sql
+# Или бинарный формат (более компактный)
+docker exec rbtmweb_database_1 pg_dump -U postgres -F c robotom_users > robotom_backup.dump
 ```
 
 ### Шаг 2. Создать новую базу и восстановить дамп
 
+Новый контейнер PostgreSQL 16 поднимается через `docker-compose up`. Имя контейнера — `rbtm-web_database_1`.
+
 ```bash
-psql -h localhost -U postgres -c "CREATE DATABASE robotom_users_1;"
+# Создать базу в новом контейнере
+docker exec rbtm-web_database_1 psql -U postgres -c "CREATE DATABASE robotom_users;"
 
-# Из бинарного дампа
-pg_restore -h localhost -U postgres -d robotom_users_1 --no-owner --no-acl robotom_backup.dump
+# Восстановить из plain SQL
+docker exec -i rbtm-web_database_1 psql -U postgres -d robotom_users < robotom_backup.sql
 
-# Или из plain SQL
-psql -h localhost -U postgres -d robotom_users_1 < robotom_backup.sql
+# Или из бинарного дампа
+docker exec -i rbtm-web_database_1 pg_restore -U postgres -d robotom_users --no-owner --no-acl robotom_backup.dump
 ```
 
 ### Шаг 3. Применить новые миграции Django
@@ -265,19 +262,30 @@ python robotom/manage.py check --settings=robotom.dev_settings
 ### Через Docker (полный сценарий)
 
 ```bash
-# 1. Дамп из старого контейнера
-docker exec <old_container> pg_dump -U postgres robotom_users_1 > robotom_backup.sql
+# 1. Дамп из старого контейнера (postgres:9.4, контейнер rbtmweb_database_1)
+docker exec rbtmweb_database_1 pg_dump -U postgres robotom_users > robotom_backup.sql
 
-# 2. Поднять новую БД
-docker-compose up -d database
+# 2. Остановить старый сервер (базу пока не трогать)
+docker stop rbtmweb_server_1
 
-# 3. Восстановить дамп
-docker exec -i $(docker-compose ps -q database) \
-  psql -U postgres -d robotom_users_1 < robotom_backup.sql
+# 3. Поднять новый стек
+docker-compose up --build -d
 
-# 4. Применить миграции
-docker-compose run --rm server \
-  python robotom/manage.py migrate --settings=robotom.dev_settings
+# 4. Создать базу в новом контейнере (rbtm-web_database_1, postgres:16)
+docker exec rbtm-web_database_1 psql -U postgres -c "CREATE DATABASE robotom_users;"
+
+# 5. Восстановить дамп
+docker exec -i rbtm-web_database_1 psql -U postgres -d robotom_users < robotom_backup.sql
+
+# 6. Применить миграции Django 5.2
+docker-compose exec server python robotom/manage.py migrate --fake-initial
+
+# 7. Проверка
+docker-compose exec server python robotom/manage.py showmigrations
+docker-compose exec server python robotom/manage.py check
+
+# 8. Если всё ОК — остановить старую БД
+docker stop rbtmweb_database_1
 ```
 
 ### Возможные проблемы

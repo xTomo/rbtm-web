@@ -290,7 +290,8 @@ def experiment_adjustment(request):
                             break
                         temp_file.write(block)
 
-                    path = default_storage.save(os.path.join(settings.MEDIA_ROOT, file_name), temp_file)
+                    # default_storage.save() expects a path relative to MEDIA_ROOT, not absolute
+                    path = default_storage.save(file_name, temp_file)
                     return render(request, 'experiment/adjustment.html', {
                         'caption': 'Эксперимент',
                         'preview_path': os.path.join(settings.MEDIA_URL, file_name),

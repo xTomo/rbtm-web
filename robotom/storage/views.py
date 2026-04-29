@@ -370,7 +370,8 @@ def frames_downloading(request, storage_record_id):
                         if not block:
                             break
                         temp_file.write(block)
-                    default_storage.save(os.path.join(settings.MEDIA_ROOT, file_name), temp_file)
+                    # default_storage.save() expects a path relative to MEDIA_ROOT, not absolute
+                    default_storage.save(file_name, temp_file)
                 else:
                     storage_logger.error(u'Не удается получить изображениe {}. Ошибка: {}'.format(
                         frame.num, frame_response.status_code))

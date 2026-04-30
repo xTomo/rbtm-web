@@ -273,10 +273,11 @@ def experiment_adjustment(request):
             result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_CURR.format(TOMO_NUM), info, source_page)
             success_msg = u'Сила тока установлена'
 
-        if 'picture_exposure_submit' in request.POST: 
+        if 'picture_exposure_submit' in request.POST:
             try:
-                exposure = request.POST['picture_exposure']
-                data = json.dumps(float(exposure))
+                exposure_sec = request.POST['picture_exposure']
+                exposure_ms = float(exposure_sec) * 1000
+                data = json.dumps(exposure_ms)
                 response = requests.post(settings.EXPERIMENT_DETECTOR_GET_FRAME.format(TOMO_NUM), data, stream=True)
                 if response.status_code != 200:
                     messages.warning(request, u'Не удалось получить картинку')
@@ -296,7 +297,7 @@ def experiment_adjustment(request):
                         'caption': 'Эксперимент',
                         'preview_path': os.path.join(settings.MEDIA_URL, file_name),
                         'preview': True,
-                        'exposure': exposure,
+                        'exposure_sec': exposure_sec,
                         'tomograph': tomo,
                         'js_url_settings': js_url_settings,
                     })

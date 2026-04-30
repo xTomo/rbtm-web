@@ -111,30 +111,55 @@ rbtm-web/
 | `/admin/` | Django Admin | — |
 | `/accounts/` | `django.contrib.auth` | — |
 
-## Настройки (`dev_settings.py`)
+## Настройки
 
-Ключевые параметры, которые нужно переопределить в `settings.py` для production:
+### `dev_settings.py` — для локальной разработки
 
 | Параметр | Описание |
 |---|---|
 | `SECRET_KEY` | Секретный ключ Django |
-| `DEBUG` | Выключить (`False`) |
-| `ALLOWED_HOSTS` | Реальный домен |
-| `DATABASES` | Параметры подключения к PostgreSQL |
+| `DEBUG` | `True` в dev, `False` в production |
+| `ALLOWED_HOSTS` | Реальный домен / IP в production |
+| `DATABASES.HOST` | Читается из `DB_HOST` env, по умолчанию `database` |
 | `STORAGE_HOST` | URL Storage API (default: `http://localhost:5006/`) |
 | `EXPERIMENT_HOST` | URL Experiment API (default: `http://localhost:5001/`) |
 | `EMAIL_*` | Настройки SMTP для отправки писем активации |
-| `CACHES` | Memcached (`PyMemcacheCache`) — в dev отключён |
+| `CACHES` | `PyMemcacheCache` — в dev отключён (DummyCache) |
+| `CSRF_TRUSTED_ORIGINS` | Только в `settings.py` — список разрешённых origins |
+
+### `settings.py` — production
+
+Файл `robotom/robotom/settings.py` содержит production-настройки и **не хранится в git**.
+При сборке Docker-образа `Dockerfile` заменяет `'HOST': 'localhost'` → `'HOST': 'database'` через `sed`.
+
+Ключевые отличия от `dev_settings.py`:
+- `DEBUG = False`
+- `STORAGE_HOST = 'http://rbtmstorage_server_1:5006/'`
+- `EXPERIMENT_HOST = 'http://10.0.6.86:5001/'` (реальный IP томографа)
+- `CSRF_TRUSTED_ORIGINS` — список доменов и IP, с которых принимаются POST-запросы
 
 ## Запуск
 
 ### Docker (рекомендуется)
 
 ```bash
-docker-compose up --build
+docker-compose up --build -d
 ```
 
-Поднимает два контейнера: `server` (Django + Apache) и `database` (PostgreSQL 16).
+Поднимает два контейнера:
+- `rbtmweb_server_1` — Django 5.2 + Apache2 + mod_wsgi (Python 3.12)
+- `rbtmweb_database_1` — PostgreSQL 16
+
+**Важно:** `server` не стартует до готовности `database` (healthcheck).
+
+После первого запуска создать базу и применить миграции:
+
+```bash
+# Если база не создалась автоматически (POSTGRES_DB работает только при первой инициализации пустого тома)
+docker exec rbtmweb_database_1 psql -U postgres -c "CREATE DATABASE robotom_users;"
+
+docker-compose exec server python robotom/manage.py migrate --fake-initial
+```
 
 ### Локальная разработка
 
@@ -159,14 +184,6 @@ set DJANGO_SETTINGS_MODULE=robotom.dev_settings
 python robotom/manage.py runserver
 ```
 
-### Production
-
-Создать `robotom/robotom/settings.py` как копию `dev_settings.py` с реальными значениями (DEBUG, SECRET_KEY, DATABASES, ALLOWED_HOSTS и т.д.).
-
-```bash
-python robotom/manage.py runserver
-```
-
 ## Тесты
 
 ```bash
@@ -183,9 +200,23 @@ python robotom/manage.py test experiment --settings=robotom.dev_settings
 python robotom/manage.py collectstatic --settings=robotom.dev_settings
 ```
 
-- `STATIC_ROOT` → `robotom/static/`
-- `MEDIA_ROOT` → `robotom/media/` (загруженные файлы)
+- `STATIC_ROOT` → `robotom/static/` (собирается при сборке Docker-образа)
+- `MEDIA_ROOT` → `robotom/media/` (PNG-кадры, кешируемые из Storage API)
 - `RECONSTRUCTION_ROOT` → `robotom/media/reconstructions/` (3D-реконструкции)
+
+**Медиафайлы генерируются динамически:** при открытии страницы эксперимента Django скачивает PNG-кадры из `rbtmstorage_server_1` и кеширует их в `MEDIA_ROOT`. При повторном обращении файл берётся из кеша (проверяется `os.path.exists`).
+
+В Docker медиафайлы монтируются с хоста, чтобы переживать пересборки образа:
+```yaml
+volumes:
+  - /home/robotom/rbtm_data/rbtm_web/media:/var/www/web/robotom/media
+```
+
+Права на директорию (www-data = uid 33 в Debian):
+```bash
+sudo chown -R 33:33 /home/robotom/rbtm_data/rbtm_web/media
+sudo chmod -R 775 /home/robotom/rbtm_data/rbtm_web/media
+```
 
 ## Права пользователей
 

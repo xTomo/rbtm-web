@@ -51,6 +51,16 @@ class ExperimentRecord:
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.datetime = record['datetime']
 
+        raw_tags = record.get('tags', [])
+        if isinstance(raw_tags, list):
+            self.tags = raw_tags
+        elif raw_tags:
+            self.tags = [str(raw_tags)]
+        else:
+            self.tags = []
+
+        self.serial_number = 0  # заполняется в storage_view после сортировки
+
 
 class FrameRecord:
     def __init__(self, frame):
@@ -109,86 +119,29 @@ class FrameRecord:
                     self.voltage = frame["frame"]["X-ray source"]["voltage"]
 
 
-def make_info(post_args):
-    # for arg in post_args:
-    #     storage_logger.debug(u'PostArgs: {} {}'.format(arg, post_args[arg]))
-    # Внимание! Быдлокод!
-    request = {}
+def make_search_query(search_str):
+    """Строит MongoDB-запрос для поиска по подстрокам в specimen и tags.
+    Слова разделяются пробелами; каждое слово должно встречаться
+    хотя бы в одном из полей (AND между словами, OR между полями).
+    """
+    if not search_str or not search_str.strip():
+        return json.dumps({})
 
-    if post_args['DarkFromCount'] != '':
-        request['experiment parameters.DARK.count'] = {}
-        request['experiment parameters.DARK.count']['$gte'] = int(post_args['DarkFromCount'])
-    if post_args['DarkToCount'] != '':
-        if 'experiment parameters.DARK.count' not in request:
-            request['experiment parameters.DARK.count'] = {}
-        request['experiment parameters.DARK.count']['$lte'] = int(post_args['DarkToCount'])
-    if post_args['DarkFromExposure'] != '':
-        request['experiment parameters.DARK.exposure'] = {}
-        request['experiment parameters.DARK.exposure']['$gte'] = float(post_args['DarkFromExposure'])
-    if post_args['DarkToExposure'] != '':
-        if 'experiment parameters.DARK.exposure' not in request:
-            request['experiment parameters.DARK.exposure'] = {}
-        request['experiment parameters.DARK.exposure']['$lte'] = float(post_args['DarkToExposure'])
+    terms = search_str.strip().split()
+    conditions = []
+    for term in terms:
+        conditions.append({'$or': [
+            {'specimen': {'$regex': term, '$options': 'i'}},
+            {'tags': {'$regex': term, '$options': 'i'}},
+        ]})
 
-    if post_args['EmptyFromCount'] != '':
-        request['experiment parameters.EMPTY.count'] = {}
-        request['experiment parameters.EMPTY.count']['$gte'] = int(post_args['EmptyFromCount'])
-    if post_args['EmptyToCount'] != '':
-        if 'experiment parameters.EMPTY.count' not in request:
-            request['experiment parameters.EMPTY.count'] = {}
-        request['experiment parameters.EMPTY.count']['$lte'] = int(post_args['EmptyToCount'])
-    if post_args['EmptyFromExposure'] != '':
-        request['experiment parameters.EMPTY.exposure'] = {}
-        request['experiment parameters.EMPTY.exposure']['$gte'] = float(post_args['EmptyFromExposure'])
-    if post_args['EmptyToExposure'] != '':
-        if 'experiment parameters.EMPTY.exposure' not in request:
-            request['experiment parameters.EMPTY.exposure'] = {}
-        request['experiment parameters.EMPTY.exposure']['$lte'] = float(post_args['EmptyToExposure'])
+    if len(conditions) == 1:
+        query = conditions[0]
+    else:
+        query = {'$and': conditions}
 
-    if post_args['Specimen'] != '':
-        request['specimen'] = post_args['Specimen'].strip()
-
-    if post_args['Finished'] == u'Завершен':
-        request['finished'] = True
-    if post_args['Finished'] == u'Не завершен':
-        request['finished'] = False
-
-    if post_args['Advanced'] == u'Да':
-        request['experiment parameters.advanced'] = True
-    if post_args['Advanced'] == u'Нет':
-        request['experiment parameters.advanced'] = False
-
-    if post_args['DataFromExposure'] != '':
-        request['experiment parameters.DATA.exposure'] = {}
-        request['experiment parameters.DATA.exposure']['$gte'] = float(post_args['DataFromExposure'])
-    if post_args['DataToExposure'] != '':
-        if 'experiment parameters.DATA.exposure' not in request:
-            request['experiment parameters.DATA.exposure'] = {}
-        request['experiment parameters.DATA.exposure']['$lte'] = float(post_args['DataToExposure'])
-    if post_args['DataFromAngleStep'] != '':
-        request['experiment parameters.DATA.angle step'] = {}
-        request['experiment parameters.DATA.angle step']['$gte'] = int(post_args['DataFromAngleStep'])
-    if post_args['DataToAngleStep'] != '':
-        if 'experiment parameters.DATA.angle step' not in request:
-            request['experiment parameters.DATA.angle step'] = {}
-        request['experiment parameters.DATA.angle step']['$lte'] = int(post_args['DataToAngleStep'])
-    if post_args['DataFromCountPerStep'] != '':
-        request['experiment parameters.DATA.count per step'] = {}
-        request['experiment parameters.DATA.count per step']['$gte'] = int(post_args['DataFromCountPerStep'])
-    if post_args['DataToCountPerStep'] != '':
-        if 'experiment parameters.DATA.count per step' not in request:
-            request['experiment parameters.DATA.count per step'] = {}
-        request['experiment parameters.DATA.count per step']['$lte'] = int(post_args['DataToCountPerStep'])
-    if post_args['DataFromStepCount'] != '':
-        request['experiment parameters.DATA.step count'] = {}
-        request['experiment parameters.DATA.step count']['$gte'] = int(post_args['DataFromStepCount'])
-    if post_args['DataToStepCount'] != '':
-        if 'experiment parameters.DATA.step count' not in request:
-            request['experiment parameters.DATA.step count'] = {}
-        request['experiment parameters.DATA.step count']['$lte'] = int(post_args['DataToStepCount'])
-
-    storage_logger.debug(u'Текст запроса к базе {}'.format(json.dumps(request)))
-    return json.dumps(request)
+    storage_logger.debug(u'Текст запроса к базе {}'.format(json.dumps(query)))
+    return json.dumps(query)
 
 
 def force_https(url):
@@ -200,8 +153,9 @@ def force_https(url):
 def storage_view(request):
     records = []
     num_pages = 0
-    page_size = 8
+    page_size = 50
     to_show = False
+    search_query = request.GET.get('search', '').strip()
 
     storage_url = request.build_absolute_uri(reverse('storage:index'))
 
@@ -212,11 +166,7 @@ def storage_view(request):
         storage_url = force_https(storage_url)
     # end of force https kludge
 
-    info = ""
-    if request.method == "GET":
-        info = json.dumps({})
-    elif request.method == "POST":
-        info = make_info(request.POST)
+    info = make_search_query(search_query)
     try:
         answer = requests.post(settings.STORAGE_EXPERIMENTS_GET_HOST, info, timeout=settings.TIMEOUT_DEFAULT)
         if answer.status_code == 200:
@@ -229,6 +179,12 @@ def storage_view(request):
                     records.append(record)
                 except KeyError:
                     storage_logger.warning(u'Неверная запись об эксперименте {}'.format(result))
+
+            # Переворачиваем: Storage API отдаёт по убыванию времени,
+            # нам нужно по возрастанию (самые старые — первые, №1).
+            records.reverse()
+            for i, record in enumerate(records):
+                record.serial_number = i + 1
 
             if len(records) == 0:
                 messages.error(request, u'Не найдено ни одной записи')
@@ -253,6 +209,7 @@ def storage_view(request):
         'pages': range(1, num_pages + 1),
         'storage_url': storage_url,
         'page_size': page_size,
+        'search_query': search_query,
     })
 
 

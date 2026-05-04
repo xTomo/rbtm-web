@@ -4,183 +4,24 @@
     <div class="container-fluid">
         <div class="panel panel-default">
             <div class="panel-body">
-                <form method="post" action="" class="form">
-                    <div class="control-group">
-                        {% csrf_token %}
-                        <div class="row">
-                            <div class="col-xs-12 col-md-4">
-                                <label for="Specimen" style="font-size: x-large"><b>Образец</b></label>
-                                <input type="text" class="form-control" id="Specimen" name="Specimen"
-                                       placeholder="Название образца">
-                            </div>
-                        </div>
-                        <div class="row" style="margin-top: 5px" hidden>
-                            <div class="col-xs-6 col-md-2">
-                                <label for="Finished">Завершен</label>
-                                <select class="form-control" id="Finished" name="Finished">
-                                    <option></option>
-                                    <option>Завершен</option>
-                                    <option>Не завершен</option>
-                                </select>
-                            </div>
-                            <div class="col-xs-6 col-md-2">
-                                <label for="Advanced">Продвинутый</label>
-                                <select class="form-control" id="Advanced" name="Advanced">
-                                    <option></option>
-                                    <option>Да</option>
-                                    <option>Нет</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-xs-6">
-                                <button type="button" class="btn btn-default btn-lg" data-toggle="collapse"
-                                        data-target="#DATA" style="margin-top: 10px; margin-right: 5px">
-                                    <b>DATA</b>
-                                    <span class="glyphicon glyphicon-arrow-down" aria-hidden="true"></span>
-                                </button>
-                                <button type="button" class="btn btn-default btn-lg" data-toggle="collapse"
-                                        data-target="#DARK" style="margin-top: 10px; margin-right: 5px">
-                                    <b>DARK</b>
-                                    <span class="glyphicon glyphicon-arrow-down" aria-hidden="true"></span>
-                                </button>
-                                <button type="button" class="btn btn-default btn-lg" data-toggle="collapse"
-                                        data-target="#EMPTY" style="margin-top: 10px; margin-right: 5px">
-                                    <b>EMPTY</b>
-                                    <span class="glyphicon glyphicon-arrow-down" aria-hidden="true"></span>
-                                </button>
-                            </div>
-                        </div>
-                        <div id="DATA" class="collapse">
-                            <div class="row">
-                                <div class="col-xs-3">
-                                    <h3><b>DATA</b></h3>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3"><h5><b>Экспозиция, мс</b></h5></div>
-                                <div class="col-xs-3 col-xs-offset-3"><h5><b>Шаг угла</b></h5></div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" step="any" class="form-control" id="DataFromExposure"
-                                           name="DataFromExposure"
-                                           placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" step="any" class="form-control" id="DataToExposure"
-                                           name="DataToExposure"
-                                           placeholder="До">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DataFromAngleStep"
-                                           name="DataFromAngleStep" placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DataToAngleStep"
-                                           name="DataToAngleStep"
-                                           placeholder="До">
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3"><h5><b>Изображений на шаг</b></h5></div>
-                                <div class="col-xs-3 col-xs-offset-3"><h5><b>Количество шагов</b></h5></div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DataFromCountPerStep"
-                                           name="DataFromCountPerStep" placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DataToCountPerStep"
-                                           name="DataToCountPerStep" placeholder="До">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DataFromStepCount"
-                                           name="DataFromStepCount" placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DataToStepCount"
-                                           name="DataToStepCount"
-                                           placeholder="До">
-                                </div>
-                            </div>
-                        </div>
-                        <div id="DARK" class="collapse">
-                            <div class="row">
-                                <div class="col-xs-3">
-                                    <h3><b>DARK</b></h3>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3"><h5><b>Количество</b></h5></div>
-                                <div class="col-xs-3 col-xs-offset-3"><h5><b>Экспозиция, мс</b></h5></div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DarkFromCount"
-                                           name="DarkFromCount"
-                                           placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DarkToCount"
-                                           name="DarkToCount"
-                                           placeholder="До">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DarkFromExposure"
-                                           name="DarkFromExposure"
-                                           placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="DarkToExposure"
-                                           name="DarkToExposure"
-                                           placeholder="До">
-                                </div>
-                            </div>
-                        </div>
-                        <div id="EMPTY" class="collapse">
-                            <div class="row">
-                                <div class="col-xs-3">
-                                    <h3><b>EMPTY</b></h3>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3"><h5><b>Количество</b></h5></div>
-                                <div class="col-xs-3 col-xs-offset-3"><h5><b>Экспозиция, мс</b></h5></div>
-                            </div>
-                            <div class="row">
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="EmptyFromCount"
-                                           name="EmptyFromCount"
-                                           placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="EmptyToCount"
-                                           name="EmptyToCount"
-                                           placeholder="До">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="EmptyFromExposure"
-                                           name="EmptyFromExposure"
-                                           placeholder="От">
-                                </div>
-                                <div class="col-xs-3">
-                                    <input type="number" min="0" class="form-control" id="EmptyToExposure"
-                                           name="EmptyToExposure"
-                                           placeholder="До">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-xs-3" style="margin-top: 10px">
-                                <button type="submit" class="btn btn-default">
-                                    <span class="glyphicon glyphicon-search"></span>
-                                    Поиск
-                                </button>
-                            </div>
-                        </div>
+                <form method="get" action="" class="form-inline">
+                    <div class="input-group" style="width: 100%; max-width: 600px;">
+                        <input type="text"
+                               class="form-control input-lg"
+                               name="search"
+                               id="search"
+                               value="{{ search_query }}"
+                               placeholder="Поиск по названию и тэгам (слова через пробел)">
+                        <span class="input-group-btn">
+                            <button type="submit" class="btn btn-default btn-lg">
+                                <span class="glyphicon glyphicon-search"></span>
+                                Найти
+                            </button>
+                        </span>
                     </div>
+                    <p class="help-block" style="margin-top: 6px;">
+                        Несколько слов разделяйте пробелом — все слова должны встречаться в названии или тэгах объекта.
+                    </p>
                 </form>
             </div>
         </div>
@@ -198,14 +39,16 @@
         </div>
     {% endif %}
 
-    {% if toShowResult and record_number != 0 %}
+    {% if toShowResult %}
         <div class="container-fluid">
             <div class="panel panel-default">
                 <div class="panel-body">
                     <table class="table table-condensed table-hover">
                         <thead>
                         <tr>
+                            <th style="width: 50px;">#</th>
                             <th>Образец</th>
+                            <th>Тэги</th>
                             <th>Дата и время</th>
                             <th>Шаг угла</th>
                             <th>Число шагов</th>
@@ -216,49 +59,51 @@
                         <tbody>
                         {% for record in record_range %}
                             <tr class="paginated-content tr-buttoned" id="id{{ record.experiment_id }}">
+                                <td class="text-muted">{{ record.serial_number }}</td>
                                 <td><a href='{% url 'storage:storage_record' record.experiment_id %}'>{{ record.specimen }}</a></td>
+                                <td>
+                                    {% for tag in record.tags %}
+                                        <span class="label label-default" style="margin-right: 3px;">{{ tag }}</span>
+                                    {% endfor %}
+                                </td>
                                 <td>{{ record.datetime }}</td>
                                 <td>{{ record.data_angle_step }}&deg;</td>
                                 <td>{{ record.data_step_count }}</td>
                                 <td>{{ record.data_exposure }} мс</td>
                                 <td style="text-align: right;">
                                     <div class="btn" data-toggle="tooltip" data-placement="top" title="Скачать hdf5">
-                                        <a href="{{ record.hdf_host }}" target="_blank" download><img src="/static/storage/img/hdf5.png"
-                                            style="height: 20px; margin: -6px 0;"/></a></div></td>
-                                <td><div style="cursor: pointer" data-toggle="tooltip" data-placement="top"
+                                        <a href="{{ record.hdf_host }}" target="_blank" download>
+                                            <img src="/static/storage/img/hdf5.png" style="height: 20px; margin: -6px 0;"/>
+                                        </a>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="cursor: pointer" data-toggle="tooltip" data-placement="top"
                                          title="Удалить эксперимент" onClick="deleteExperiment(this.id)"
                                          id="{{ record.experiment_id }}">
-                                    <span class="glyphicon glyphicon-trash" style="padding-top:7px;"/></div></td>
+                                        <span class="glyphicon glyphicon-trash" style="padding-top:7px;"/>
+                                    </div>
+                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>
                     </table>
                 </div>
+                {% if pages|length > 1 %}
                 <div class="panel-footer">
                     <ul class="pagination">
-                        {#                        {% if record_range.has_previous %}#}
-                        {#                            <li><a href="?page={{ record_range.previous_page_number }}#">#}
-                        {#                                <span class="glyphicon glyphicon-chevron-left"></span>#}
-                        {#                            </a></li>#}
-                        {#                        {% else %}#}
                         <li class="disabled">
                             <span class="glyphicon glyphicon-chevron-left"></span>
                         </li>
-                        {#                        {% endif %}#}
                         {% for page_id in pages %}
                             <li {% if page_id == 1 %}class="active"{% endif %}><a href="#">{{ page_id }}</a></li>
                         {% endfor %}
-                        {#                        {% if record_range.has_next %}#}
-                        {#                            <li><a href="?page={{ record_range.next_page_number }}#">#}
-                        {#                                <span class="glyphicon glyphicon-chevron-right"></span>#}
-                        {#                            </a></li>#}
-                        {#                        {% else %}#}
                         <li class="disabled">
                             <span class="glyphicon glyphicon-chevron-right"></span>
                         </li>
-                        {#                        {% endif %}#}
                     </ul>
                 </div>
+                {% endif %}
             </div>
         </div>
     {% endif %}

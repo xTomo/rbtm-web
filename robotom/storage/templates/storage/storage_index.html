@@ -74,7 +74,8 @@
                     <table class="table table-condensed table-hover" id="storage-table" style="margin-bottom: 0; table-layout: fixed; width: 100%;">
                         <colgroup>
                             <col style="width: 52px;">
-                            <col style="width: 35%;">
+                            <col style="width: 30%;">
+                            <col style="width: 90px;">
                             <col style="width: 15%;">
                             <col style="width: 14%;">
                             <col style="width: 7%;">
@@ -82,18 +83,17 @@
                             <col style="width: 10%;">
                             <col style="width: 40px;">
                             <col style="width: 36px;">
-                            <col style="width: 36px;">
                         </colgroup>
                         <thead>
                         <tr>
                             <th>#</th>
                             <th>Образец</th>
+                            <th>3D</th>
                             <th>Тэги</th>
                             <th class="col-nowrap">Дата и время</th>
                             <th class="col-nowrap">Шаг угла</th>
                             <th class="col-nowrap">Шагов</th>
                             <th class="col-nowrap">Экспозиция</th>
-                            <th></th>
                             <th></th>
                             <th></th>
                         </tr>
@@ -105,6 +105,13 @@
                                 data-tags="{{ record.tags|join:' '|lower }}">
                                 <td class="text-muted">{{ record.serial_number }}</td>
                                 <td class="col-specimen"><a href='{% url 'storage:storage_record' record.experiment_id %}'>{{ record.specimen }}</a></td>
+                                <td>
+                                    <a href="{{ record.recon_url }}" target="_blank"
+                                       class="btn btn-xs btn-info"
+                                       title="Просмотр реконструкции">
+                                        <span class="glyphicon glyphicon-eye-open"></span> 3D
+                                    </a>
+                                </td>
                                 <td class="col-tags">
                                     {% for tag in record.tags %}
                                         <span class="label label-default tag-label">{{ tag }}</span>
@@ -118,13 +125,6 @@
                                     <div class="btn btn-xs" data-toggle="tooltip" data-placement="top" title="Скачать hdf5">
                                         <a href="{{ record.hdf_host }}" target="_blank" download>
                                             <img src="/static/storage/img/hdf5.png" style="height: 20px; margin: -4px 0;"/>
-                                        </a>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="btn btn-xs" data-toggle="tooltip" data-placement="top" title="Просмотр реконструкции">
-                                        <a href="{{ record.recon_url }}" target="_blank">
-                                            <span class="glyphicon glyphicon-eye-open" style="padding-top: 3px;"></span>
                                         </a>
                                     </div>
                                 </td>

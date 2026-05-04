@@ -273,9 +273,10 @@
                 /* ArrowDown на пустом поле — показать список недавних */
                 if (e.key === 'ArrowDown' && !$dropdown.is(':visible') && $(this).val().trim() === '') {
                     var recent = getItems('');
-                    if (recent && recent.length) {
+                    if (recent && recent.items && recent.items.length) {
                         show(recent.items, recent.header);
-                        setActive(0);
+                        /* если есть заголовок — первый кликабельный элемент на индексе 1 */
+                        setActive(recent.header ? 1 : 0);
                     }
                     e.preventDefault();
                     return;

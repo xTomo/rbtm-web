@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.contrib import messages
 from django.contrib.messages import get_messages
 from django.core.files.storage import default_storage
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 
 from .models import Tomograph
 from requests.exceptions import Timeout
@@ -334,7 +334,26 @@ def experiment_interface(request):
             exp_id = uuid.uuid4()
             timestamp = time.time()
             current_datetime = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-            simple_experiment = json.dumps({
+
+            is_advanced = request.POST.get('mode') == 'advanced'
+
+            # Экспозиции вводятся в секундах, переводим в миллисекунды
+            if is_advanced:
+                dark_count = int(float(request.POST['dark_quantity']))
+                dark_exposure_ms = float(request.POST['dark_exposure_sec']) * 1000.0
+                empty_count = int(float(request.POST['empty_quantity']))
+                empty_exposure_ms = float(request.POST['empty_exposure_sec']) * 1000.0
+                data_exposure_ms = float(request.POST['data_exposure_sec']) * 1000.0
+            else:
+                de_count = int(float(request.POST['de_quantity']))
+                exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                dark_count = de_count
+                dark_exposure_ms = exposure_ms
+                empty_count = de_count
+                empty_exposure_ms = exposure_ms
+                data_exposure_ms = exposure_ms
+
+            experiment_data = json.dumps({
                 'exp_id': str(exp_id),
                 'specimen': request.POST['name'],
                 'tags': request.POST['tags'],
@@ -342,27 +361,27 @@ def experiment_interface(request):
                 'datetime': current_datetime,
                 'experiment parameters':
                     {
-                        'advanced': False,
+                        'advanced': is_advanced,
                         'DARK':
                             {
-                                'count': int(float(request.POST['dark_quantity'])),
-                                'exposure': float(request.POST['dark_exposure'])
+                                'count': dark_count,
+                                'exposure': dark_exposure_ms,
                             },
                         'EMPTY':
                             {
-                                'count': int(float(request.POST['empty_quantity'])),
-                                'exposure': float(request.POST['empty_exposure'])
+                                'count': empty_count,
+                                'exposure': empty_exposure_ms,
                             },
                         'DATA':
                             {
                                 'step count': int(float(request.POST['data_shots_quantity'])),
-                                'exposure': float(request.POST['data_shots_exposure']),
+                                'exposure': data_exposure_ms,
                                 'angle step': float(request.POST['data_angle']),
                                 'count per step': int(float(request.POST['data_same']))
                             }
                     }
             })
-            result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), simple_experiment, source_page)
+            result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), experiment_data, source_page)
             success_msg = u'Эксперимент успешно начался'
 
         if 'turn_down' in request.POST:
@@ -380,6 +399,40 @@ def experiment_interface(request):
         'caption': 'Эксперимент',
         'tomograph': tomo,
     })
+
+
+@login_required
+@user_passes_test(has_experiment_access)
+def get_autocomplete_data(request):
+    """Возвращает уникальные имена образцов и теги из Storage API для автодополнения."""
+    specimens = []
+    tags = []
+    try:
+        answer = requests.post(
+            settings.STORAGE_EXPERIMENTS_GET_HOST,
+            json.dumps({}),
+            timeout=settings.TIMEOUT_DEFAULT
+        )
+        if answer.status_code == 200:
+            experiments = json.loads(answer.content)
+            seen_specimens = set()
+            seen_tags = set()
+            for exp in experiments:
+                specimen = exp.get('specimen', '').strip()
+                if specimen:
+                    seen_specimens.add(specimen)
+                raw_tags = exp.get('tags', '')
+                if raw_tags:
+                    for t in raw_tags.split(','):
+                        t = t.strip()
+                        if t:
+                            seen_tags.add(t)
+            specimens = sorted(seen_specimens)
+            tags = sorted(seen_tags)
+    except Exception as e:
+        experiment_logger.error(u'Ошибка получения данных автодополнения: {}'.format(e))
+
+    return JsonResponse({'specimens': specimens, 'tags': tags})
 
 
 @login_required

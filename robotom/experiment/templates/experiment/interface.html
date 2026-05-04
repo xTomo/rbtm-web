@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-   {% if messages %}
+    {% if messages %}
         <div class="row">
             {% for message in messages %}
                 <div class="col-sm-6 col-sm-offset-3 col-lg-4 col-lg-offset-3">
@@ -16,135 +16,321 @@
     <div class="container-fluid">
         <div class="panel panel-default">
             <div class="panel-heading">
-                <h3>Эксперимент</h3>
-
+                <h3 class="panel-title" style="line-height:2.2">
+                    Эксперимент
+                    <span class="pull-right">
+                        <button type="button" id="toggle-mode-btn" class="btn btn-xs btn-default">
+                            Продвинутый режим
+                        </button>
+                    </span>
+                </h3>
             </div>
             <div class="panel-body">
 
-                <form name="manual" method="POST">
-                    <div class="control-group">
-                        {% csrf_token %}
-                        <h3>Параметры образца</h3>
+                <form name="manual" method="POST" autocomplete="off" id="exp-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="mode" id="mode-input" value="simple">
 
-                        <div class="row">
-                            <div class="col-xs-12 col-md-4">
+                    <h4>Параметры образца</h4>
+
+                    <div class="row">
+                        <div class="col-xs-12 col-md-4" style="position:relative">
+                            <div class="form-group">
                                 <label for="name">Название образца</label>
-
-                                <input type="text" class="form-control ntSaveForms"
-                                       id="name" name="name"
-                                       placeholder="Название образца">
-                            </div>
-                            <div class="col-xs-12 col-md-4">
-                                <label for="type">Теги</label>
-
-                                <input type="text" class="form-control ntSaveForms" id="type" name="tags"
-                                       placeholder="Теги">
+                                <input type="text" class="form-control" id="name" name="name"
+                                       placeholder="Название образца" autocomplete="off">
+                                <ul class="dropdown-menu" id="specimen-dropdown"
+                                    style="width:100%; display:none; position:absolute; top:100%; z-index:1000"></ul>
                             </div>
                         </div>
-
-                        <div class="row">
-                            <div class="col-xs-6">
-                                <h3>Кадры DARK</h3>
-                            </div>
-                            <div class="col-xs-6">
-                                <h3>Кадры EMPTY</h3>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-xs-3">
-                                <label for="dark_quantity">Количество</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <label for="dark_exposure">Экспозиция, мс</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <label for="empty_quantity">Количество</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <label for="empty_exposure">Экспозиция, мс</label>
+                        <div class="col-xs-12 col-md-4" style="position:relative">
+                            <div class="form-group">
+                                <label for="tags">Теги</label>
+                                <input type="text" class="form-control" id="tags" name="tags"
+                                       placeholder="Теги через запятую" autocomplete="off">
+                                <ul class="dropdown-menu" id="tags-dropdown"
+                                    style="width:100%; display:none; position:absolute; top:100%; z-index:1000"></ul>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-xs-3 col-md-3">
-                                <input type="number" step="1" min="0" id="dark_quantity"
-                                       class="form-control ntSaveForms" name="dark_quantity" placeholder="Количество">
-                            </div>
-                            <div class="col-xs-3 col-md-3">
-                                <input type="number" step="10" min="10" max="100000" class="form-control ntSaveForms"
-                                       id="dark_exposure" name="dark_exposure"
-                                       placeholder="Экспозиция">
-                            </div>
-                            <div class="col-xs-3 col-md-3">
-                                <input type="number" step="1" min="0" id="empty_quantity"
-                                       class="form-control ntSaveForms" name="empty_quantity" placeholder="Количество">
-                            </div>
-                            <div class="col-xs-3 col-md-3">
-                                <input type="number" step="10" min="10" max="100000" class="form-control ntSaveForms"
-                                       id="empty_exposure" name="empty_exposure"
-
-                                       placeholder="Экспозиция">
-                            </div>
-                        </div>
-
-
-                        <h3>Кадры DATA</h3>
-
-                        <div class="row">
-                            <div class="col-xs-3">
-                                <label for="data_shots_quantity">Количество</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <label for="data_shots_exposure">Экспозиция, мс</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <label for="data_angle">Угловой шаг, градусы</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <label for="data_same">Кадров на угол поворота</label>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-xs-3">
-
-                                <input type="number" step="1" min="0" id="data_shots_quantity"
-                                       class="form-control ntSaveForms" name="data_shots_quantity"
-                                       placeholder="Количество">
-                            </div>
-                            <div class="col-xs-3">
-                                <input type="number" step="10" min="10" max="100000" class="form-control ntSaveForms"
-                                       id="data_shots_exposure" name="data_shots_exposure"
-                                       placeholder="Экспозиция">
-                            </div>
-
-                            <div class="col-xs-3">
-                                <input type="number" step="0.01" id="data_angle" class="form-control ntSaveForms"
-                                       name="data_angle" placeholder="Угловой шаг">
-                            </div>
-                            <div class="col-xs-3">
-                                <input type="number" step="1" min="0" class="form-control ntSaveForms" id="data_same"
-                                       name="data_same" placeholder="Количество кадров">
-                            </div>
-                        </div>
-
-                        <br>
-                        <input type="submit" style="white-space:normal" class="btn btn-success btn-lg"
-                               name="parameters" value="Начать эксперимент"
-                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
-                               disabled {% endif %}>
-
-                        <input type="submit" style="white-space:normal" class="btn btn-default btn-lg"
-                               name="turn_down" value="Закончить эксперимент"
-                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "experiment" %} {% else %}
-                               disabled {% endif %}>
-
                     </div>
+
+                    {# ===== ПРОСТОЙ РЕЖИМ ===== #}
+                    <div id="simple-mode">
+                        <h4>Параметры съёмки</h4>
+
+                        <div class="row">
+                            <div class="col-xs-12 col-sm-4 col-md-3">
+                                <div class="form-group">
+                                    <label for="de_quantity">Количество кадров Dark и Empty</label>
+                                    <input type="number" step="1" min="0" class="form-control"
+                                           id="de_quantity" name="de_quantity" placeholder="Количество">
+                                </div>
+                            </div>
+                            <div class="col-xs-12 col-sm-4 col-md-3">
+                                <div class="form-group">
+                                    <label for="exposure_sec">Время экспозиции, с</label>
+                                    <input type="number" step="0.001" min="0.001" class="form-control"
+                                           id="exposure_sec" name="exposure_sec" placeholder="Экспозиция (с)">
+                                </div>
+                            </div>
+                        </div>
+
+                        <h4>Кадры DATA</h4>
+                        <div class="row">
+                            <div class="col-xs-6 col-sm-3 col-md-3">
+                                <div class="form-group">
+                                    <label for="data_shots_quantity_s">Количество позиций</label>
+                                    <input type="number" step="1" min="0" class="form-control"
+                                           id="data_shots_quantity_s" name="data_shots_quantity"
+                                           placeholder="Количество">
+                                </div>
+                            </div>
+                            <div class="col-xs-6 col-sm-3 col-md-3">
+                                <div class="form-group">
+                                    <label for="data_angle_s">Угловой шаг, °</label>
+                                    <input type="number" step="0.01" class="form-control"
+                                           id="data_angle_s" name="data_angle"
+                                           placeholder="Угловой шаг">
+                                </div>
+                            </div>
+                            <div class="col-xs-6 col-sm-3 col-md-3">
+                                <div class="form-group">
+                                    <label for="data_same_s">Кадров на угол</label>
+                                    <input type="number" step="1" min="1" class="form-control"
+                                           id="data_same_s" name="data_same"
+                                           placeholder="Кадров на угол">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# ===== ПРОДВИНУТЫЙ РЕЖИМ ===== #}
+                    <div id="advanced-mode" style="display:none">
+
+                        <div class="row">
+                            <div class="col-xs-6"><h4>Кадры DARK</h4></div>
+                            <div class="col-xs-6"><h4>Кадры EMPTY</h4></div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="dark_quantity_a">Количество</label>
+                                    <input type="number" step="1" min="0" class="form-control"
+                                           id="dark_quantity_a" name="dark_quantity"
+                                           placeholder="Количество" disabled>
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="dark_exposure_sec_a">Экспозиция, с</label>
+                                    <input type="number" step="0.001" min="0.001" class="form-control"
+                                           id="dark_exposure_sec_a" name="dark_exposure_sec"
+                                           placeholder="с" disabled>
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="empty_quantity_a">Количество</label>
+                                    <input type="number" step="1" min="0" class="form-control"
+                                           id="empty_quantity_a" name="empty_quantity"
+                                           placeholder="Количество" disabled>
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="empty_exposure_sec_a">Экспозиция, с</label>
+                                    <input type="number" step="0.001" min="0.001" class="form-control"
+                                           id="empty_exposure_sec_a" name="empty_exposure_sec"
+                                           placeholder="с" disabled>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h4>Кадры DATA</h4>
+                        <div class="row">
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="data_shots_quantity_a">Количество позиций</label>
+                                    <input type="number" step="1" min="0" class="form-control"
+                                           id="data_shots_quantity_a" name="data_shots_quantity"
+                                           placeholder="Количество" disabled>
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="data_exposure_sec_a">Экспозиция, с</label>
+                                    <input type="number" step="0.001" min="0.001" class="form-control"
+                                           id="data_exposure_sec_a" name="data_exposure_sec"
+                                           placeholder="с" disabled>
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="data_angle_a">Угловой шаг, °</label>
+                                    <input type="number" step="0.01" class="form-control"
+                                           id="data_angle_a" name="data_angle"
+                                           placeholder="Угловой шаг" disabled>
+                                </div>
+                            </div>
+                            <div class="col-xs-3">
+                                <div class="form-group">
+                                    <label for="data_same_a">Кадров на угол</label>
+                                    <input type="number" step="1" min="1" class="form-control"
+                                           id="data_same_a" name="data_same"
+                                           placeholder="Кадров на угол" disabled>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <br>
+                    <input type="submit" style="white-space:normal" class="btn btn-success btn-lg"
+                           name="parameters" value="Начать эксперимент"
+                            {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %}{% else %}disabled{% endif %}>
+
+                    <input type="submit" style="white-space:normal" class="btn btn-default btn-lg"
+                           name="turn_down" value="Закончить эксперимент"
+                            {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "experiment" %}{% else %}disabled{% endif %}>
                 </form>
             </div>
         </div>
     </div>
+
     {% load static %}
+    <script type="text/javascript" src="{% static 'experiment/js/ntsaveforms.js' %}"></script>
 
-    <script type='text/javascript' src="{% static 'experiment/js/ntsaveforms.js' %}"></script>
+    <script>
+    $(function () {
 
+        /* ------------------------------------------------------------------ */
+        /* AUTOCOMPLETE: загружаем данные один раз                            */
+        /* ------------------------------------------------------------------ */
+        var specimens = [];
+        var allTags = [];
+
+        $.getJSON("{% url 'experiment:autocomplete' %}", function (data) {
+            specimens = data.specimens || [];
+            allTags   = data.tags || [];
+        });
+
+        /* ---- универсальная функция отображения выпадающего списка -------- */
+        function showDropdown($input, $dropdown, items) {
+            $dropdown.empty();
+            if (!items.length) { $dropdown.hide(); return; }
+            $.each(items.slice(0, 12), function (_, text) {
+                $('<li><a href="#"></a></li>')
+                    .find('a').text(text).end()
+                    .on('mousedown', function (e) {
+                        e.preventDefault();
+                        $input.trigger('_pick', [text]);
+                    })
+                    .appendTo($dropdown);
+            });
+            $dropdown.show();
+        }
+
+        /* ---- Автодополнение названия образца ----------------------------- */
+        var $nameInput        = $('#name');
+        var $specimenDropdown = $('#specimen-dropdown');
+
+        $nameInput.on('input focus', function () {
+            var val = $(this).val().trim().toLowerCase();
+            if (!val) { $specimenDropdown.hide(); return; }
+            var matches = specimens.filter(function (s) {
+                return s.toLowerCase().indexOf(val) !== -1;
+            });
+            showDropdown($nameInput, $specimenDropdown, matches);
+        });
+
+        $nameInput.on('_pick', function (e, text) {
+            $(this).val(text);
+            $specimenDropdown.hide();
+        });
+
+        $nameInput.on('blur', function () {
+            setTimeout(function () { $specimenDropdown.hide(); }, 200);
+        });
+
+        /* ---- Автодополнение тегов (по последнему элементу после запятой) - */
+        var $tagsInput    = $('#tags');
+        var $tagsDropdown = $('#tags-dropdown');
+
+        $tagsInput.on('input focus', function () {
+            var fullVal    = $(this).val();
+            var parts      = fullVal.split(',');
+            var currentTag = parts[parts.length - 1].trim().toLowerCase();
+            if (!currentTag) { $tagsDropdown.hide(); return; }
+            var matches = allTags.filter(function (t) {
+                return t.toLowerCase().indexOf(currentTag) !== -1;
+            });
+            showDropdown($tagsInput, $tagsDropdown, matches);
+        });
+
+        $tagsInput.on('_pick', function (e, text) {
+            var parts = $(this).val().split(',');
+            parts[parts.length - 1] = ' ' + text;
+            $(this).val(parts.join(','));
+            $tagsDropdown.hide();
+        });
+
+        $tagsInput.on('blur', function () {
+            setTimeout(function () { $tagsDropdown.hide(); }, 200);
+        });
+
+        /* ------------------------------------------------------------------ */
+        /* ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ                                               */
+        /* ------------------------------------------------------------------ */
+        var isAdvanced = false;
+
+        $('#toggle-mode-btn').on('click', function () {
+            isAdvanced = !isAdvanced;
+
+            if (isAdvanced) {
+                /* --- переход в продвинутый режим --- */
+                $(this).text('Простой режим')
+                       .removeClass('btn-default').addClass('btn-warning');
+                $('#mode-input').val('advanced');
+
+                /* копируем значения из простого режима */
+                var deQty  = $('#de_quantity').val();
+                var expSec = $('#exposure_sec').val();
+                if (deQty)  { $('#dark_quantity_a').val(deQty);  $('#empty_quantity_a').val(deQty); }
+                if (expSec) {
+                    $('#dark_exposure_sec_a').val(expSec);
+                    $('#empty_exposure_sec_a').val(expSec);
+                    $('#data_exposure_sec_a').val(expSec);
+                }
+                $('#data_shots_quantity_a').val($('#data_shots_quantity_s').val());
+                $('#data_angle_a').val($('#data_angle_s').val());
+                $('#data_same_a').val($('#data_same_s').val());
+
+                /* деактивируем простой, активируем продвинутый */
+                $('#simple-mode input[type!=hidden]').prop('disabled', true);
+                $('#advanced-mode input[type!=hidden]').prop('disabled', false);
+                $('#simple-mode').hide();
+                $('#advanced-mode').show();
+
+            } else {
+                /* --- переход в простой режим --- */
+                $(this).text('Продвинутый режим')
+                       .removeClass('btn-warning').addClass('btn-default');
+                $('#mode-input').val('simple');
+
+                /* копируем данные из продвинутого обратно */
+                $('#de_quantity').val($('#dark_quantity_a').val());
+                $('#exposure_sec').val($('#dark_exposure_sec_a').val());
+                $('#data_shots_quantity_s').val($('#data_shots_quantity_a').val());
+                $('#data_angle_s').val($('#data_angle_a').val());
+                $('#data_same_s').val($('#data_same_a').val());
+
+                /* деактивируем продвинутый, активируем простой */
+                $('#advanced-mode input[type!=hidden]').prop('disabled', true);
+                $('#simple-mode input[type!=hidden]').prop('disabled', false);
+                $('#advanced-mode').hide();
+                $('#simple-mode').show();
+            }
+        });
+    });
+    </script>
 {% endblock content %}

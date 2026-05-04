@@ -158,7 +158,6 @@ function loadPreview(exposureSec) {
     var errorDiv     = document.getElementById('preview-error');
     var infoDiv      = document.getElementById('preview-info');
     var canvas       = document.getElementById('preview-canvas');
-    var colorbar     = document.getElementById('colorbar-canvas');
     var exposureLabel = document.getElementById('preview-exposure-label');
 
     // Show loading, hide everything else
@@ -196,9 +195,8 @@ function loadPreview(exposureSec) {
 
         // Render
         renderGrayscale(canvas, resp.pixels, resp.width, resp.height);
-        drawColorbar(colorbar, resp.data_min, resp.data_max, resp.height);
 
-        if (container) { container.style.display = 'flex'; }
+        if (container) { container.style.display = 'block'; }
 
         if (exposureLabel) {
             exposureLabel.textContent = 'Экспозиция: ' + exposureSec + ' с';

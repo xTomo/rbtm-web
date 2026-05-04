@@ -6,12 +6,27 @@
 <style>
     #storage-table td, #storage-table th {
         font-size: 16px;
+        vertical-align: top;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+    #storage-table .col-specimen {
+        word-break: break-word;
+        overflow-wrap: break-word;
+        min-width: 160px;
+    }
+    #storage-table .col-tags {
+        min-width: 100px;
+    }
+    #storage-table .col-nowrap {
+        white-space: nowrap;
     }
     .tag-label {
         font-size: 13px;
         margin-right: 3px;
         display: inline-block;
         margin-bottom: 2px;
+        white-space: nowrap;
     }
     #search-input {
         font-size: 18px;
@@ -56,28 +71,18 @@
         <div class="container-fluid">
             <div class="panel panel-default">
                 <div class="panel-body" style="padding: 0;">
-                    <table class="table table-condensed table-hover" id="storage-table" style="margin-bottom: 0; table-layout: fixed; width: 100%;">
-                        <colgroup>
-                            <col style="width: 52px;">
-                            <col style="width: 22%;">
-                            <col style="width: 28%;">
-                            <col style="width: 15%;">
-                            <col style="width: 8%;">
-                            <col style="width: 8%;">
-                            <col style="width: 10%;">
-                            <col style="width: 36px;">
-                            <col style="width: 36px;">
-                        </colgroup>
+                    <table class="table table-condensed table-hover" id="storage-table" style="margin-bottom: 0; width: 100%;">
                         <thead>
                         <tr>
-                            <th>#</th>
+                            <th style="width: 50px;">#</th>
                             <th>Образец</th>
                             <th>Тэги</th>
-                            <th>Дата и время</th>
-                            <th>Шаг угла</th>
-                            <th>Шагов</th>
-                            <th>Экспозиция</th>
-                            <th colspan="2"></th>
+                            <th class="col-nowrap">Дата и время</th>
+                            <th class="col-nowrap">Шаг угла</th>
+                            <th class="col-nowrap">Шагов</th>
+                            <th class="col-nowrap">Экспозиция</th>
+                            <th style="width: 40px;"></th>
+                            <th style="width: 36px;"></th>
                         </tr>
                         </thead>
                         <tbody id="storage-tbody">
@@ -86,16 +91,16 @@
                                 data-specimen="{{ record.specimen|lower }}"
                                 data-tags="{{ record.tags|join:' '|lower }}">
                                 <td class="text-muted">{{ record.serial_number }}</td>
-                                <td><a href='{% url 'storage:storage_record' record.experiment_id %}'>{{ record.specimen }}</a></td>
-                                <td>
+                                <td class="col-specimen"><a href='{% url 'storage:storage_record' record.experiment_id %}'>{{ record.specimen }}</a></td>
+                                <td class="col-tags">
                                     {% for tag in record.tags %}
                                         <span class="label label-default tag-label">{{ tag }}</span>
                                     {% endfor %}
                                 </td>
-                                <td>{{ record.datetime }}</td>
-                                <td>{{ record.data_angle_step }}&deg;</td>
-                                <td>{{ record.data_step_count }}</td>
-                                <td>{{ record.data_exposure }} мс</td>
+                                <td class="col-nowrap">{{ record.datetime }}</td>
+                                <td class="col-nowrap">{{ record.data_angle_step }}&deg;</td>
+                                <td class="col-nowrap">{{ record.data_step_count }}</td>
+                                <td class="col-nowrap">{{ record.data_exposure }} мс</td>
                                 <td style="text-align: right;">
                                     <div class="btn btn-xs" data-toggle="tooltip" data-placement="top" title="Скачать hdf5">
                                         <a href="{{ record.hdf_host }}" target="_blank" download>

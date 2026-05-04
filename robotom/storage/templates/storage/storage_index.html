@@ -75,8 +75,8 @@
                         <colgroup>
                             <col style="width: 52px;">
                             <col style="width: 30%;">
-                            <col style="width: 90px;">
                             <col style="width: 15%;">
+                            <col style="width: 110px;">
                             <col style="width: 14%;">
                             <col style="width: 7%;">
                             <col style="width: 7%;">
@@ -88,8 +88,8 @@
                         <tr>
                             <th>#</th>
                             <th>Образец</th>
-                            <th>3D</th>
                             <th>Тэги</th>
+                            <th>Реконструкция</th>
                             <th class="col-nowrap">Дата и время</th>
                             <th class="col-nowrap">Шаг угла</th>
                             <th class="col-nowrap">Шагов</th>
@@ -105,17 +105,17 @@
                                 data-tags="{{ record.tags|join:' '|lower }}">
                                 <td class="text-muted">{{ record.serial_number }}</td>
                                 <td class="col-specimen"><a href='{% url 'storage:storage_record' record.experiment_id %}'>{{ record.specimen }}</a></td>
-                                <td>
-                                    <a href="{{ record.recon_url }}" target="_blank"
-                                       class="btn btn-xs btn-info"
-                                       title="Просмотр реконструкции">
-                                        <span class="glyphicon glyphicon-eye-open"></span> 3D
-                                    </a>
-                                </td>
                                 <td class="col-tags">
                                     {% for tag in record.tags %}
                                         <span class="label label-default tag-label">{{ tag }}</span>
                                     {% endfor %}
+                                </td>
+                                <td>
+                                    <a href="{{ record.recon_url }}" target="_blank"
+                                       class="btn btn-xs btn-info"
+                                       title="Просмотр реконструкции">
+                                        <span class="glyphicon glyphicon-eye-open"></span> К реконструкции
+                                    </a>
                                 </td>
                                 <td class="col-nowrap">{{ record.datetime }}</td>
                                 <td class="col-nowrap">{{ record.data_angle_step }}&deg;</td>

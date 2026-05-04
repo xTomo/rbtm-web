@@ -181,9 +181,11 @@ def storage_view(request):
                     storage_logger.warning(u'Неверная запись об эксперименте {}'.format(result))
 
             # Storage API отдаёт по убыванию времени (новые первые).
-            # №1 = самый новый объект.
+            # Нумерация: старейший объект получает №1, новейший — №N.
+            # Таблица отображается в исходном порядке (новые вверху).
+            total = len(records)
             for i, record in enumerate(records):
-                record.serial_number = i + 1
+                record.serial_number = total - i
 
             if len(records) == 0:
                 messages.error(request, u'Не найдено ни одной записи')

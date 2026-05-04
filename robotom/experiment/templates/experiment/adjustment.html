@@ -214,33 +214,30 @@
             <div class="col-xs-12 col-md-6 col-lg-6">
                 <div class="panel panel-default">
                     <div class="panel-heading">
-                        <h3>Предпросмотр
-                            <small id="preview-exposure-label">{% if preview %}Экспозиция: {{ exposure_sec }} с{% endif %}</small>
-                        </h3>
+                        <h3>Предпросмотр <small id="preview-exposure-label"></small></h3>
                     </div>
                     <div class="panel-body">
-                        <div id="preview-container" style="display:{% if preview %}flex{% else %}none{% endif %}; align-items:flex-start; gap:8px;">
+                        <div id="preview-container" style="display:none; align-items:flex-start; gap:8px;">
                             <canvas id="preview-canvas" style="max-width:100%; border:1px solid #ddd; display:block;"></canvas>
-                            <canvas id="colorbar-canvas" width="24" style="border:1px solid #ddd; display:block; flex-shrink:0;"></canvas>
+                            <canvas id="colorbar-canvas" style="border:1px solid #ddd; display:block; flex-shrink:0;"></canvas>
                         </div>
                         <div id="preview-loading" style="display:none; text-align:center; padding:20px;">
                             {% load static %}
                             <img src="{% static 'storage/img/loading.gif' %}" alt="Загрузка...">
                             <p>Получение изображения...</p>
                         </div>
-                        <div id="preview-placeholder" style="display:{% if preview %}none{% else %}block{% endif %};">
+                        <div id="preview-placeholder" style="display:block;">
                             {% load static %}
                             <img class="img-responsive center-block" height="75%" width="75%"
                                  src="{% static 'experiment/images/noimage.png' %}">
                         </div>
+                        <div id="preview-error" style="display:none; margin-top:6px;" class="alert alert-warning"></div>
                         <div id="preview-info" style="margin-top:6px; font-size:12px; color:#666;"></div>
                     </div>
                 </div>
             </div>
             <script>
                 var preview_data_url = "{% url 'experiment:preview_data' %}";
-                var initial_preview = {% if preview %}true{% else %}false{% endif %};
-                var initial_exposure_sec = "{{ exposure_sec|default:'' }}";
             </script>
         </div>
         <!--<button type="submit" style="white-space:normal; margin-top:7px; margin-bottom:7px" class="btn btn-default ntSaveFormsSubmit">Очистить поля</button>-->

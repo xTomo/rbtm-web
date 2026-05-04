@@ -72,30 +72,27 @@ display();
 
 /**
  * Draw a grayscale colorbar on a canvas element.
- * The bar goes from black (bottom) to white (top), with numeric labels.
  * @param {HTMLCanvasElement} canvas
- * @param {number} dataMin - original data minimum value
- * @param {number} dataMax - original data maximum value
- * @param {number} height  - desired height in px (matches image canvas)
+ * @param {number} dataMin
+ * @param {number} dataMax
+ * @param {number} height
  */
 function drawColorbar(canvas, dataMin, dataMax, height) {
-    var W = 32;       // total width: 16px gradient + 16px labels area
-    var barW = 14;    // gradient strip width
-    var labelX = barW + 3;
-    canvas.width = W + 40;  // extra for labels
+    var barW = 14;
+    canvas.width = 58;   // 14px bar + 44px label area
     canvas.height = height;
 
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Gradient bar: white at top, black at bottom
+    // Gradient: white at top, black at bottom
     var grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, '#ffffff');
     grad.addColorStop(1, '#000000');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, barW, height);
 
-    // Border around the bar
+    // Border
     ctx.strokeStyle = '#888';
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, barW, height);
@@ -107,28 +104,26 @@ function drawColorbar(canvas, dataMin, dataMax, height) {
 
     var numTicks = 5;
     for (var i = 0; i <= numTicks; i++) {
-        var t = i / numTicks;          // 0 at top (white) → 1 at bottom (black)
+        var t = i / numTicks;
         var y = t * height;
-        var value = dataMax - t * (dataMax - dataMin);  // high value at top
+        var value = dataMax - t * (dataMax - dataMin);
 
-        // tick line
         ctx.strokeStyle = '#888';
         ctx.beginPath();
         ctx.moveTo(barW, y);
         ctx.lineTo(barW + 3, y);
         ctx.stroke();
 
-        // label
         var label = value.toFixed(0);
-        var textY = Math.min(Math.max(y + 3, 10), height);
-        ctx.fillText(label, labelX + 3, textY);
+        var textY = Math.min(Math.max(y + 3, 10), height - 1);
+        ctx.fillText(label, barW + 5, textY);
     }
 }
 
 /**
- * Render uint16 grayscale pixels (0–65535) onto a canvas using a gray colormap.
+ * Render uint16 grayscale pixels onto a canvas.
  * @param {HTMLCanvasElement} canvas
- * @param {Array<number>} pixels - flat array of uint16 values
+ * @param {Array<number>} pixels - flat uint16 array (0–65535)
  * @param {number} width
  * @param {number} height
  */
@@ -141,7 +136,7 @@ function renderGrayscale(canvas, pixels, width, height) {
     var data = imgData.data;
 
     for (var i = 0; i < pixels.length; i++) {
-        var v = Math.round(pixels[i] / 257);  // 0–65535 → 0–255
+        var v = (pixels[i] / 65535 * 255 + 0.5) | 0;  // fast floor
         var j = i * 4;
         data[j]     = v;
         data[j + 1] = v;
@@ -153,24 +148,25 @@ function renderGrayscale(canvas, pixels, width, height) {
 }
 
 /**
- * Request preview data from the server, render on canvas and draw colorbar.
- * Called when the exposure form is submitted (intercepts default POST).
- * @param {number|string} exposureSec
+ * Fetch preview data from server and render on canvas.
+ * @param {string|number} exposureSec
  */
 function loadPreview(exposureSec) {
     var container    = document.getElementById('preview-container');
     var loading      = document.getElementById('preview-loading');
     var placeholder  = document.getElementById('preview-placeholder');
+    var errorDiv     = document.getElementById('preview-error');
     var infoDiv      = document.getElementById('preview-info');
     var canvas       = document.getElementById('preview-canvas');
     var colorbar     = document.getElementById('colorbar-canvas');
     var exposureLabel = document.getElementById('preview-exposure-label');
 
-    // Show loading state
-    if (container)   container.style.display   = 'none';
-    if (placeholder) placeholder.style.display = 'none';
-    if (loading)     loading.style.display     = 'block';
-    if (infoDiv)     infoDiv.textContent        = '';
+    // Show loading, hide everything else
+    if (container)   { container.style.display   = 'none'; }
+    if (placeholder) { placeholder.style.display = 'none'; }
+    if (errorDiv)    { errorDiv.style.display     = 'none'; errorDiv.textContent = ''; }
+    if (infoDiv)     { infoDiv.textContent         = ''; }
+    if (loading)     { loading.style.display       = 'block'; }
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', preview_data_url, true);
@@ -178,11 +174,10 @@ function loadPreview(exposureSec) {
     xhr.setRequestHeader('X-CSRFToken', csrf_token);
 
     xhr.onload = function() {
-        if (loading) loading.style.display = 'none';
+        if (loading) { loading.style.display = 'none'; }
 
         if (xhr.status !== 200) {
-            if (placeholder) placeholder.style.display = 'block';
-            if (infoDiv) infoDiv.textContent = 'Ошибка получения изображения (код ' + xhr.status + ')';
+            showError('Ошибка получения изображения (HTTP ' + xhr.status + ')');
             return;
         }
 
@@ -190,53 +185,46 @@ function loadPreview(exposureSec) {
         try {
             resp = JSON.parse(xhr.responseText);
         } catch (e) {
-            if (placeholder) placeholder.style.display = 'block';
-            if (infoDiv) infoDiv.textContent = 'Ошибка разбора ответа сервера';
+            showError('Не удалось разобрать ответ сервера');
             return;
         }
 
         if (resp.error) {
-            if (placeholder) placeholder.style.display = 'block';
-            if (infoDiv) infoDiv.textContent = 'Ошибка: ' + resp.error;
+            showError('Ошибка: ' + resp.error);
             return;
         }
 
-        // Render image
+        // Render
         renderGrayscale(canvas, resp.pixels, resp.width, resp.height);
         drawColorbar(colorbar, resp.data_min, resp.data_max, resp.height);
 
-        // Show container
-        if (container) container.style.display = 'flex';
+        if (container) { container.style.display = 'flex'; }
 
-        // Update labels
         if (exposureLabel) {
             exposureLabel.textContent = 'Экспозиция: ' + exposureSec + ' с';
         }
         if (infoDiv) {
-            infoDiv.textContent = 'Размер: ' + resp.width + '×' + resp.height +
-                '  |  Диапазон: ' + resp.data_min.toFixed(1) + ' – ' + resp.data_max.toFixed(1);
+            infoDiv.textContent = resp.width + '×' + resp.height + ' пикс  |  ' +
+                'мин: ' + resp.data_min.toFixed(1) + '  макс: ' + resp.data_max.toFixed(1);
         }
     };
 
     xhr.onerror = function() {
-        if (loading)     loading.style.display     = 'none';
-        if (placeholder) placeholder.style.display = 'block';
-        if (infoDiv)     infoDiv.textContent        = 'Ошибка сети при запросе изображения';
+        if (loading) { loading.style.display = 'none'; }
+        showError('Ошибка сети при запросе изображения');
     };
 
     xhr.send(JSON.stringify({ exposure_sec: parseFloat(exposureSec) || 1.0 }));
+
+    function showError(msg) {
+        if (placeholder) { placeholder.style.display = 'block'; }
+        if (errorDiv)    { errorDiv.style.display = 'block'; errorDiv.textContent = msg; }
+    }
 }
 
 // ─── Hook into the exposure form ─────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
-
-    // If page loaded with preview=True (server-side redirect after POST),
-    // automatically fetch the image using the stored exposure value.
-    if (typeof initial_preview !== 'undefined' && initial_preview && initial_exposure_sec) {
-        loadPreview(initial_exposure_sec);
-    }
-
     var form = document.querySelector('form[name="picture_exposure_form"]');
     if (!form) return;
 
@@ -244,17 +232,11 @@ document.addEventListener('DOMContentLoaded', function() {
         var submitBtn = document.getElementById('picture_exposure_submit');
         if (!submitBtn || submitBtn.disabled) return;
 
-        // Don't let Django handle the POST for preview — we do it via AJAX instead.
-        // The form still submits to Django (so the page reloads with preview=True context),
-        // but we intercept it here for the canvas rendering path.
-        //
-        // Strategy: intercept, fire AJAX, but also allow normal submit so that
-        // exposure_sec is preserved across other form actions.
-        var exposureSec = document.getElementById('picture_exposure').value;
-        if (!exposureSec) return;  // let normal validation handle it
+        var exposureInput = document.getElementById('picture_exposure');
+        var exposureSec = exposureInput ? exposureInput.value : '';
+        if (!exposureSec) return;  // let native validation handle it
 
-        e.preventDefault();  // stop normal form submit
-
+        e.preventDefault();
         loadPreview(exposureSec);
     });
 });

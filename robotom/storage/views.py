@@ -155,7 +155,6 @@ def storage_view(request):
     num_pages = 0
     page_size = 50
     to_show = False
-    search_query = request.GET.get('search', '').strip()
 
     storage_url = request.build_absolute_uri(reverse('storage:index'))
 
@@ -166,7 +165,8 @@ def storage_view(request):
         storage_url = force_https(storage_url)
     # end of force https kludge
 
-    info = make_search_query(search_query)
+    # Загружаем все записи; фильтрация по поиску выполняется на клиенте
+    info = json.dumps({})
     try:
         answer = requests.post(settings.STORAGE_EXPERIMENTS_GET_HOST, info, timeout=settings.TIMEOUT_DEFAULT)
         if answer.status_code == 200:
@@ -180,9 +180,8 @@ def storage_view(request):
                 except KeyError:
                     storage_logger.warning(u'Неверная запись об эксперименте {}'.format(result))
 
-            # Переворачиваем: Storage API отдаёт по убыванию времени,
-            # нам нужно по возрастанию (самые старые — первые, №1).
-            records.reverse()
+            # Storage API отдаёт по убыванию времени (новые первые).
+            # №1 = самый новый объект.
             for i, record in enumerate(records):
                 record.serial_number = i + 1
 
@@ -209,7 +208,6 @@ def storage_view(request):
         'pages': range(1, num_pages + 1),
         'storage_url': storage_url,
         'page_size': page_size,
-        'search_query': search_query,
     })
 
 

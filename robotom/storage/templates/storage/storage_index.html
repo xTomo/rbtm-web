@@ -1,28 +1,41 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container-fluid">
+{% load static %}
+
+<style>
+    #storage-table td, #storage-table th {
+        font-size: 16px;
+    }
+    .tag-label {
+        font-size: 13px;
+        margin-right: 3px;
+        display: inline-block;
+        margin-bottom: 2px;
+    }
+    #search-input {
+        font-size: 18px;
+    }
+    .no-results-msg {
+        font-size: 16px;
+        color: #888;
+        padding: 20px 0;
+    }
+</style>
+
+    <div class="container-fluid" style="margin-bottom: 16px;">
         <div class="panel panel-default">
             <div class="panel-body">
-                <form method="get" action="" class="form-inline">
-                    <div class="input-group" style="width: 100%; max-width: 600px;">
-                        <input type="text"
-                               class="form-control input-lg"
-                               name="search"
-                               id="search"
-                               value="{{ search_query }}"
-                               placeholder="Поиск по названию и тэгам (слова через пробел)">
-                        <span class="input-group-btn">
-                            <button type="submit" class="btn btn-default btn-lg">
-                                <span class="glyphicon glyphicon-search"></span>
-                                Найти
-                            </button>
-                        </span>
-                    </div>
-                    <p class="help-block" style="margin-top: 6px;">
-                        Несколько слов разделяйте пробелом — все слова должны встречаться в названии или тэгах объекта.
-                    </p>
-                </form>
+                <div class="input-group" style="max-width: 640px;">
+                    <input type="text"
+                           class="form-control"
+                           id="search-input"
+                           placeholder="Поиск по названию и тэгам (слова через пробел)…"
+                           autocomplete="off">
+                    <span class="input-group-addon">
+                        <span class="glyphicon glyphicon-search"></span>
+                    </span>
+                </div>
             </div>
         </div>
     </div>
@@ -42,11 +55,11 @@
     {% if toShowResult %}
         <div class="container-fluid">
             <div class="panel panel-default">
-                <div class="panel-body">
-                    <table class="table table-condensed table-hover">
+                <div class="panel-body" style="padding: 0;">
+                    <table class="table table-condensed table-hover" id="storage-table" style="margin-bottom: 0;">
                         <thead>
                         <tr>
-                            <th style="width: 50px;">#</th>
+                            <th style="width: 52px;">#</th>
                             <th>Образец</th>
                             <th>Тэги</th>
                             <th>Дата и время</th>
@@ -56,14 +69,16 @@
                             <th colspan="2"></th>
                         </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="storage-tbody">
                         {% for record in record_range %}
-                            <tr class="paginated-content tr-buttoned" id="id{{ record.experiment_id }}">
+                            <tr class="storage-row tr-buttoned" id="id{{ record.experiment_id }}"
+                                data-specimen="{{ record.specimen|lower }}"
+                                data-tags="{{ record.tags|join:' '|lower }}">
                                 <td class="text-muted">{{ record.serial_number }}</td>
                                 <td><a href='{% url 'storage:storage_record' record.experiment_id %}'>{{ record.specimen }}</a></td>
                                 <td>
                                     {% for tag in record.tags %}
-                                        <span class="label label-default" style="margin-right: 3px;">{{ tag }}</span>
+                                        <span class="label label-default tag-label">{{ tag }}</span>
                                     {% endfor %}
                                 </td>
                                 <td>{{ record.datetime }}</td>
@@ -71,39 +86,27 @@
                                 <td>{{ record.data_step_count }}</td>
                                 <td>{{ record.data_exposure }} мс</td>
                                 <td style="text-align: right;">
-                                    <div class="btn" data-toggle="tooltip" data-placement="top" title="Скачать hdf5">
+                                    <div class="btn btn-xs" data-toggle="tooltip" data-placement="top" title="Скачать hdf5">
                                         <a href="{{ record.hdf_host }}" target="_blank" download>
-                                            <img src="/static/storage/img/hdf5.png" style="height: 20px; margin: -6px 0;"/>
+                                            <img src="/static/storage/img/hdf5.png" style="height: 20px; margin: -4px 0;"/>
                                         </a>
                                     </div>
                                 </td>
                                 <td>
-                                    <div style="cursor: pointer" data-toggle="tooltip" data-placement="top"
+                                    <div style="cursor: pointer;" data-toggle="tooltip" data-placement="top"
                                          title="Удалить эксперимент" onClick="deleteExperiment(this.id)"
                                          id="{{ record.experiment_id }}">
-                                        <span class="glyphicon glyphicon-trash" style="padding-top:7px;"/>
+                                        <span class="glyphicon glyphicon-trash" style="padding-top: 5px;"/>
                                     </div>
                                 </td>
                             </tr>
                         {% endfor %}
                         </tbody>
                     </table>
+                    <div id="no-results" class="no-results-msg text-center" style="display:none;">
+                        Ничего не найдено
+                    </div>
                 </div>
-                {% if pages|length > 1 %}
-                <div class="panel-footer">
-                    <ul class="pagination">
-                        <li class="disabled">
-                            <span class="glyphicon glyphicon-chevron-left"></span>
-                        </li>
-                        {% for page_id in pages %}
-                            <li {% if page_id == 1 %}class="active"{% endif %}><a href="#">{{ page_id }}</a></li>
-                        {% endfor %}
-                        <li class="disabled">
-                            <span class="glyphicon glyphicon-chevron-right"></span>
-                        </li>
-                    </ul>
-                </div>
-                {% endif %}
             </div>
         </div>
     {% endif %}
@@ -111,9 +114,37 @@
    <script type="text/javascript">
         var storage_url = '{{ storage_url }}'
         var page_size = '{{ page_size }}'
-   </script>
 
-{% load static %}
+        // Поиск по мере ввода
+        document.getElementById('search-input').addEventListener('input', function () {
+            var query = this.value.trim().toLowerCase();
+            var terms = query.length > 0 ? query.split(/\s+/) : [];
+            var rows = document.querySelectorAll('#storage-tbody .storage-row');
+            var visibleCount = 0;
+
+            rows.forEach(function (row) {
+                var specimen = row.getAttribute('data-specimen') || '';
+                var tags = row.getAttribute('data-tags') || '';
+                var combined = specimen + ' ' + tags;
+
+                var matches = terms.every(function (term) {
+                    return combined.indexOf(term) !== -1;
+                });
+
+                if (matches) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            var noResults = document.getElementById('no-results');
+            if (noResults) {
+                noResults.style.display = (visibleCount === 0 && rows.length > 0) ? '' : 'none';
+            }
+        });
+   </script>
 
     <script type='text/javascript' src="{% static 'storage/js/storage_index.js' %}"></script>
 

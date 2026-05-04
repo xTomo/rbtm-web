@@ -112,7 +112,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 STATIC_URL = '/static/'
 
 # Additional locations of static files
-STATICFILES_DIRS = (os.path.join(BASE_DIR, 'main/static'), )
+# NOTE: do NOT add app-level static dirs here (e.g. main/static) — they are
+# already discovered automatically by AppDirectoriesFinder, which would cause
+# "Found another file with the destination path" warnings during collectstatic.
+STATICFILES_DIRS = ()
 
 STATICFILES_FINDERS = (
     'django.contrib.staticfiles.finders.FileSystemFinder',

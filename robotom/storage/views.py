@@ -49,6 +49,7 @@ class ExperimentRecord:
         self.empty_count = record['experiment parameters']['EMPTY']['count']
         self.empty_exposure = record['experiment parameters']['EMPTY']['exposure']
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
+        self.recon_url = settings.RECONSTRUCTION_URL.format(exp_id=self.experiment_id)
         self.datetime = record['datetime']
 
         raw_tags = record.get('tags', [])
@@ -269,12 +270,11 @@ def storage_record_view(request, storage_record_id):
                        u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
 
-    recon_base_path = '../../reconstruct/{}'
-    recon_path = recon_base_path.format(storage_record_id)
+    recon_url = settings.RECONSTRUCTION_URL.format(exp_id=storage_record_id)
 
     return render(request, 'storage/storage_record.html', {
         'record_id': storage_record_id,
-        'recon_path': recon_path,
+        'recon_url': recon_url,
         'caption': 'Запись хранилища ' + str(storage_record_id),
         'to_show': to_show,
         'info': record,

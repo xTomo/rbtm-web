@@ -20,6 +20,10 @@ TIMEOUT_DEFAULT = 120  # timeout in secs
 
 STORAGE_HOST = 'http://localhost:5006/'
 EXPERIMENT_HOST = 'http://localhost:5001/'
+RECONSTRUCTION_HOST = 'http://10.0.7.153:5550/'
+
+# RECONSTRUCTION routes
+RECONSTRUCTION_URL = urljoin(RECONSTRUCTION_HOST, '/view/tomo_object/{exp_id}')
 
 # STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')

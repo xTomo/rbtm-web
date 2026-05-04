@@ -50,6 +50,7 @@ EXPERIMENT_SHUTTER_CLOSE = urljoin(EXPERIMENT_HOST, '/tomograph/{}/shutter/close
 EXPERIMENT_SOURCE_SET_VOLT = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/set-voltage')
 EXPERIMENT_SOURCE_SET_CURR = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/set-current')
 EXPERIMENT_DETECTOR_GET_FRAME = urljoin(EXPERIMENT_HOST, '/tomograph/{}/detector/get-frame')
+EXPERIMENT_DETECTOR_GET_FRAME_PREVIEW = urljoin(EXPERIMENT_HOST, '/tomograph/{}/detector/get-frame-preview')
 
 EXPERIMENT_START = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/start')
 EXPERIMENT_STOP = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/stop')

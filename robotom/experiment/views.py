@@ -496,7 +496,7 @@ def get_preview_data(request):
 
     try:
         response = requests.post(
-            settings.EXPERIMENT_DETECTOR_GET_FRAME.format(TOMO_NUM),
+            settings.EXPERIMENT_DETECTOR_GET_FRAME_PREVIEW.format(TOMO_NUM),
             data,
             stream=True,
             timeout=max(settings.TIMEOUT_DEFAULT, exposure_sec + 30),
@@ -512,43 +512,27 @@ def get_preview_data(request):
         experiment_logger.error(u'Ошибка получения кадра: {}'.format(e))
         return JsonResponse({'error': str(e)}, status=502)
 
-    # Открываем изображение через Pillow
+    # Загружаем npz-данные от детектора (уже ресайз + медиана)
     try:
-        img = Image.open(io.BytesIO(raw))
+        npz = np.load(io.BytesIO(raw))
+        arr = npz['data'].astype(np.float32)
+        new_h, new_w = arr.shape[:2]
     except Exception as e:
-        experiment_logger.error(u'Ошибка декодирования изображения: {}'.format(e))
-        return JsonResponse({'error': 'image decode error'}, status=502)
+        experiment_logger.error(u'Ошибка декодирования npz: {}'.format(e))
+        return JsonResponse({'error': 'npz decode error: {}'.format(str(e))}, status=502)
 
-    # Ресайз с сохранением пропорций
-    orig_w, orig_h = img.size
-    scale = min(PREVIEW_MAX_WIDTH / orig_w, PREVIEW_MAX_HEIGHT / orig_h, 1.0)
-    new_w = max(1, int(orig_w * scale))
-    new_h = max(1, int(orig_h * scale))
-    if scale < 1.0:
-        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-
-    # Конвертируем в числовой массив; поддерживаем 16-bit и 8-bit
-    arr = np.array(img)
-    if arr.ndim == 3:
-        # RGB/RGBA → grayscale (лин. взвешенное)
-        arr = np.dot(arr[..., :3].astype(np.float32), [0.2126, 0.7152, 0.0722])
-
-    arr = arr.astype(np.float32)
-
-    # Медианный фильтр 3×3
-    arr = _median_filter_3x3(arr)
-
-    # Нормализуем в 0–65535 (uint16) для единообразия
     arr_min = float(arr.min())
     arr_max = float(arr.max())
+
+    # Нормализуем в 0–65535 (uint16) для передачи в браузер
     if arr_max > arr_min:
         arr_norm = ((arr - arr_min) / (arr_max - arr_min) * 65535).astype(np.uint16)
     else:
         arr_norm = np.zeros_like(arr, dtype=np.uint16)
 
     return JsonResponse({
-        'width': new_w,
-        'height': new_h,
+        'width': int(new_w),
+        'height': int(new_h),
         'data_min': arr_min,
         'data_max': arr_max,
         'pixels': arr_norm.flatten().tolist(),

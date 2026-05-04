@@ -461,9 +461,9 @@ def get_autocomplete_data(request):
     })
 
 
-# Preview thumbnail size (width, height). Adjust as needed.
-PREVIEW_MAX_WIDTH = 600
-PREVIEW_MAX_HEIGHT = 400
+# Preview thumbnail size — must match make_preview_data() defaults in rbtm-drivers-next.
+PREVIEW_MAX_WIDTH = 1200
+PREVIEW_MAX_HEIGHT = 800
 
 
 def _median_filter_3x3(arr):

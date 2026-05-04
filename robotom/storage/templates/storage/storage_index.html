@@ -82,6 +82,7 @@
                             <col style="width: 10%;">
                             <col style="width: 40px;">
                             <col style="width: 36px;">
+                            <col style="width: 36px;">
                         </colgroup>
                         <thead>
                         <tr>
@@ -92,6 +93,7 @@
                             <th class="col-nowrap">Шаг угла</th>
                             <th class="col-nowrap">Шагов</th>
                             <th class="col-nowrap">Экспозиция</th>
+                            <th></th>
                             <th></th>
                             <th></th>
                         </tr>
@@ -116,6 +118,13 @@
                                     <div class="btn btn-xs" data-toggle="tooltip" data-placement="top" title="Скачать hdf5">
                                         <a href="{{ record.hdf_host }}" target="_blank" download>
                                             <img src="/static/storage/img/hdf5.png" style="height: 20px; margin: -4px 0;"/>
+                                        </a>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn btn-xs" data-toggle="tooltip" data-placement="top" title="Просмотр реконструкции">
+                                        <a href="/reconstruct/{{ record.experiment_id }}" target="_blank">
+                                            <span class="glyphicon glyphicon-eye-open" style="padding-top: 3px;"></span>
                                         </a>
                                     </div>
                                 </td>

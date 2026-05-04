@@ -404,9 +404,12 @@ def experiment_interface(request):
 @login_required
 @user_passes_test(has_experiment_access)
 def get_autocomplete_data(request):
-    """Возвращает уникальные имена образцов и теги из Storage API для автодополнения."""
+    """Возвращает уникальные/недавние имена образцов, теги и параметры последнего эксперимента."""
     specimens = []
     tags = []
+    recent_specimens = []
+    recent_tags = []
+    last_params = None
     try:
         answer = requests.post(
             settings.STORAGE_EXPERIMENTS_GET_HOST,
@@ -417,22 +420,62 @@ def get_autocomplete_data(request):
             experiments = json.loads(answer.content)
             seen_specimens = set()
             seen_tags = set()
+            seen_recent_specimens = []
+            seen_recent_tags = []
+
             for exp in experiments:
                 specimen = exp.get('specimen', '').strip()
                 if specimen:
                     seen_specimens.add(specimen)
+                    if specimen not in seen_recent_specimens:
+                        seen_recent_specimens.append(specimen)
+
                 raw_tags = exp.get('tags', '')
                 if raw_tags:
                     for t in raw_tags.split(','):
                         t = t.strip()
                         if t:
                             seen_tags.add(t)
+                            if t not in seen_recent_tags:
+                                seen_recent_tags.append(t)
+
             specimens = sorted(seen_specimens)
             tags = sorted(seen_tags)
+            recent_specimens = seen_recent_specimens[:20]
+            recent_tags = seen_recent_tags[:30]
+
+            # Параметры последнего эксперимента
+            if experiments:
+                last_exp = experiments[0]
+                try:
+                    ep = last_exp.get('experiment parameters', {})
+                    dark = ep.get('DARK', {})
+                    empty = ep.get('EMPTY', {})
+                    data = ep.get('DATA', {})
+                    last_params = {
+                        'advanced': ep.get('advanced', False),
+                        'dark_count': dark.get('count', ''),
+                        'dark_exposure_sec': round(dark.get('exposure', 0) / 1000.0, 3) if dark.get('exposure') else '',
+                        'empty_count': empty.get('count', ''),
+                        'empty_exposure_sec': round(empty.get('exposure', 0) / 1000.0, 3) if empty.get('exposure') else '',
+                        'data_step_count': data.get('step count', ''),
+                        'data_exposure_sec': round(data.get('exposure', 0) / 1000.0, 3) if data.get('exposure') else '',
+                        'data_angle_step': data.get('angle step', ''),
+                        'data_count_per_step': data.get('count per step', ''),
+                    }
+                except Exception as e:
+                    experiment_logger.error(u'Ошибка разбора параметров последнего эксперимента: {}'.format(e))
+
     except Exception as e:
         experiment_logger.error(u'Ошибка получения данных автодополнения: {}'.format(e))
 
-    return JsonResponse({'specimens': specimens, 'tags': tags})
+    return JsonResponse({
+        'specimens': specimens,
+        'tags': tags,
+        'recent_specimens': recent_specimens,
+        'recent_tags': recent_tags,
+        'last_params': last_params,
+    })
 
 
 @login_required

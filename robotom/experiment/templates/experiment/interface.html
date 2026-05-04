@@ -76,7 +76,7 @@
                         </div>
 
                         <h4>Кадры DATA</h4>
-                        <div class="row" style="align-items:flex-end">
+                        <div class="row">
                             <div class="col-xs-6 col-sm-3 col-md-2">
                                 <div class="form-group">
                                     <label for="data_shots_quantity_s">Кол-во позиций</label>
@@ -228,29 +228,34 @@
         /* ================================================================== */
         /* AUTOCOMPLETE HELPER                                                 */
         /* ================================================================== */
-        function Autocomplete($input, $dropdown, onPick) {
+        function Autocomplete($input, $dropdown, onPick, getItems) {
+            /* getItems(val) — возвращает массив строк для отображения         */
             var activeIdx = -1;
 
-            function getItems() { return $dropdown.find('li'); }
+            function getListItems() { return $dropdown.find('li'); }
 
             function setActive(idx) {
-                var $items = getItems();
+                var $items = getListItems();
                 $items.removeClass('active');
                 activeIdx = idx;
                 if (idx >= 0 && idx < $items.length) {
                     $items.eq(idx).addClass('active');
-                    var $li = $items.eq(idx);
-                    var top = $li.position().top + $dropdown.scrollTop();
+                    var top = $items.eq(idx).position().top + $dropdown.scrollTop();
                     $dropdown.scrollTop(top - $dropdown.height() / 2);
                 }
             }
 
             function hide() { $dropdown.hide(); activeIdx = -1; }
 
-            function show(items) {
+            function show(items, headerText) {
                 $dropdown.empty();
                 activeIdx = -1;
                 if (!items.length) { hide(); return; }
+                if (headerText) {
+                    $('<li class="list-group-item disabled" style="font-size:11px;color:#999;padding:3px 12px;pointer-events:none"></li>')
+                        .text(headerText)
+                        .appendTo($dropdown);
+                }
                 $.each(items.slice(0, 15), function (_, text) {
                     $('<li class="list-group-item" style="cursor:pointer;padding:6px 12px"></li>')
                         .text(text)
@@ -265,18 +270,36 @@
             }
 
             $input.on('keydown', function (e) {
+                /* ArrowDown на пустом поле — показать список недавних */
+                if (e.key === 'ArrowDown' && !$dropdown.is(':visible') && $(this).val().trim() === '') {
+                    var recent = getItems('');
+                    if (recent && recent.length) {
+                        show(recent.items, recent.header);
+                        setActive(0);
+                    }
+                    e.preventDefault();
+                    return;
+                }
                 if (!$dropdown.is(':visible')) return;
-                var $items = getItems();
+                var $items = getListItems().not('.disabled');
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
-                    setActive(Math.min(activeIdx + 1, $items.length - 1));
+                    /* пропускаем заголовок (disabled) */
+                    var allLi = $dropdown.find('li');
+                    var nextIdx = activeIdx + 1;
+                    while (nextIdx < allLi.length && allLi.eq(nextIdx).hasClass('disabled')) nextIdx++;
+                    setActive(Math.min(nextIdx, allLi.length - 1));
                 } else if (e.key === 'ArrowUp') {
                     e.preventDefault();
-                    setActive(Math.max(activeIdx - 1, 0));
+                    var allLi2 = $dropdown.find('li');
+                    var prevIdx = activeIdx - 1;
+                    while (prevIdx >= 0 && allLi2.eq(prevIdx).hasClass('disabled')) prevIdx--;
+                    if (prevIdx >= 0) setActive(prevIdx);
                 } else if (e.key === 'Enter') {
-                    if (activeIdx >= 0) {
+                    var $active = $dropdown.find('li.active:not(.disabled)');
+                    if ($active.length) {
                         e.preventDefault();
-                        onPick($items.eq(activeIdx).text());
+                        onPick($active.text());
                         hide();
                     }
                 } else if (e.key === 'Escape') {
@@ -292,26 +315,88 @@
         /* ================================================================== */
         /* ЗАГРУЗКА ДАННЫХ ДЛЯ АВТОДОПОЛНЕНИЯ                                */
         /* ================================================================== */
-        var specimens = [];
-        var allTags   = [];
+        var specimens       = [];
+        var allTags         = [];
+        var recentSpecimens = [];
+        var recentTags      = [];
+        var lastParams      = null;
+        var isAdvanced      = false;
 
         $.getJSON("{% url 'experiment:autocomplete' %}", function (data) {
-            specimens = data.specimens || [];
-            allTags   = data.tags     || [];
+            specimens       = data.specimens        || [];
+            allTags         = data.tags             || [];
+            recentSpecimens = data.recent_specimens || [];
+            recentTags      = data.recent_tags      || [];
+            lastParams      = data.last_params      || null;
+
+            /* Заполнить параметры съёмки из последнего эксперимента */
+            if (lastParams) {
+                applyLastParams(lastParams);
+            }
         });
+
+        function applyLastParams(p) {
+            var advanced = p.advanced;
+
+            if (advanced) {
+                /* переключаем в продвинутый режим */
+                if (!isAdvanced) $('#toggle-mode-btn').trigger('click');
+                setVal('#dark_quantity_a',       p.dark_count);
+                setVal('#dark_exposure_sec_a',   p.dark_exposure_sec);
+                setVal('#empty_quantity_a',      p.empty_count);
+                setVal('#empty_exposure_sec_a',  p.empty_exposure_sec);
+                setVal('#data_shots_quantity_a', p.data_step_count);
+                setVal('#data_exposure_sec_a',   p.data_exposure_sec);
+                setVal('#data_angle_a',          p.data_angle_step);
+                setVal('#data_same_a',           p.data_count_per_step);
+                updateTotalAngle($('#data_shots_quantity_a'));
+            } else {
+                /* простой режим: dark_count == empty_count, одна экспозиция */
+                setVal('#de_quantity',           p.dark_count);
+                setVal('#exposure_sec',          p.dark_exposure_sec);
+                setVal('#data_shots_quantity_s', p.data_step_count);
+                setVal('#data_angle_s',          p.data_angle_step);
+                setVal('#data_same_s',           p.data_count_per_step);
+                updateTotalAngle($('#data_shots_quantity_s'));
+            }
+            updateStartBtn();
+        }
+
+        function setVal(sel, val) {
+            if (val !== '' && val !== null && val !== undefined) {
+                $(sel).val(val);
+            }
+        }
 
         /* ---- Автодополнение образца -------------------------------------- */
         var specimenAC = Autocomplete(
             $('#name'), $('#specimen-dropdown'),
-            function (text) { $('#name').val(text); updateStartBtn(); }
+            function (text) { $('#name').val(text); updateStartBtn(); },
+            function (val) {
+                if (val === '') {
+                    return recentSpecimens.length
+                        ? { items: recentSpecimens, header: 'Недавние образцы' }
+                        : null;
+                }
+                var lv = val.toLowerCase();
+                return { items: specimens.filter(function (s) { return s.toLowerCase().indexOf(lv) !== -1; }), header: null };
+            }
         );
+
         $('#name').on('input focus', function () {
-            var val = $(this).val().trim().toLowerCase();
+            var val = $(this).val().trim();
             if (!val) { specimenAC.hide(); return; }
-            specimenAC.show(specimens.filter(function (s) {
-                return s.toLowerCase().indexOf(val) !== -1;
-            }));
+            var r = getSpecimenItems(val);
+            if (r) specimenAC.show(r.items, r.header);
+            else specimenAC.hide();
         });
+
+        function getSpecimenItems(val) {
+            if (!val) return null;
+            var lv = val.toLowerCase();
+            var filtered = specimens.filter(function (s) { return s.toLowerCase().indexOf(lv) !== -1; });
+            return filtered.length ? { items: filtered, header: null } : null;
+        }
 
         /* ---- Автодополнение тегов --------------------------------------- */
         var tagsAC = Autocomplete(
@@ -320,39 +405,45 @@
                 var parts = $('#tags').val().split(',');
                 parts[parts.length - 1] = ' ' + text;
                 $('#tags').val(parts.join(','));
+            },
+            function (val) {
+                if (val === '') {
+                    return recentTags.length
+                        ? { items: recentTags, header: 'Недавние теги' }
+                        : null;
+                }
+                var lv = val.toLowerCase();
+                return { items: allTags.filter(function (t) { return t.toLowerCase().indexOf(lv) !== -1; }), header: null };
             }
         );
+
         $('#tags').on('input focus', function () {
             var parts      = $(this).val().split(',');
-            var currentTag = parts[parts.length - 1].trim().toLowerCase();
+            var currentTag = parts[parts.length - 1].trim();
             if (!currentTag) { tagsAC.hide(); return; }
-            tagsAC.show(allTags.filter(function (t) {
-                return t.toLowerCase().indexOf(currentTag) !== -1;
-            }));
+            var lv = currentTag.toLowerCase();
+            var filtered = allTags.filter(function (t) { return t.toLowerCase().indexOf(lv) !== -1; });
+            if (filtered.length) tagsAC.show(filtered, null);
+            else tagsAC.hide();
         });
 
         /* ================================================================== */
         /* ПОЛНЫЙ УГОЛ ПОВОРОТА                                               */
         /* ================================================================== */
         function updateTotalAngle($changedInput) {
-            var totalId  = $changedInput.data('total-id');
-            var partnerId = $changedInput.data('partner');
-            if (!totalId || !partnerId) return;
+            var totalId = $changedInput.data('total-id');
+            if (!totalId) return;
 
-            var qty   = parseFloat($('#data_shots_quantity_s, #data_shots_quantity_a')
-                            .filter(function () {
-                                return $(this).data('total-id') === totalId && !$(this).prop('disabled');
-                            }).val());
-            var angle = parseFloat($('#data_angle_s, #data_angle_a')
-                            .filter(function () {
-                                return $(this).data('total-id') === totalId && !$(this).prop('disabled');
-                            }).val());
+            var qty   = parseFloat($('.angle-calc[data-total-id="' + totalId + '"]')
+                            .filter(function () { return $(this).attr('id').indexOf('shots') !== -1; })
+                            .val());
+            var angle = parseFloat($('.angle-calc[data-total-id="' + totalId + '"]')
+                            .filter(function () { return $(this).attr('id').indexOf('angle') !== -1 && $(this).attr('id').indexOf('shots') === -1; })
+                            .val());
 
             var $total = $('#' + totalId);
             if (!isNaN(qty) && !isNaN(angle)) {
-                var result = qty * angle;
-                /* до 4 значащих цифр после точки, убираем лишние нули */
-                $total.val(parseFloat(result.toFixed(4)).toString());
+                $total.val(parseFloat((qty * angle).toFixed(4)).toString());
             } else {
                 $total.val('');
             }
@@ -361,10 +452,9 @@
         /* ================================================================== */
         /* ВАЛИДАЦИЯ                                                          */
         /* ================================================================== */
-        var $startBtn  = $('#start-btn');
-        var tomoReady  = ($startBtn.data('tomo-ready') === true ||
-                          $startBtn.data('tomo-ready') === 'true');
-        var isAdvanced = false;
+        var $startBtn = $('#start-btn');
+        var tomoReady = ($startBtn.data('tomo-ready') === true ||
+                         $startBtn.data('tomo-ready') === 'true');
 
         function allFilled($fields) {
             var ok = true;
@@ -379,16 +469,13 @@
         function updateStartBtn() {
             if (!tomoReady) { $startBtn.prop('disabled', true); return; }
             var $req = isAdvanced
-                ? $('#name').add('.req-field-adv').not(':disabled')
-                : $('#name').add('.req-field').not(':disabled');
+                ? $('#name').add('.req-field-adv:not(:disabled)')
+                : $('#name').add('.req-field:not(:disabled)');
             $startBtn.prop('disabled', !allFilled($req));
         }
 
         $('#exp-form').on('input change', 'input', function () {
-            /* пересчёт полного угла */
-            if ($(this).hasClass('angle-calc')) {
-                updateTotalAngle($(this));
-            }
+            if ($(this).hasClass('angle-calc')) updateTotalAngle($(this));
             updateStartBtn();
         });
 
@@ -408,9 +495,7 @@
                 var deQty  = $('#de_quantity').val();
                 var expSec = $('#exposure_sec').val();
                 if (deQty)  { $('#dark_quantity_a, #empty_quantity_a').val(deQty); }
-                if (expSec) {
-                    $('#dark_exposure_sec_a, #empty_exposure_sec_a, #data_exposure_sec_a').val(expSec);
-                }
+                if (expSec) { $('#dark_exposure_sec_a, #empty_exposure_sec_a, #data_exposure_sec_a').val(expSec); }
                 $('#data_shots_quantity_a').val($('#data_shots_quantity_s').val());
                 $('#data_angle_a').val($('#data_angle_s').val());
                 $('#data_same_a').val($('#data_same_s').val());
@@ -419,8 +504,6 @@
                 $('#advanced-mode input').prop('disabled', false);
                 $('#simple-mode').hide();
                 $('#advanced-mode').show();
-
-                /* пересчитываем полный угол для продвинутого режима */
                 updateTotalAngle($('#data_shots_quantity_a'));
 
             } else {
@@ -438,7 +521,6 @@
                 $('#simple-mode input').prop('disabled', false);
                 $('#advanced-mode').hide();
                 $('#simple-mode').show();
-
                 updateTotalAngle($('#data_shots_quantity_s'));
             }
 

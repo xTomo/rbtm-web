@@ -8,3 +8,4 @@ python-memcached==1.62
 requests==2.32.3
 six==1.16.0
 h5py==3.11.0
+Pillow==10.4.0

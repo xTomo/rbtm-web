@@ -11,6 +11,7 @@ from .models import Tomograph
 from requests.exceptions import Timeout
 from functools import wraps
 
+import io
 import logging
 import hashlib
 import random
@@ -21,6 +22,10 @@ import json
 import uuid
 import time
 import datetime
+
+import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
+from PIL import Image
 
 experiment_logger = logging.getLogger('experiment_logger')
 
@@ -274,36 +279,14 @@ def experiment_adjustment(request):
             success_msg = u'Сила тока установлена'
 
         if 'picture_exposure_submit' in request.POST:
-            try:
-                exposure_sec = request.POST['picture_exposure']
-                exposure_ms = float(exposure_sec) * 1000
-                data = json.dumps(exposure_ms)
-                response = requests.post(settings.EXPERIMENT_DETECTOR_GET_FRAME.format(TOMO_NUM), data, stream=True)
-                if response.status_code != 200:
-                    messages.warning(request, u'Не удалось получить картинку')
-                    experiment_logger.error(u'Не удалось получить картинку, код ошибки: {}'.format(response.status_code))
-                else:
-                    salt = hashlib.sha1(str(random.random()).encode()).hexdigest()[:5]
-                    file_name = hashlib.sha1((salt + str(request.user.id)).encode()).hexdigest() + '.png'
-                    temp_file = tempfile.TemporaryFile()
-                    for block in response.iter_content(1024 * 8):
-                        if not block:
-                            break
-                        temp_file.write(block)
-
-                    # default_storage.save() expects a path relative to MEDIA_ROOT, not absolute
-                    path = default_storage.save(file_name, temp_file)
-                    return render(request, 'experiment/adjustment.html', {
-                        'caption': 'Эксперимент',
-                        'preview_path': os.path.join(settings.MEDIA_URL, file_name),
-                        'preview': True,
-                        'exposure_sec': exposure_sec,
-                        'tomograph': tomo,
-                        'js_url_settings': js_url_settings,
-                    })
-            except BaseException as e:
-                messages.warning(request, u'Не удалось выполнить предпросмотр. Попробуйте повторно')
-                experiment_logger.error(e)
+            exposure_sec = request.POST.get('picture_exposure', '')
+            return render(request, 'experiment/adjustment.html', {
+                'caption': 'Эксперимент',
+                'preview': True,
+                'exposure_sec': exposure_sec,
+                'tomograph': tomo,
+                'js_url_settings': js_url_settings,
+            })
 
     if result:
         if result['error']:
@@ -475,6 +458,100 @@ def get_autocomplete_data(request):
         'recent_specimens': recent_specimens,
         'recent_tags': recent_tags,
         'last_params': last_params,
+    })
+
+
+# Preview thumbnail size (width, height). Adjust as needed.
+PREVIEW_MAX_WIDTH = 600
+PREVIEW_MAX_HEIGHT = 400
+
+
+def _median_filter_3x3(arr):
+    """Fast 3×3 median filter using numpy sliding_window_view (no scipy needed)."""
+    h, w = arr.shape
+    padded = np.pad(arr, 1, mode='edge')
+    windows = sliding_window_view(padded, (3, 3))  # shape (h, w, 3, 3)
+    return np.median(windows.reshape(h, w, 9), axis=2).astype(arr.dtype)
+
+
+@login_required
+@user_passes_test(has_experiment_access)
+def get_preview_data(request):
+    """
+    POST с exposure_ms → запрашивает кадр у детектора,
+    уменьшает изображение, применяет медианный фильтр 3×3,
+    возвращает плоский массив uint16-значений и размеры (JSON).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        body = json.loads(request.body)
+        exposure_sec = float(body.get('exposure_sec', 1.0))
+    except (ValueError, KeyError, json.JSONDecodeError):
+        return JsonResponse({'error': 'bad request'}, status=400)
+
+    exposure_ms = exposure_sec * 1000.0
+    data = json.dumps(exposure_ms)
+
+    try:
+        response = requests.post(
+            settings.EXPERIMENT_DETECTOR_GET_FRAME.format(TOMO_NUM),
+            data,
+            stream=True,
+            timeout=max(settings.TIMEOUT_DEFAULT, exposure_sec + 30),
+        )
+        if response.status_code != 200:
+            experiment_logger.error(
+                u'Не удалось получить кадр, код: {}'.format(response.status_code)
+            )
+            return JsonResponse({'error': 'detector error {}'.format(response.status_code)}, status=502)
+
+        raw = b''.join(response.iter_content(1024 * 8))
+    except Exception as e:
+        experiment_logger.error(u'Ошибка получения кадра: {}'.format(e))
+        return JsonResponse({'error': str(e)}, status=502)
+
+    # Открываем изображение через Pillow
+    try:
+        img = Image.open(io.BytesIO(raw))
+    except Exception as e:
+        experiment_logger.error(u'Ошибка декодирования изображения: {}'.format(e))
+        return JsonResponse({'error': 'image decode error'}, status=502)
+
+    # Ресайз с сохранением пропорций
+    orig_w, orig_h = img.size
+    scale = min(PREVIEW_MAX_WIDTH / orig_w, PREVIEW_MAX_HEIGHT / orig_h, 1.0)
+    new_w = max(1, int(orig_w * scale))
+    new_h = max(1, int(orig_h * scale))
+    if scale < 1.0:
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    # Конвертируем в числовой массив; поддерживаем 16-bit и 8-bit
+    arr = np.array(img)
+    if arr.ndim == 3:
+        # RGB/RGBA → grayscale (лин. взвешенное)
+        arr = np.dot(arr[..., :3].astype(np.float32), [0.2126, 0.7152, 0.0722])
+
+    arr = arr.astype(np.float32)
+
+    # Медианный фильтр 3×3
+    arr = _median_filter_3x3(arr)
+
+    # Нормализуем в 0–65535 (uint16) для единообразия
+    arr_min = float(arr.min())
+    arr_max = float(arr.max())
+    if arr_max > arr_min:
+        arr_norm = ((arr - arr_min) / (arr_max - arr_min) * 65535).astype(np.uint16)
+    else:
+        arr_norm = np.zeros_like(arr, dtype=np.uint16)
+
+    return JsonResponse({
+        'width': new_w,
+        'height': new_h,
+        'data_min': arr_min,
+        'data_max': arr_max,
+        'pixels': arr_norm.flatten().tolist(),
     })
 
 

@@ -25,21 +25,6 @@ def index(request):
     return render(request, 'main/index.html', {'caption': 'ROBO-TOM', 'host_is_secure': host_is_secure})
 
 
-@login_required
-def group1(request):
-    return render(request, 'main/group_1.html', {'caption': 'Группа 1'})
-
-
-@login_required
-def group2(request):
-    return render(request, 'main/group_2.html', {'caption': "Группа 2"})
-
-
-@login_required
-def group3(request):
-    return render(request, 'main/group_3.html', {'caption': "Группа 3"})
-
-
 def confirm_view(request, activation_key):
     userprofile = get_object_or_404(UserProfile, activation_key=activation_key)
     userprofile.user.backend = 'django.contrib.auth.backends.ModelBackend'

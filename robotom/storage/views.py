@@ -45,7 +45,16 @@ class ExperimentRecord:
         self.data_angle_step = record['experiment parameters']['DATA']['angle step']
         self.data_count_per_step = record['experiment parameters']['DATA']['count per step']
         self.data_step_count = record['experiment parameters']['DATA']['step count']
-        self.data_exposure = record['experiment parameters']['DATA']['exposure']
+        exposure_ms = record['experiment parameters']['DATA']['exposure']
+        try:
+            exposure_s = float(exposure_ms) / 1000.0
+            # Показываем целое число если дробная часть нулевая
+            if exposure_s == int(exposure_s):
+                self.data_exposure = '{:g}'.format(exposure_s)
+            else:
+                self.data_exposure = '{:.3g}'.format(exposure_s)
+        except (TypeError, ValueError):
+            self.data_exposure = exposure_ms
         self.empty_count = record['experiment parameters']['EMPTY']['count']
         self.empty_exposure = record['experiment parameters']['EMPTY']['exposure']
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)

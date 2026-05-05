@@ -26,7 +26,6 @@
         margin-right: 3px;
         display: inline-block;
         margin-bottom: 2px;
-        white-space: nowrap;
     }
     #search-input {
         font-size: 18px;
@@ -108,7 +107,7 @@
                                 <td class="col-nowrap">{{ record.datetime }}</td>
                                 <td class="col-nowrap">{{ record.data_angle_step }}&deg;</td>
                                 <td class="col-nowrap">{{ record.data_step_count }}</td>
-                                <td class="col-nowrap">{{ record.data_exposure }} мс</td>
+                                <td class="col-nowrap">{{ record.data_exposure }} с</td>
                                 <td style="text-align: right;">
                                     <div class="btn btn-xs" data-toggle="tooltip" data-placement="top" title="Скачать hdf5">
                                         <a href="{{ record.hdf_host }}" target="_blank" download>

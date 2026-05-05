@@ -87,7 +87,6 @@ function base64ToUint16Array(b64) {
 /**
  * Draw a grayscale colorbar on a canvas element.
  * Shows real detector values (dataMin at bottom, dataMax at top).
- * Canvas size is set in device-pixel units matching the image canvas rendered size.
  *
  * @param {HTMLCanvasElement} colorbarCanvas
  * @param {HTMLCanvasElement} imageCanvas    - image canvas to match height
@@ -95,8 +94,9 @@ function base64ToUint16Array(b64) {
  * @param {number}            dataMax
  */
 function drawColorbar(colorbarCanvas, imageCanvas, dataMin, dataMax) {
-    // Use the CSS-rendered height of the image canvas so colorbar matches
-    var renderedH = imageCanvas.offsetHeight || imageCanvas.height;
+    // getBoundingClientRect gives CSS-rendered size (after flex/width:100% scaling)
+    var rect = imageCanvas.getBoundingClientRect();
+    var renderedH = rect.height || imageCanvas.height;
     var dpr = window.devicePixelRatio || 1;
 
     var barW = 18;

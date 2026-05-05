@@ -35,6 +35,13 @@ GET_DETECTOR_MODEL = 'get-detector-model'
 
 TOMO_NUM = getattr(settings, 'TOMO_NUM', 1)
 
+_EXPERIMENT_HOST = getattr(settings, 'EXPERIMENT_HOST', 'http://localhost:5001/')
+_detector_model_url_tpl = getattr(
+    settings,
+    'EXPERIMENT_DETECTOR_GET_MODEL',
+    _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/detector/model',
+)
+
 remote_url_settings = {
         GET_VOLT: settings.EXPERIMENT_SOURCE_GET_VOLT.format(TOMO_NUM),
         GET_CURR: settings.EXPERIMENT_SOURCE_GET_CURR.format(TOMO_NUM),
@@ -42,7 +49,7 @@ remote_url_settings = {
         GET_HOR: settings.EXPERIMENT_MOTOR_GET_HORIZ.format(TOMO_NUM),
         GET_ANGL: settings.EXPERIMENT_MOTOR_GET_ANGLE.format(TOMO_NUM),
         GET_SHUT: settings.EXPERIMENT_SHUTTER_GET_STATUS.format(TOMO_NUM),
-        GET_DETECTOR_MODEL: settings.EXPERIMENT_DETECTOR_GET_MODEL.format(TOMO_NUM),
+        GET_DETECTOR_MODEL: _detector_model_url_tpl.format(TOMO_NUM),
     }
 
 tomo_path = '../tomograph/{}/'

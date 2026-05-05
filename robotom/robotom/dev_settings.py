@@ -51,6 +51,7 @@ EXPERIMENT_SOURCE_SET_VOLT = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/set-
 EXPERIMENT_SOURCE_SET_CURR = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/set-current')
 EXPERIMENT_DETECTOR_GET_FRAME = urljoin(EXPERIMENT_HOST, '/tomograph/{}/detector/get-frame')
 EXPERIMENT_DETECTOR_GET_FRAME_PREVIEW = urljoin(EXPERIMENT_HOST, '/tomograph/{}/detector/get-frame-preview')
+EXPERIMENT_DETECTOR_GET_MODEL = urljoin(EXPERIMENT_HOST, '/tomograph/{}/detector/model')
 
 EXPERIMENT_START = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/start')
 EXPERIMENT_STOP = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/stop')

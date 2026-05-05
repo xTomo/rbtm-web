@@ -31,6 +31,7 @@ GET_VERT = 'get-vertical-position'
 GET_HOR = 'get-horizontal-position'
 GET_ANGL = 'get-angle-position'
 GET_SHUT = 'get-shutter-state'
+GET_DETECTOR_MODEL = 'get-detector-model'
 
 TOMO_NUM = getattr(settings, 'TOMO_NUM', 1)
 
@@ -41,6 +42,7 @@ remote_url_settings = {
         GET_HOR: settings.EXPERIMENT_MOTOR_GET_HORIZ.format(TOMO_NUM),
         GET_ANGL: settings.EXPERIMENT_MOTOR_GET_ANGLE.format(TOMO_NUM),
         GET_SHUT: settings.EXPERIMENT_SHUTTER_GET_STATUS.format(TOMO_NUM),
+        GET_DETECTOR_MODEL: settings.EXPERIMENT_DETECTOR_GET_MODEL.format(TOMO_NUM),
     }
 
 tomo_path = '../tomograph/{}/'
@@ -52,6 +54,7 @@ local_url_settings = {
         'get_horiz_url': tomo_path.format(GET_HOR),
         'get_angle_url': tomo_path.format(GET_ANGL),
         'get_shutter_url': tomo_path.format(GET_SHUT),
+        'get_detector_model_url': tomo_path.format(GET_DETECTOR_MODEL),
     }
 
 

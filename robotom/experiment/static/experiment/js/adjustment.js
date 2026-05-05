@@ -120,6 +120,32 @@ function display() {
 
 display();
 
+// ─── Detector model (one-time fetch on page load) ────────────────────────────
+
+function fetchDetectorModel() {
+    var url = js_url_settings.get_detector_model_url;
+    if (!url) return;
+    var xhr = createCORSRequest('GET', url);
+    if (!xhr) return;
+    xhr.onload = function() {
+        try {
+            var resp = JSON.parse(this.response);
+            var el = document.getElementById('detector-model-info');
+            if (!el) return;
+            el.textContent = resp.success
+                ? 'Детектор: ' + resp.result
+                : 'Детектор: недоступен';
+        } catch (e) {}
+    };
+    xhr.onerror = function() {
+        var el = document.getElementById('detector-model-info');
+        if (el) el.textContent = 'Детектор: ошибка';
+    };
+    xhr.send();
+}
+
+fetchDetectorModel();
+
 // ─── AJAX form submit helper ──────────────────────────────────────────────────
 
 /**

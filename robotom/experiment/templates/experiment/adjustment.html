@@ -216,9 +216,73 @@
                     <div class="panel-heading">
                         <h3>Предпросмотр <small id="preview-exposure-label"></small></h3>
                     </div>
+                    <style>
+                        /* ── Dual range slider ────────────────────────────────────────── */
+                        .dual-range-wrapper {
+                            position: relative;
+                            height: 28px;
+                            margin-top: 4px;
+                        }
+                        .dual-range-wrapper input[type="range"] {
+                            position: absolute;
+                            left: 0;
+                            right: 0;
+                            width: 100%;
+                            margin: 0;
+                            padding: 0;
+                            height: 28px;
+                            /* transparent background so both thumbs are visible */
+                            background: transparent;
+                            pointer-events: none;
+                            -webkit-appearance: none;
+                            appearance: none;
+                        }
+                        .dual-range-wrapper input[type="range"]::-webkit-slider-thumb {
+                            pointer-events: all;
+                            -webkit-appearance: none;
+                            appearance: none;
+                            width: 18px;
+                            height: 18px;
+                            border-radius: 50%;
+                            border: 2px solid #fff;
+                            cursor: pointer;
+                        }
+                        .dual-range-wrapper input[type="range"]::-moz-range-thumb {
+                            pointer-events: all;
+                            width: 18px;
+                            height: 18px;
+                            border-radius: 50%;
+                            border: 2px solid #fff;
+                            cursor: pointer;
+                        }
+                        #range-min::-webkit-slider-thumb { background: #e05252; }
+                        #range-min::-moz-range-thumb    { background: #e05252; }
+                        #range-max::-webkit-slider-thumb { background: #4682c8; }
+                        #range-max::-moz-range-thumb    { background: #4682c8; }
+                        /* Shared track */
+                        .dual-range-wrapper input[type="range"]::-webkit-slider-runnable-track {
+                            height: 4px;
+                            background: #ddd;
+                            border-radius: 2px;
+                        }
+                        .dual-range-wrapper input[type="range"]::-moz-range-track {
+                            height: 4px;
+                            background: #ddd;
+                            border-radius: 2px;
+                        }
+                        #preview-intensity {
+                            font-family: monospace;
+                            font-size: 12px;
+                            color: #555;
+                            height: 18px;
+                            margin-top: 4px;
+                            white-space: nowrap;
+                        }
+                    </style>
+
                     <div class="panel-body">
                         <div id="preview-container" style="display:none; align-items:flex-start; gap:8px;">
-                            <canvas id="preview-canvas" style="flex:1; width:100%; height:auto; border:1px solid #ddd; display:block;"></canvas>
+                            <canvas id="preview-canvas" style="flex:1; width:100%; height:auto; border:1px solid #ddd; display:block; cursor:crosshair;"></canvas>
                             <canvas id="colorbar-canvas" style="flex-shrink:0; border:1px solid #ddd; display:block;"></canvas>
                         </div>
                         <div id="preview-loading" style="display:none; text-align:center; padding:20px;">
@@ -233,6 +297,23 @@
                         </div>
                         <div id="preview-error" style="display:none; margin-top:6px;" class="alert alert-warning"></div>
                         <div id="preview-info" style="margin-top:6px; font-size:12px; color:#666;"></div>
+
+                        <!-- Интенсивность под курсором -->
+                        <div id="preview-intensity"></div>
+
+                        <!-- Гистограмма + двойной ползунок (скрыты до загрузки изображения) -->
+                        <div id="preview-controls" style="display:none; margin-top:10px;">
+                            <canvas id="histogram-canvas"
+                                    style="width:100%; height:80px; border:1px solid #ddd; display:block; box-sizing:border-box;"></canvas>
+                            <div style="margin-top:4px; font-size:11px; color:#555; display:flex; justify-content:space-between;">
+                                <span>Мин: <strong id="range-min-label">0</strong></span>
+                                <span>Макс: <strong id="range-max-label">65535</strong></span>
+                            </div>
+                            <div class="dual-range-wrapper">
+                                <input type="range" id="range-min" min="0" max="65535" value="0">
+                                <input type="range" id="range-max" min="0" max="65535" value="65535">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -245,6 +326,6 @@
 
     {% load static %}
 
-    <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}?v=8"></script>
+    <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}?v=9"></script>
 
 {% endblock content %}

@@ -13,43 +13,6 @@ var createCORSRequest = function(method, url) {
     return xhr;
 };
 
-// ─── Toast notifications ─────────────────────────────────────────────────────
-
-/**
- * Show a toast notification in #toast-container.
- * Uses Bootstrap 3 alert classes to match the project style.
- * @param {string} msg   - text to display
- * @param {string} type  - 'success' | 'error' | 'warning'
- * @param {number} delay - ms before auto-hide (default 4000)
- */
-function showToast(msg, type, delay) {
-    delay = delay || 4000;
-    var container = document.getElementById('toast-container');
-    if (!container) return;
-
-    // Map type to Bootstrap 3 alert class
-    var alertClass = 'alert-info';
-    if (type === 'success') alertClass = 'alert-success';
-    else if (type === 'error') alertClass = 'alert-danger';
-    else if (type === 'warning') alertClass = 'alert-warning';
-
-    var el = document.createElement('div');
-    el.className = 'alert ' + alertClass + ' adj-toast';
-    el.textContent = msg;
-    container.appendChild(el);
-
-    // Trigger fade-in on next frame
-    setTimeout(function() { el.classList.add('show'); }, 20);
-
-    // Fade-out and remove
-    setTimeout(function() {
-        el.classList.remove('show');
-        setTimeout(function() {
-            if (el.parentNode) el.parentNode.removeChild(el);
-        }, 350);
-    }, delay);
-}
-
 // ─── Status span helpers ─────────────────────────────────────────────────────
 
 function setSpanValue(spanId, text) {
@@ -599,21 +562,6 @@ function loadPreview(exposureSec) {
 // ─── DOM ready ────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
-
-    // ── Show Django page messages as toasts ───────────────────────────────────
-    if (typeof page_messages !== 'undefined' && page_messages.length) {
-        var delay = 0;
-        page_messages.forEach(function(m) {
-            setTimeout(function() {
-                var type = 'info';
-                if (m.tags === 'success') type = 'success';
-                else if (m.tags === 'error' || m.tags === 'danger') type = 'error';
-                else if (m.tags === 'warning') type = 'warning';
-                showToast(m.text, type, 5000);
-            }, delay);
-            delay += 300;
-        });
-    }
 
     // ── Voltage form ──────────────────────────────────────────────────────────
     (function() {

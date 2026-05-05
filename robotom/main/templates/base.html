@@ -14,6 +14,25 @@
     <script src="{% static 'bootstrap/js/bootstrap.js' %}" type="text/javascript"></script>
 
     <link rel="shortcut icon" href="{% static 'images/favicon.ico' %}">
+
+    <style>
+        /* ── Global toast notifications ──────────────────────────────────────── */
+        #toast-container {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 260px;
+            max-width: 380px;
+        }
+        #toast-container .adj-toast {
+            margin-bottom: 6px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        #toast-container .adj-toast.show { opacity: 1; }
+    </style>
 </head>
 <body>
 
@@ -60,6 +79,61 @@
     {% block content %}
     {% endblock %}
 </div>
+
+<!-- Toast container (global, all pages) -->
+<div id="toast-container"></div>
+
+<script>
+(function() {
+    function showToast(msg, type, delay) {
+        delay = delay || 5000;
+        var container = document.getElementById('toast-container');
+        if (!container) return;
+
+        var alertClass = 'alert-info';
+        if (type === 'success') alertClass = 'alert-success';
+        else if (type === 'error' || type === 'danger') alertClass = 'alert-danger';
+        else if (type === 'warning') alertClass = 'alert-warning';
+
+        var el = document.createElement('div');
+        el.className = 'alert ' + alertClass + ' adj-toast';
+        el.textContent = msg;
+        container.appendChild(el);
+
+        setTimeout(function() { el.classList.add('show'); }, 20);
+        setTimeout(function() {
+            el.classList.remove('show');
+            setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 350);
+        }, delay);
+    }
+
+    // Expose globally for use in page-specific scripts (e.g. adjustment.js)
+    window.showToast = showToast;
+
+    // Show Django messages (rendered server-side) and any page_messages variable
+    document.addEventListener('DOMContentLoaded', function() {
+        // Server-rendered Django messages from base.html context
+        var serverMessages = [
+            {% if messages %}{% for message in messages %}{"text": "{{ message|escapejs }}", "tags": "{{ message.tags }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}
+        ];
+        // Per-page messages (e.g. from adjustment.html)
+        var extraMessages = (typeof page_messages !== 'undefined') ? page_messages : [];
+        var allMessages = serverMessages.concat(extraMessages);
+
+        var delay = 0;
+        allMessages.forEach(function(m) {
+            setTimeout(function() {
+                var type = 'info';
+                if (m.tags === 'success') type = 'success';
+                else if (m.tags === 'error' || m.tags === 'danger') type = 'error';
+                else if (m.tags === 'warning') type = 'warning';
+                showToast(m.text, type);
+            }, delay);
+            delay += 300;
+        });
+    });
+})();
+</script>
 
 </body>
 </html>

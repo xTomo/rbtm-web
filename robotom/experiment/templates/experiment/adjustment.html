@@ -8,12 +8,6 @@
 
    </script>
 
-    {% if messages %}
-    <script>
-    var page_messages = [{% for message in messages %}{"text": "{{ message|escapejs }}", "tags": "{{ message.tags }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
-    </script>
-    {% endif %}
-
     <div class="container-fluid">
         <div class="row">
             <div class="col-xs-12 col-md-6 col-lg-6">
@@ -314,9 +308,6 @@
 
     {% load static %}
 
-    <!-- Toast container -->
-    <div id="toast-container" style="position:fixed; top:20px; right:20px; z-index:9999; min-width:260px;"></div>
-
     <style>
         /* ── Shutter buttons ──────────────────────────────────────────────── */
         .shutter-btn {
@@ -334,16 +325,6 @@
             border-color: #e57373 !important;
             color: #c62828 !important;
         }
-        /* ── Toast messages (Bootstrap 3 alert style) ─────────────────────── */
-        .adj-toast {
-            margin-bottom: 6px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            min-width: 220px;
-            max-width: 360px;
-        }
-        .adj-toast.show { opacity: 1; }
     </style>
 
     <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}?v=10"></script>

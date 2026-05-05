@@ -461,7 +461,7 @@ def get_autocomplete_data(request):
 
 
 # Default integer downsampling factor sent to detector
-PREVIEW_DOWNSAMPLE = 6
+PREVIEW_DOWNSAMPLE = 4
 
 
 @login_required

@@ -103,32 +103,26 @@
                                 </form>
                             </div>
                             <div class="col-xs-6">
-                                <form method="POST" action="">
-                                    <div class="control-group">
-                                        {% csrf_token %}
-                                        <label for="text_gate">Заслонка</label>
-                                        <div class="current_value"><small>Текущее состояние заслонки:
-                                            <span id="current_shutter">неизвестно</span>
-                                        </small></div>
-
-                                        <div id="text_gate" class="btn-group" data-toggle="buttons">
-                                            <label class="btn btn-default" id="open"> <input id="open" name="gate_state"
-                                                                                             type="radio" value="open">Открыта</label>
-                                            <label class="btn btn-default" id="close"> <input id="close"
-                                                                                              name="gate_state"
-                                                                                              type="radio"
-                                                                                              value="close">Закрыта</label>
-                                        </div>
-
-                                        <input type="submit"
-                                               style="white-space:normal; margin-top:7px; margin-bottom:7px"
-                                               class="btn btn-default btn-md" name="text_gate"
-                                               value="Установить заслонку"
-                                                {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "ready" %} {% else %}
-                                               disabled {% endif %}>
-
+                                <div class="control-group">
+                                    <label>Заслонка</label>
+                                    <div class="current_value"><small>Текущее состояние:
+                                        <span id="current_shutter">неизвестно</span>
+                                    </small></div>
+                                    <div style="margin-top:7px;">
+                                        <button type="button" id="btn-shutter-open"
+                                                class="btn btn-md shutter-btn"
+                                                style="white-space:normal; margin-right:4px;"
+                                                {% if not user.is_authenticated or not user.userprofile.is_experimentator or tomograph.state != "ready" %}disabled{% endif %}>
+                                            Открыть
+                                        </button>
+                                        <button type="button" id="btn-shutter-close"
+                                                class="btn btn-md shutter-btn"
+                                                style="white-space:normal;"
+                                                {% if not user.is_authenticated or not user.userprofile.is_experimentator or tomograph.state != "ready" %}disabled{% endif %}>
+                                            Закрыть
+                                        </button>
                                     </div>
-                                </form>
+                                </div>
                             </div>
                         </div>
                         <div style="display:none">
@@ -326,6 +320,55 @@
 
     {% load static %}
 
-    <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}?v=9"></script>
+    <!-- Toast container -->
+    <div id="toast-container" style="position:fixed; top:20px; right:20px; z-index:9999; min-width:260px;"></div>
+
+    <style>
+        /* ── Shutter buttons ──────────────────────────────────────────────── */
+        .shutter-btn {
+            background-color: #f5f5f5;
+            border-color: #ccc;
+            color: #555;
+        }
+        .shutter-btn-open-active {
+            background-color: #e8f5e9 !important;
+            border-color: #81c784 !important;
+            color: #2e7d32 !important;
+        }
+        .shutter-btn-close-active {
+            background-color: #ffebee !important;
+            border-color: #e57373 !important;
+            color: #c62828 !important;
+        }
+        /* ── Toast messages ───────────────────────────────────────────────── */
+        .adj-toast {
+            padding: 10px 16px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            font-size: 13px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+        }
+        .adj-toast.show { opacity: 1; }
+        .adj-toast-success {
+            background-color: #f1f8f1;
+            border-color: #a5d6a7;
+            color: #2e7d32;
+        }
+        .adj-toast-error {
+            background-color: #fdf3f3;
+            border-color: #ef9a9a;
+            color: #b71c1c;
+        }
+        .adj-toast-warning {
+            background-color: #fffde7;
+            border-color: #fff176;
+            color: #795548;
+        }
+    </style>
+
+    <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}?v=10"></script>
 
 {% endblock content %}

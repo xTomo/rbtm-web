@@ -13,11 +13,92 @@ var createCORSRequest = function(method, url) {
     return xhr;
 };
 
+// ─── Toast notifications ─────────────────────────────────────────────────────
+
+/**
+ * Show a toast notification in #toast-container.
+ * @param {string} msg   - text to display
+ * @param {string} type  - 'success' | 'error' | 'warning'
+ * @param {number} delay - ms before auto-hide (default 4000)
+ */
+function showToast(msg, type, delay) {
+    delay = delay || 4000;
+    var container = document.getElementById('toast-container');
+    if (!container) return;
+
+    var el = document.createElement('div');
+    el.className = 'adj-toast adj-toast-' + (type || 'success');
+    el.textContent = msg;
+    container.appendChild(el);
+
+    // Trigger fade-in on next frame
+    setTimeout(function() { el.classList.add('show'); }, 20);
+
+    // Fade-out and remove
+    setTimeout(function() {
+        el.classList.remove('show');
+        setTimeout(function() {
+            if (el.parentNode) el.parentNode.removeChild(el);
+        }, 350);
+    }, delay);
+}
+
 // ─── Status span helpers ─────────────────────────────────────────────────────
 
 function setSpanValue(spanId, text) {
     var span = document.getElementById(spanId);
     if (span) span.innerHTML = text;
+}
+
+/**
+ * Update shutter buttons and status text colour based on current state.
+ * @param {string} state - 'OPEN' | 'CLOSED' (or any other value = unknown)
+ */
+function updateShutterUI(state) {
+    var span       = document.getElementById('current_shutter');
+    var btnOpen    = document.getElementById('btn-shutter-open');
+    var btnClose   = document.getElementById('btn-shutter-close');
+
+    if (!span) return;
+
+    if (state === 'OPEN') {
+        // Label — green
+        span.style.color = '#388e3c';
+        span.textContent = 'открыта';
+
+        // Закрыть — активная (красная), Открыть — неактивная
+        if (btnOpen)  {
+            btnOpen.classList.remove('shutter-btn-open-active');
+            if (!btnOpen.dataset.disabledByServer) btnOpen.disabled = false;
+        }
+        if (btnClose) {
+            btnClose.classList.add('shutter-btn-close-active');
+            if (!btnClose.dataset.disabledByServer) btnClose.disabled = false;
+        }
+
+    } else if (state === 'CLOSED') {
+        // Label — red
+        span.style.color = '#c62828';
+        span.textContent = 'закрыта';
+
+        // Открыть — активная (зелёная), Закрыть — неактивная
+        if (btnOpen)  {
+            btnOpen.classList.add('shutter-btn-open-active');
+            if (!btnOpen.dataset.disabledByServer) btnOpen.disabled = false;
+        }
+        if (btnClose) {
+            btnClose.classList.remove('shutter-btn-close-active');
+            if (!btnClose.dataset.disabledByServer) btnClose.disabled = false;
+        }
+
+    } else {
+        // Unknown state — neutral
+        span.style.color = '';
+        span.textContent = state || 'неизвестно';
+
+        if (btnOpen)  btnOpen.classList.remove('shutter-btn-open-active');
+        if (btnClose) btnClose.classList.remove('shutter-btn-close-active');
+    }
 }
 
 function setValueOnload(spanId, respJSON, measure) {
@@ -32,7 +113,8 @@ function setValueOnload(spanId, respJSON, measure) {
 
             if (spanId === "current_shutter") {
                 var dict = JSON.parse(value_to_set);
-                value_to_set = dict.state === "OPEN" ? "открыта" : "закрыта";
+                updateShutterUI(dict.state);
+                return;  // updateShutterUI sets span itself
             }
 
             setSpanValue(spanId, value_to_set + measure);
@@ -68,6 +150,106 @@ function display() {
 
 display();
 
+// ─── AJAX form submit helper ──────────────────────────────────────────────────
+
+/**
+ * Send a form via AJAX POST (application/x-www-form-urlencoded).
+ * On response calls showToast with success/error message.
+ *
+ * @param {HTMLFormElement} formEl
+ * @param {string}          submitName  - name of submit button to include
+ * @param {string}          [extraBody] - optional extra encoded params
+ */
+function ajaxSubmitForm(formEl, submitName, extraBody) {
+    var parts = [];
+
+    // Collect all inputs/selects/textareas (not disabled, not submit)
+    var elements = formEl.elements;
+    for (var i = 0; i < elements.length; i++) {
+        var el = elements[i];
+        if (el.disabled) continue;
+        if (el.type === 'submit' || el.type === 'button') continue;
+        if ((el.type === 'radio' || el.type === 'checkbox') && !el.checked) continue;
+        if (el.name) {
+            parts.push(encodeURIComponent(el.name) + '=' + encodeURIComponent(el.value));
+        }
+    }
+
+    // Include the clicked submit button by name
+    if (submitName) {
+        parts.push(encodeURIComponent(submitName) + '=1');
+    }
+
+    if (extraBody) {
+        parts.push(extraBody);
+    }
+
+    var body = parts.join('&');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', formEl.action || window.location.href, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+    xhr.onload = function() {
+        try {
+            var resp = JSON.parse(xhr.responseText);
+            if (resp.success) {
+                showToast(resp.message || 'Готово', 'success');
+            } else {
+                showToast(resp.message || 'Ошибка выполнения команды', 'error');
+            }
+        } catch (e) {
+            showToast('Не удалось разобрать ответ сервера', 'error');
+        }
+    };
+
+    xhr.onerror = function() {
+        showToast('Ошибка сети', 'error');
+    };
+
+    xhr.send(body);
+}
+
+/**
+ * Send a shutter command via AJAX POST.
+ * @param {string} gateState - 'open' | 'close'
+ */
+function ajaxShutterCommand(gateState) {
+    var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+    var csrfVal   = csrfInput ? csrfInput.value : (typeof csrf_token !== 'undefined' ? csrf_token : '');
+
+    var body = 'text_gate=1'
+        + '&gate_state=' + encodeURIComponent(gateState)
+        + '&csrfmiddlewaretoken=' + encodeURIComponent(csrfVal);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', window.location.href, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+    xhr.onload = function() {
+        try {
+            var resp = JSON.parse(xhr.responseText);
+            if (resp.success) {
+                showToast(resp.message || 'Готово', 'success');
+                // Immediately update UI optimistically
+                updateShutterUI(gateState === 'open' ? 'OPEN' : 'CLOSED');
+            } else {
+                showToast(resp.message || 'Ошибка выполнения команды', 'error');
+            }
+        } catch (e) {
+            showToast('Не удалось разобрать ответ сервера', 'error');
+        }
+    };
+
+    xhr.onerror = function() {
+        showToast('Ошибка сети', 'error');
+    };
+
+    xhr.send(body);
+}
+
 // ─── Global state for preview ─────────────────────────────────────────────────
 
 var gPixels     = null;   // Uint16Array — raw detector values
@@ -96,12 +278,6 @@ function base64ToUint16Array(b64) {
 
 /**
  * Draw a grayscale colorbar on a canvas element.
- * Shows real detector values (dataMin at bottom, dataMax at top).
- *
- * @param {HTMLCanvasElement} colorbarCanvas
- * @param {HTMLCanvasElement} imageCanvas    - image canvas to match height
- * @param {number}            dataMin
- * @param {number}            dataMax
  */
 function drawColorbar(colorbarCanvas, imageCanvas, dataMin, dataMax) {
     var rect = imageCanvas.getBoundingClientRect();
@@ -121,19 +297,16 @@ function drawColorbar(colorbarCanvas, imageCanvas, dataMin, dataMax) {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, totalW, renderedH);
 
-    // Gradient: white at top (max), black at bottom (min)
     var grad = ctx.createLinearGradient(0, 0, 0, renderedH);
     grad.addColorStop(0, '#ffffff');
     grad.addColorStop(1, '#000000');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, barW, renderedH);
 
-    // Border
     ctx.strokeStyle = '#888';
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, barW, renderedH);
 
-    // Numeric labels
     ctx.fillStyle = '#333';
     ctx.font = '13px sans-serif';
     ctx.textAlign = 'left';
@@ -158,14 +331,6 @@ function drawColorbar(colorbarCanvas, imageCanvas, dataMin, dataMax) {
 
 /**
  * Render raw uint16 pixel data onto a canvas using a gray colormap.
- * Normalises from [dataMin, dataMax] to [0, 255] in the browser.
- *
- * @param {HTMLCanvasElement} canvas
- * @param {Uint16Array}       pixels  - flat array of raw uint16 detector values
- * @param {number}            width
- * @param {number}            height
- * @param {number}            dataMin - raw minimum (for normalisation)
- * @param {number}            dataMax - raw maximum (for normalisation)
  */
 function renderGrayscale(canvas, pixels, width, height, dataMin, dataMax) {
     canvas.width  = width;
@@ -193,15 +358,6 @@ function renderGrayscale(canvas, pixels, width, height, dataMin, dataMax) {
 
 /**
  * Draw histogram of pixel intensity values (log scale on Y).
- * Bins inside [dispMin, dispMax] are drawn in blue; outside — grey.
- * Red vertical lines mark dispMin and dispMax boundaries.
- *
- * @param {HTMLCanvasElement} histCanvas
- * @param {Uint16Array}       pixels
- * @param {number}            dataMin   - absolute data min
- * @param {number}            dataMax   - absolute data max
- * @param {number}            dispMin   - current window min
- * @param {number}            dispMax   - current window max
  */
 function drawHistogram(histCanvas, pixels, dataMin, dataMax, dispMin, dispMax) {
     var NUM_BINS = 256;
@@ -216,7 +372,6 @@ function drawHistogram(histCanvas, pixels, dataMin, dataMax, dispMin, dispMax) {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, cssW, cssH);
 
-    // Count bins
     var range = dataMax - dataMin || 1;
     var counts = new Float32Array(NUM_BINS);
 
@@ -227,7 +382,6 @@ function drawHistogram(histCanvas, pixels, dataMin, dataMax, dispMin, dispMax) {
         counts[bin]++;
     }
 
-    // Max count for log normalisation
     var maxCount = 1;
     for (var b = 0; b < NUM_BINS; b++) {
         if (counts[b] > maxCount) maxCount = counts[b];
@@ -239,17 +393,14 @@ function drawHistogram(histCanvas, pixels, dataMin, dataMax, dispMin, dispMax) {
     var drawH = cssH - padT - padB;
     var barW  = drawW / NUM_BINS;
 
-    // Background
     ctx.fillStyle = '#f8f8f8';
     ctx.fillRect(0, 0, cssW, cssH);
 
-    // Bin range for current display window
     var dispMinBin = Math.floor((dispMin - dataMin) / range * NUM_BINS);
     var dispMaxBin = Math.floor((dispMax - dataMin) / range * NUM_BINS);
     if (dispMinBin < 0) dispMinBin = 0;
     if (dispMaxBin >= NUM_BINS) dispMaxBin = NUM_BINS - 1;
 
-    // Draw bars
     for (var b = 0; b < NUM_BINS; b++) {
         var normH = Math.log(counts[b] + 1) / logMax * drawH;
         var x = padL + b * barW;
@@ -261,12 +412,10 @@ function drawHistogram(histCanvas, pixels, dataMin, dataMax, dispMin, dispMax) {
         ctx.fillRect(x, y, Math.max(barW - 0.5, 0.5), normH);
     }
 
-    // Border
     ctx.strokeStyle = '#bbb';
     ctx.lineWidth = 1;
     ctx.strokeRect(padL, padT, drawW, drawH);
 
-    // Vertical lines for dispMin and dispMax
     ctx.strokeStyle = 'rgba(220, 50, 50, 0.9)';
     ctx.lineWidth = 1.5;
 
@@ -306,8 +455,6 @@ function rerenderImage() {
 
 /**
  * Initialise the controls panel (histogram + dual slider) after image load.
- * @param {number} dataMin
- * @param {number} dataMax
  */
 function initControls(dataMin, dataMax) {
     var controls   = document.getElementById('preview-controls');
@@ -319,7 +466,6 @@ function initControls(dataMin, dataMax) {
 
     if (!controls || !sliderMin || !sliderMax) return;
 
-    // Configure both sliders to cover [dataMin, dataMax]
     sliderMin.min   = dataMin;
     sliderMin.max   = dataMax;
     sliderMin.value = dataMin;
@@ -333,7 +479,6 @@ function initControls(dataMin, dataMax) {
 
     controls.style.display = 'block';
 
-    // Draw histogram after layout is settled
     if (histCanvas) {
         setTimeout(function() {
             drawHistogram(histCanvas, gPixels, gDataMin, gDataMax, gDisplayMin, gDisplayMax);
@@ -357,7 +502,6 @@ function loadPreview(exposureSec) {
     var controls      = document.getElementById('preview-controls');
     var intensityDiv  = document.getElementById('preview-intensity');
 
-    // Show loading state
     if (container)    { container.style.display   = 'none'; }
     if (placeholder)  { placeholder.style.display = 'none'; }
     if (errorDiv)     { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
@@ -392,7 +536,6 @@ function loadPreview(exposureSec) {
             return;
         }
 
-        // Decode base64 → Uint16Array (raw detector values)
         var pixels;
         try {
             pixels = base64ToUint16Array(resp.pixels_b64);
@@ -401,7 +544,6 @@ function loadPreview(exposureSec) {
             return;
         }
 
-        // Save to global state
         gPixels     = pixels;
         gWidth      = resp.width;
         gHeight     = resp.height;
@@ -410,13 +552,10 @@ function loadPreview(exposureSec) {
         gDisplayMin = resp.data_min;
         gDisplayMax = resp.data_max;
 
-        // Render with real min/max for correct colormap
         renderGrayscale(canvas, pixels, resp.width, resp.height, resp.data_min, resp.data_max);
 
-        // Show container first so browser lays out canvas (needed for offsetHeight)
         if (container) { container.style.display = 'flex'; }
 
-        // Colorbar with real detector values — must be after container is visible
         if (colorbar) {
             setTimeout(function() {
                 drawColorbar(colorbar, canvas, resp.data_min, resp.data_max);
@@ -431,7 +570,6 @@ function loadPreview(exposureSec) {
                 'мин: ' + resp.data_min + '  макс: ' + resp.data_max;
         }
 
-        // Initialise histogram + dual slider
         initControls(resp.data_min, resp.data_max);
     };
 
@@ -451,11 +589,87 @@ function loadPreview(exposureSec) {
     }
 }
 
-// ─── DOM ready: hook form, mousemove, dual slider ─────────────────────────────
+// ─── DOM ready ────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
 
-    // ── Exposure form submit ──────────────────────────────────────────────────
+    // ── Voltage form ──────────────────────────────────────────────────────────
+    (function() {
+        var btn = document.querySelector('[name="experiment_on_voltage"]');
+        if (!btn || btn.disabled) return;
+        var form = btn.closest('form') || btn.form;
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            ajaxSubmitForm(form, 'experiment_on_voltage');
+        });
+    })();
+
+    // ── Current form ──────────────────────────────────────────────────────────
+    (function() {
+        var btn = document.querySelector('[name="experiment_on_current"]');
+        if (!btn || btn.disabled) return;
+        var form = btn.closest('form') || btn.form;
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            ajaxSubmitForm(form, 'experiment_on_current');
+        });
+    })();
+
+    // ── Horizontal move form ──────────────────────────────────────────────────
+    (function() {
+        var btn = document.querySelector('[name="move_hor_submit"]');
+        if (!btn || btn.disabled) return;
+        var form = btn.closest('form') || btn.form;
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            ajaxSubmitForm(form, 'move_hor_submit');
+        });
+    })();
+
+    // ── Rotate form ───────────────────────────────────────────────────────────
+    (function() {
+        var btn = document.querySelector('[name="rotate_submit"]');
+        if (!btn || btn.disabled) return;
+        var form = btn.closest('form') || btn.form;
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            ajaxSubmitForm(form, 'rotate_submit');
+        });
+    })();
+
+    // ── Reset angle form ──────────────────────────────────────────────────────
+    (function() {
+        var btn = document.querySelector('[name="reset_submit"]');
+        if (!btn || btn.disabled) return;
+        var form = btn.closest('form') || btn.form;
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            ajaxSubmitForm(form, 'reset_submit');
+        });
+    })();
+
+    // ── Shutter buttons ───────────────────────────────────────────────────────
+    var btnOpen  = document.getElementById('btn-shutter-open');
+    var btnClose = document.getElementById('btn-shutter-close');
+
+    if (btnOpen && !btnOpen.disabled) {
+        btnOpen.addEventListener('click', function() {
+            ajaxShutterCommand('open');
+        });
+    }
+
+    if (btnClose && !btnClose.disabled) {
+        btnClose.addEventListener('click', function() {
+            ajaxShutterCommand('close');
+        });
+    }
+
+    // ── Exposure form submit (preview) ────────────────────────────────────────
     var form = document.querySelector('form[name="picture_exposure_form"]');
     if (form) {
         form.addEventListener('submit', function(e) {
@@ -464,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var exposureInput = document.getElementById('picture_exposure');
             var exposureSec = exposureInput ? exposureInput.value : '';
-            if (!exposureSec) return;  // let native validation handle it
+            if (!exposureSec) return;
 
             e.preventDefault();
             loadPreview(exposureSec);

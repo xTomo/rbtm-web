@@ -161,6 +161,10 @@ def get_current_state(request, tomo):
     tomo.save()
 
 
+def is_ajax(request):
+    return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
 def update_state_before_run(view):
     @wraps(view)
     def wrapped(request, *args, **kwargs):
@@ -273,9 +277,23 @@ def experiment_adjustment(request):
             })
 
     if result:
-        if result['error']:
-            return result['error']
-        check_result(result, request, tomo, success_msg)
+        if is_ajax(request):
+            if result['error']:
+                error_messages = [str(m) for m in get_messages(request)]
+                msg = error_messages[-1] if error_messages else 'Ошибка выполнения команды'
+                return JsonResponse({'success': False, 'message': msg})
+            response_dict = result['response_dict']
+            if response_dict and response_dict.get('success'):
+                tomo.save()
+                return JsonResponse({'success': True, 'message': success_msg})
+            else:
+                err_detail = (response_dict or {}).get('error', '')
+                msg = 'Ошибка: {}'.format(err_detail) if err_detail else 'Ошибка выполнения команды'
+                return JsonResponse({'success': False, 'message': msg})
+        else:
+            if result['error']:
+                return result['error']
+            check_result(result, request, tomo, success_msg)
 
     return render(request, 'experiment/adjustment.html', {
         'caption': 'Эксперимент',

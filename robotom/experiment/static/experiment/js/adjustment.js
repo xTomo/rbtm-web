@@ -17,6 +17,7 @@ var createCORSRequest = function(method, url) {
 
 /**
  * Show a toast notification in #toast-container.
+ * Uses Bootstrap 3 alert classes to match the project style.
  * @param {string} msg   - text to display
  * @param {string} type  - 'success' | 'error' | 'warning'
  * @param {number} delay - ms before auto-hide (default 4000)
@@ -26,8 +27,14 @@ function showToast(msg, type, delay) {
     var container = document.getElementById('toast-container');
     if (!container) return;
 
+    // Map type to Bootstrap 3 alert class
+    var alertClass = 'alert-info';
+    if (type === 'success') alertClass = 'alert-success';
+    else if (type === 'error') alertClass = 'alert-danger';
+    else if (type === 'warning') alertClass = 'alert-warning';
+
     var el = document.createElement('div');
-    el.className = 'adj-toast adj-toast-' + (type || 'success');
+    el.className = 'alert ' + alertClass + ' adj-toast';
     el.textContent = msg;
     container.appendChild(el);
 

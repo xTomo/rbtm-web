@@ -600,6 +600,21 @@ function loadPreview(exposureSec) {
 
 document.addEventListener('DOMContentLoaded', function() {
 
+    // ── Show Django page messages as toasts ───────────────────────────────────
+    if (typeof page_messages !== 'undefined' && page_messages.length) {
+        var delay = 0;
+        page_messages.forEach(function(m) {
+            setTimeout(function() {
+                var type = 'info';
+                if (m.tags === 'success') type = 'success';
+                else if (m.tags === 'error' || m.tags === 'danger') type = 'error';
+                else if (m.tags === 'warning') type = 'warning';
+                showToast(m.text, type, 5000);
+            }, delay);
+            delay += 300;
+        });
+    }
+
     // ── Voltage form ──────────────────────────────────────────────────────────
     (function() {
         var btn = document.querySelector('[name="experiment_on_voltage"]');

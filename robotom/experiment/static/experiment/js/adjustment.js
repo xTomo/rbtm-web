@@ -267,7 +267,7 @@ function loadPreview(exposureSec) {
 
     xhr.send(JSON.stringify({
         exposure_sec: parseFloat(exposureSec) || 1.0,
-        downsample: 4
+        downsample: 6
     }));
 
     function showError(msg) {

@@ -71,21 +71,36 @@ display();
 // ─── Canvas preview with grayscale colormap ──────────────────────────────────
 
 /**
+ * Decode base64 string to Uint16Array.
+ * @param {string} b64
+ * @returns {Uint16Array}
+ */
+function base64ToUint16Array(b64) {
+    var binaryStr = atob(b64);
+    var bytes = new Uint8Array(binaryStr.length);
+    for (var i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+    }
+    return new Uint16Array(bytes.buffer);
+}
+
+/**
  * Draw a grayscale colorbar on a canvas element.
+ * Shows real detector values (dataMin at bottom, dataMax at top).
  * @param {HTMLCanvasElement} canvas
- * @param {number} dataMin
- * @param {number} dataMax
- * @param {number} height
+ * @param {number} dataMin  raw detector minimum
+ * @param {number} dataMax  raw detector maximum
+ * @param {number} height   height in px (should match image canvas)
  */
 function drawColorbar(canvas, dataMin, dataMax, height) {
-    var barW = 14;
-    canvas.width = 58;   // 14px bar + 44px label area
+    var barW = 16;
+    canvas.width = 64;
     canvas.height = height;
 
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Gradient: white at top, black at bottom
+    // Gradient: white at top (max), black at bottom (min)
     var grad = ctx.createLinearGradient(0, 0, 0, height);
     grad.addColorStop(0, '#ffffff');
     grad.addColorStop(1, '#000000');
@@ -97,16 +112,16 @@ function drawColorbar(canvas, dataMin, dataMax, height) {
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, barW, height);
 
-    // Labels
+    // Numeric labels
     ctx.fillStyle = '#333';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'left';
 
     var numTicks = 5;
     for (var i = 0; i <= numTicks; i++) {
-        var t = i / numTicks;
+        var t = i / numTicks;                          // 0=top(white/max) → 1=bottom(black/min)
         var y = t * height;
-        var value = dataMax - t * (dataMax - dataMin);
+        var value = dataMax - t * (dataMax - dataMin); // high at top
 
         ctx.strokeStyle = '#888';
         ctx.beginPath();
@@ -121,22 +136,30 @@ function drawColorbar(canvas, dataMin, dataMax, height) {
 }
 
 /**
- * Render uint16 grayscale pixels onto a canvas.
+ * Render raw uint16 pixel data onto a canvas using a gray colormap.
+ * Normalises from [dataMin, dataMax] to [0, 255] in the browser.
+ *
  * @param {HTMLCanvasElement} canvas
- * @param {Array<number>} pixels - flat uint16 array (0–65535)
- * @param {number} width
- * @param {number} height
+ * @param {Uint16Array}       pixels  - flat array of raw uint16 detector values
+ * @param {number}            width
+ * @param {number}            height
+ * @param {number}            dataMin - raw minimum (for normalisation)
+ * @param {number}            dataMax - raw maximum (for normalisation)
  */
-function renderGrayscale(canvas, pixels, width, height) {
-    canvas.width = width;
+function renderGrayscale(canvas, pixels, width, height, dataMin, dataMax) {
+    canvas.width  = width;
     canvas.height = height;
 
     var ctx = canvas.getContext('2d');
     var imgData = ctx.createImageData(width, height);
     var data = imgData.data;
 
+    var range = dataMax - dataMin || 1;
+
     for (var i = 0; i < pixels.length; i++) {
-        var v = (pixels[i] / 65535 * 255 + 0.5) | 0;  // fast floor
+        var v = ((pixels[i] - dataMin) / range * 255 + 0.5) | 0;
+        if (v < 0)   v = 0;
+        if (v > 255) v = 255;
         var j = i * 4;
         data[j]     = v;
         data[j + 1] = v;
@@ -148,24 +171,25 @@ function renderGrayscale(canvas, pixels, width, height) {
 }
 
 /**
- * Fetch preview data from server and render on canvas.
+ * Fetch preview data from server and render on canvas + colorbar.
  * @param {string|number} exposureSec
  */
 function loadPreview(exposureSec) {
-    var container    = document.getElementById('preview-container');
-    var loading      = document.getElementById('preview-loading');
-    var placeholder  = document.getElementById('preview-placeholder');
-    var errorDiv     = document.getElementById('preview-error');
-    var infoDiv      = document.getElementById('preview-info');
-    var canvas       = document.getElementById('preview-canvas');
+    var container     = document.getElementById('preview-container');
+    var loading       = document.getElementById('preview-loading');
+    var placeholder   = document.getElementById('preview-placeholder');
+    var errorDiv      = document.getElementById('preview-error');
+    var infoDiv       = document.getElementById('preview-info');
+    var canvas        = document.getElementById('preview-canvas');
+    var colorbar      = document.getElementById('colorbar-canvas');
     var exposureLabel = document.getElementById('preview-exposure-label');
 
-    // Show loading, hide everything else
+    // Show loading state
     if (container)   { container.style.display   = 'none'; }
     if (placeholder) { placeholder.style.display = 'none'; }
-    if (errorDiv)    { errorDiv.style.display     = 'none'; errorDiv.textContent = ''; }
-    if (infoDiv)     { infoDiv.textContent         = ''; }
-    if (loading)     { loading.style.display       = 'block'; }
+    if (errorDiv)    { errorDiv.style.display = 'none'; errorDiv.textContent = ''; }
+    if (infoDiv)     { infoDiv.textContent = ''; }
+    if (loading)     { loading.style.display = 'block'; }
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', preview_data_url, true);
@@ -193,17 +217,33 @@ function loadPreview(exposureSec) {
             return;
         }
 
-        // Render
-        renderGrayscale(canvas, resp.pixels, resp.width, resp.height);
+        // Decode base64 → Uint16Array (raw detector values)
+        var pixels;
+        try {
+            pixels = base64ToUint16Array(resp.pixels_b64);
+        } catch (e) {
+            showError('Ошибка декодирования данных изображения');
+            return;
+        }
 
-        if (container) { container.style.display = 'block'; }
+        // Render with real min/max for correct colormap
+        renderGrayscale(canvas, pixels, resp.width, resp.height, resp.data_min, resp.data_max);
+
+        // Colorbar with real detector values
+        if (colorbar) {
+            drawColorbar(colorbar, resp.data_min, resp.data_max, resp.height);
+            colorbar.style.display = 'block';
+        }
+
+        // Show container
+        if (container) { container.style.display = 'flex'; }
 
         if (exposureLabel) {
             exposureLabel.textContent = 'Экспозиция: ' + exposureSec + ' с';
         }
         if (infoDiv) {
             infoDiv.textContent = resp.width + '×' + resp.height + ' пикс  |  ' +
-                'мин: ' + resp.data_min.toFixed(1) + '  макс: ' + resp.data_max.toFixed(1);
+                'мин: ' + resp.data_min + '  макс: ' + resp.data_max;
         }
     };
 
@@ -212,7 +252,10 @@ function loadPreview(exposureSec) {
         showError('Ошибка сети при запросе изображения');
     };
 
-    xhr.send(JSON.stringify({ exposure_sec: parseFloat(exposureSec) || 1.0 }));
+    xhr.send(JSON.stringify({
+        exposure_sec: parseFloat(exposureSec) || 1.0,
+        downsample: 4
+    }));
 
     function showError(msg) {
         if (placeholder) { placeholder.style.display = 'block'; }

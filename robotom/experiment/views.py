@@ -11,6 +11,7 @@ from .models import Tomograph
 from requests.exceptions import Timeout
 from functools import wraps
 
+import base64
 import io
 import logging
 import hashlib
@@ -24,8 +25,6 @@ import time
 import datetime
 
 import numpy as np
-from numpy.lib.stride_tricks import sliding_window_view
-from PIL import Image
 
 experiment_logger = logging.getLogger('experiment_logger')
 
@@ -461,26 +460,18 @@ def get_autocomplete_data(request):
     })
 
 
-# Preview thumbnail size — must match make_preview_data() defaults in rbtm-drivers-next.
-PREVIEW_MAX_WIDTH = 1200
-PREVIEW_MAX_HEIGHT = 800
-
-
-def _median_filter_3x3(arr):
-    """Fast 3×3 median filter using numpy sliding_window_view (no scipy needed)."""
-    h, w = arr.shape
-    padded = np.pad(arr, 1, mode='edge')
-    windows = sliding_window_view(padded, (3, 3))  # shape (h, w, 3, 3)
-    return np.median(windows.reshape(h, w, 9), axis=2).astype(arr.dtype)
+# Default integer downsampling factor sent to detector
+PREVIEW_DOWNSAMPLE = 4
 
 
 @login_required
 @user_passes_test(has_experiment_access)
 def get_preview_data(request):
     """
-    POST с exposure_ms → запрашивает кадр у детектора,
-    уменьшает изображение, применяет медианный фильтр 3×3,
-    возвращает плоский массив uint16-значений и размеры (JSON).
+    POST {exposure_sec, downsample?} → запрашивает кадр у детектора
+    (детектор делает ресайз и медианную фильтрацию),
+    возвращает uint16-данные как base64-строку для быстрого декодирования
+    в браузере через Uint16Array.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
@@ -488,16 +479,17 @@ def get_preview_data(request):
     try:
         body = json.loads(request.body)
         exposure_sec = float(body.get('exposure_sec', 1.0))
+        downsample = int(body.get('downsample', PREVIEW_DOWNSAMPLE))
     except (ValueError, KeyError, json.JSONDecodeError):
         return JsonResponse({'error': 'bad request'}, status=400)
 
     exposure_ms = exposure_sec * 1000.0
-    data = json.dumps(exposure_ms)
+    detector_payload = json.dumps({'exposure_ms': exposure_ms, 'downsample': downsample})
 
     try:
         response = requests.post(
             settings.EXPERIMENT_DETECTOR_GET_FRAME_PREVIEW.format(TOMO_NUM),
-            data,
+            detector_payload,
             stream=True,
             timeout=max(settings.TIMEOUT_DEFAULT, exposure_sec + 30),
         )
@@ -512,30 +504,28 @@ def get_preview_data(request):
         experiment_logger.error(u'Ошибка получения кадра: {}'.format(e))
         return JsonResponse({'error': str(e)}, status=502)
 
-    # Загружаем npz-данные от детектора (уже ресайз + медиана)
+    # Загружаем npz-данные от детектора (уже ресайз + медиана, uint16)
     try:
         npz = np.load(io.BytesIO(raw))
-        arr = npz['data'].astype(np.float32)
-        new_h, new_w = arr.shape[:2]
+        arr = npz['data']  # uint16, shape (h, w)
+        new_h, new_w = int(arr.shape[0]), int(arr.shape[1])
     except Exception as e:
         experiment_logger.error(u'Ошибка декодирования npz: {}'.format(e))
         return JsonResponse({'error': 'npz decode error: {}'.format(str(e))}, status=502)
 
-    arr_min = float(arr.min())
-    arr_max = float(arr.max())
+    arr_uint16 = arr.astype(np.uint16)
+    arr_min = int(arr_uint16.min())
+    arr_max = int(arr_uint16.max())
 
-    # Нормализуем в 0–65535 (uint16) для передачи в браузер
-    if arr_max > arr_min:
-        arr_norm = ((arr - arr_min) / (arr_max - arr_min) * 65535).astype(np.uint16)
-    else:
-        arr_norm = np.zeros_like(arr, dtype=np.uint16)
+    # Передаём сырые uint16-байты как base64 — браузер декодирует через Uint16Array
+    pixels_b64 = base64.b64encode(arr_uint16.tobytes()).decode('ascii')
 
     return JsonResponse({
-        'width': int(new_w),
-        'height': int(new_h),
+        'width': new_w,
+        'height': new_h,
         'data_min': arr_min,
         'data_max': arr_max,
-        'pixels': arr_norm.flatten().tolist(),
+        'pixels_b64': pixels_b64,
     })
 
 

@@ -217,8 +217,9 @@
                         <h3>Предпросмотр <small id="preview-exposure-label"></small></h3>
                     </div>
                     <div class="panel-body">
-                        <div id="preview-container" style="display:none;">
-                            <canvas id="preview-canvas" style="width:100%; height:auto; border:1px solid #ddd; display:block;"></canvas>
+                        <div id="preview-container" style="display:none; align-items:flex-start; gap:8px;">
+                            <canvas id="preview-canvas" style="flex:1; width:100%; height:auto; border:1px solid #ddd; display:block;"></canvas>
+                            <canvas id="colorbar-canvas" style="flex-shrink:0; border:1px solid #ddd; display:block;"></canvas>
                         </div>
                         <div id="preview-loading" style="display:none; text-align:center; padding:20px;">
                             {% load static %}
@@ -244,6 +245,6 @@
 
     {% load static %}
 
-    <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}?v=3"></script>
+    <script type='text/javascript' src="{% static 'experiment/js/adjustment.js' %}?v=4"></script>
 
 {% endblock content %}

@@ -527,9 +527,27 @@ function loadPreview(exposureSec) {
         if (container) { container.style.display = 'flex'; }
 
         if (colorbar) {
-            setTimeout(function() {
-                drawColorbar(colorbar, canvas, resp.data_min, resp.data_max);
-            }, 0);
+            // Два requestAnimationFrame гарантируют, что браузер завершил
+            // layout flex-контейнера перед тем, как мы читаем getBoundingClientRect().
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    drawColorbar(colorbar, canvas, resp.data_min, resp.data_max);
+
+                    // ResizeObserver: перерисовываем колорбар при каждом
+                    // изменении размеров canvas (ресайз окна и т.п.).
+                    if (window.ResizeObserver) {
+                        if (window._previewResizeObserver) {
+                            window._previewResizeObserver.disconnect();
+                        }
+                        window._previewResizeObserver = new ResizeObserver(function() {
+                            if (gPixels) {
+                                drawColorbar(colorbar, canvas, gDisplayMin, gDisplayMax);
+                            }
+                        });
+                        window._previewResizeObserver.observe(canvas);
+                    }
+                });
+            });
         }
 
         if (exposureLabel) {

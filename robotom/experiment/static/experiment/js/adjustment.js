@@ -87,51 +87,63 @@ function base64ToUint16Array(b64) {
 /**
  * Draw a grayscale colorbar on a canvas element.
  * Shows real detector values (dataMin at bottom, dataMax at top).
- * @param {HTMLCanvasElement} canvas
- * @param {number} dataMin  raw detector minimum
- * @param {number} dataMax  raw detector maximum
- * @param {number} height   height in px (should match image canvas)
+ * Canvas size is set in device-pixel units matching the image canvas rendered size.
+ *
+ * @param {HTMLCanvasElement} colorbarCanvas
+ * @param {HTMLCanvasElement} imageCanvas    - image canvas to match height
+ * @param {number}            dataMin
+ * @param {number}            dataMax
  */
-function drawColorbar(canvas, dataMin, dataMax, height) {
-    var barW = 16;
-    canvas.width = 64;
-    canvas.height = height;
+function drawColorbar(colorbarCanvas, imageCanvas, dataMin, dataMax) {
+    // Use the CSS-rendered height of the image canvas so colorbar matches
+    var renderedH = imageCanvas.offsetHeight || imageCanvas.height;
+    var dpr = window.devicePixelRatio || 1;
 
-    var ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var barW = 18;
+    var labelW = 52;
+    var totalW = barW + labelW;
+
+    colorbarCanvas.width  = totalW * dpr;
+    colorbarCanvas.height = renderedH * dpr;
+    colorbarCanvas.style.width  = totalW + 'px';
+    colorbarCanvas.style.height = renderedH + 'px';
+
+    var ctx = colorbarCanvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, totalW, renderedH);
 
     // Gradient: white at top (max), black at bottom (min)
-    var grad = ctx.createLinearGradient(0, 0, 0, height);
+    var grad = ctx.createLinearGradient(0, 0, 0, renderedH);
     grad.addColorStop(0, '#ffffff');
     grad.addColorStop(1, '#000000');
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, barW, height);
+    ctx.fillRect(0, 0, barW, renderedH);
 
     // Border
     ctx.strokeStyle = '#888';
     ctx.lineWidth = 1;
-    ctx.strokeRect(0, 0, barW, height);
+    ctx.strokeRect(0, 0, barW, renderedH);
 
     // Numeric labels
     ctx.fillStyle = '#333';
-    ctx.font = '10px sans-serif';
+    ctx.font = '13px sans-serif';
     ctx.textAlign = 'left';
 
     var numTicks = 5;
     for (var i = 0; i <= numTicks; i++) {
-        var t = i / numTicks;                          // 0=top(white/max) → 1=bottom(black/min)
-        var y = t * height;
-        var value = dataMax - t * (dataMax - dataMin); // high at top
+        var t = i / numTicks;
+        var y = t * renderedH;
+        var value = dataMax - t * (dataMax - dataMin);
 
         ctx.strokeStyle = '#888';
         ctx.beginPath();
         ctx.moveTo(barW, y);
-        ctx.lineTo(barW + 3, y);
+        ctx.lineTo(barW + 4, y);
         ctx.stroke();
 
         var label = value.toFixed(0);
-        var textY = Math.min(Math.max(y + 3, 10), height - 1);
-        ctx.fillText(label, barW + 5, textY);
+        var textY = Math.min(Math.max(y + 5, 13), renderedH - 2);
+        ctx.fillText(label, barW + 6, textY);
     }
 }
 
@@ -229,14 +241,15 @@ function loadPreview(exposureSec) {
         // Render with real min/max for correct colormap
         renderGrayscale(canvas, pixels, resp.width, resp.height, resp.data_min, resp.data_max);
 
-        // Colorbar with real detector values
-        if (colorbar) {
-            drawColorbar(colorbar, resp.data_min, resp.data_max, resp.height);
-            colorbar.style.display = 'block';
-        }
-
-        // Show container
+        // Show container first so browser lays out canvas (needed for offsetHeight)
         if (container) { container.style.display = 'flex'; }
+
+        // Colorbar with real detector values — must be after container is visible
+        if (colorbar) {
+            setTimeout(function() {
+                drawColorbar(colorbar, canvas, resp.data_min, resp.data_max);
+            }, 0);
+        }
 
         if (exposureLabel) {
             exposureLabel.textContent = 'Экспозиция: ' + exposureSec + ' с';

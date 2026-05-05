@@ -486,6 +486,7 @@ def get_preview_data(request):
     exposure_ms = exposure_sec * 1000.0
     detector_payload = json.dumps({'exposure_ms': exposure_ms, 'downsample': downsample})
 
+    t0 = time.time()
     try:
         response = requests.post(
             settings.EXPERIMENT_DETECTOR_GET_FRAME_PREVIEW.format(TOMO_NUM),
@@ -504,6 +505,10 @@ def get_preview_data(request):
         experiment_logger.error(u'Ошибка получения кадра: {}'.format(e))
         return JsonResponse({'error': str(e)}, status=502)
 
+    t1 = time.time()
+    experiment_logger.info(u'preview: detector request+transfer {:.2f}s, raw={} bytes'.format(
+        t1 - t0, len(raw)))
+
     # Загружаем npz-данные от детектора (уже ресайз + медиана, uint16)
     try:
         npz = np.load(io.BytesIO(raw))
@@ -513,12 +518,18 @@ def get_preview_data(request):
         experiment_logger.error(u'Ошибка декодирования npz: {}'.format(e))
         return JsonResponse({'error': 'npz decode error: {}'.format(str(e))}, status=502)
 
+    t2 = time.time()
     arr_uint16 = arr.astype(np.uint16)
     arr_min = int(arr_uint16.min())
     arr_max = int(arr_uint16.max())
 
     # Передаём сырые uint16-байты как base64 — браузер декодирует через Uint16Array
     pixels_b64 = base64.b64encode(arr_uint16.tobytes()).decode('ascii')
+    t3 = time.time()
+
+    experiment_logger.info(
+        u'preview: npz_load={:.3f}s base64={:.3f}s arr={}x{} b64_len={}'.format(
+            t2 - t1, t3 - t2, new_w, new_h, len(pixels_b64)))
 
     return JsonResponse({
         'width': new_w,
@@ -526,6 +537,12 @@ def get_preview_data(request):
         'data_min': arr_min,
         'data_max': arr_max,
         'pixels_b64': pixels_b64,
+        'timing': {
+            'detector_s': round(t1 - t0, 3),
+            'npz_load_s': round(t2 - t1, 3),
+            'base64_s':   round(t3 - t2, 3),
+            'total_s':    round(t3 - t0, 3),
+        },
     })
 
 

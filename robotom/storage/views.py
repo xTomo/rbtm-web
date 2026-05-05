@@ -59,7 +59,13 @@ class ExperimentRecord:
         self.empty_exposure = record['experiment parameters']['EMPTY']['exposure']
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.recon_url = settings.RECONSTRUCTION_URL.format(exp_id=self.experiment_id)
-        self.datetime = record['datetime']
+        raw_dt = record['datetime']
+        # Убираем секунды из отображения: "DD.MM.YYYY HH:MM:SS" → "DD.MM.YYYY HH:MM"
+        try:
+            from datetime import datetime as _dt
+            self.datetime = _dt.strptime(raw_dt, '%d.%m.%Y %H:%M:%S').strftime('%d.%m.%Y %H:%M')
+        except (ValueError, TypeError):
+            self.datetime = raw_dt
 
         raw_tags = record.get('tags', [])
         if isinstance(raw_tags, list):

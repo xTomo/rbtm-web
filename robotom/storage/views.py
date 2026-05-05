@@ -4,7 +4,6 @@ import tempfile
 import requests
 import json
 import h5py
-import math
 
 from django.contrib import messages
 from django.core.files.storage import default_storage
@@ -15,6 +14,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.urls import reverse
 
 from requests.exceptions import Timeout
+from robotom.utils import force_https
 
 
 storage_logger = logging.getLogger('storage_logger')
@@ -145,10 +145,6 @@ def make_search_query(search_str):
     return json.dumps(query)
 
 
-def force_https(url):
-    return url.replace('http', 'https') if not url.startswith('https') else url
-
-
 @login_required
 @user_passes_test(is_active)
 def storage_view(request):
@@ -192,7 +188,7 @@ def storage_view(request):
                 messages.error(request, u'Не найдено ни одной записи')
             else:
                 to_show = True
-            num_pages = int(math.ceil(1.0 * len(records) / page_size))
+            num_pages = (len(records) + page_size - 1) // page_size
         else:
             storage_logger.error(u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
             messages.error(request, u'Не удается найти эксперименты. Код ошибки: {}'.format(answer.status_code))
@@ -247,7 +243,6 @@ def storage_record_view(request, storage_record_id):
 
     try:
         frame_info = json.dumps({"exp_id": storage_record_id})
-        # storage_logger.debug(u'Страница записи: {}'.format(frame_info))
         frames = requests.post(settings.STORAGE_FRAMES_INFO_HOST, frame_info, timeout=settings.TIMEOUT_DEFAULT)
         if frames.status_code == 200:
             frames_info = json.loads(frames.content)

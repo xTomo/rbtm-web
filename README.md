@@ -14,6 +14,7 @@
 | pymemcache | 4.0.0 |
 | h5py | 3.11.0 |
 | numpy | 1.26.4 |
+| Pillow | 10.4.0 |
 | Bootstrap | 3 (django-bootstrap3 23.6) |
 
 ## Архитектура
@@ -56,8 +57,9 @@ rbtm-web/
     ├── robotom/                # пакет настроек проекта
     │   ├── urls.py             # корневой URL-роутер
     │   ├── wsgi.py
+    │   ├── utils.py            # общие утилиты (force_https и др.)
     │   ├── dev_settings.py     # настройки для разработки
-    │   └── bamboo_settings.py  # минимальные настройки для CI (SQLite)
+    │   └── bamboo_settings.py  # настройки для CI (SQLite, наследует dev_settings)
     ├── main/                   # приложение: аутентификация и профили
     │   ├── models.py           # UserProfile, RoleRequest
     │   ├── views.py            # регистрация, вход, профиль, управление ролями
@@ -68,9 +70,10 @@ rbtm-web/
     │   ├── migrations/
     │   ├── static/             # CSS, Bootstrap 3, изображения
     │   └── templates/
-    │       ├── base.html       # базовый шаблон ({% load static %})
-    │       └── main/           # index, profile, manage_requests, role_request, done, empty, group_*
+    │       ├── base.html       # базовый шаблон
+    │       └── main/           # index, profile, manage_requests, role_request, done, empty
     ├── experiment/             # приложение: управление томографом
+    │   ├── apps.py             # ExperimentConfig: создаёт Tomograph при первом запуске
     │   ├── models.py           # Tomograph (state: unavailable/ready/experiment)
     │   ├── views.py            # experiment_view, adjustment, interface, tomograph
     │   ├── admin.py
@@ -100,6 +103,7 @@ rbtm-web/
 
 ### `experiment.Tomograph`
 Состояние томографа: `unavailable` / `ready` / `experiment`. Один экземпляр на установку.
+Создаётся автоматически при первом запуске через сигнал `post_migrate` в `ExperimentConfig.ready()`.
 
 ## URL-маршруты
 
@@ -119,13 +123,21 @@ rbtm-web/
 |---|---|
 | `SECRET_KEY` | Секретный ключ Django |
 | `DEBUG` | `True` в dev, `False` в production |
+| `TOMO_NUM` | Номер томографа (суффикс в URL Experiment API, по умолчанию `1`) |
 | `ALLOWED_HOSTS` | Реальный домен / IP в production |
-| `DATABASES.HOST` | Читается из `DB_HOST` env, по умолчанию `database` |
+| `DATABASES.HOST` | `localhost` в dev; в Docker `sed` заменяет на `database` |
 | `STORAGE_HOST` | URL Storage API (default: `http://localhost:5006/`) |
 | `EXPERIMENT_HOST` | URL Experiment API (default: `http://localhost:5001/`) |
+| `TIMEOUT_DEFAULT` | Таймаут HTTP-запросов к внешним API, секунды (default: `120`) |
 | `EMAIL_*` | Настройки SMTP для отправки писем активации |
 | `CACHES` | `PyMemcacheCache` — в dev отключён (DummyCache) |
-| `CSRF_TRUSTED_ORIGINS` | Только в `settings.py` — список разрешённых origins |
+
+### `bamboo_settings.py` — для CI
+
+Наследует все настройки из `dev_settings.py` через `from .dev_settings import *`,
+переопределяет только:
+- `DATABASES` → SQLite
+- `REQUEST_DEBUG = True`
 
 ### `settings.py` — production
 
@@ -152,7 +164,7 @@ docker-compose up --build -d
 
 **Важно:** `server` не стартует до готовности `database` (healthcheck).
 
-После первого запуска создать базу и применить миграции:
+После первого запуска применить миграции:
 
 ```bash
 # Если база не создалась автоматически (POSTGRES_DB работает только при первой инициализации пустого тома)
@@ -256,8 +268,6 @@ docker-compose down
 
 #### Шаг 2. Сделать дамп через временный postgres:9.4
 
-Поднимаем временный контейнер postgres:9.4, монтирующий **тот же том** с данными:
-
 ```bash
 docker run --rm \
   -v /home/robotom/rbtm_data/rbtm_web/db:/var/lib/postgresql/data \
@@ -265,13 +275,9 @@ docker run --rm \
   --name pg94_temp \
   -d postgres:9.4
 
-# Дождаться старта (несколько секунд)
 sleep 5
 
-# Сделать дамп базы
 docker exec pg94_temp pg_dump -U postgres robotom_users > robotom_backup.sql
-
-# Остановить временный контейнер
 docker stop pg94_temp
 ```
 
@@ -288,21 +294,15 @@ sudo rm -rf /home/robotom/rbtm_data/rbtm_web/db/*
 docker-compose up --build -d
 ```
 
-PostgreSQL 16 инициализирует чистую базу данных. Контейнер `rbtmweb_database_1` должен быть в статусе `Up`.
-
 #### Шаг 5. Восстановить дамп в postgres:16
 
-База `robotom_users` создаётся автоматически через `POSTGRES_DB` в `docker-compose.yml`:
-
 ```bash
-# Восстановить данные (база уже существует)
 docker exec -i rbtmweb_database_1 psql -U postgres -d robotom_users < robotom_backup.sql
 ```
 
 #### Шаг 6. Применить миграции Django 5.2
 
 ```bash
-# Применить миграции (--fake-initial — если таблицы уже существуют из дампа)
 docker-compose exec server python robotom/manage.py migrate --fake-initial
 ```
 
@@ -316,22 +316,6 @@ docker-compose exec server python robotom/manage.py showmigrations
 
 # Системная проверка Django
 docker-compose exec server python robotom/manage.py check
-```
-
----
-
-### Если старая база ещё не была запущена через новый docker-compose
-
-Если у вас ещё работает старый контейнер с postgres:9.4 под другим именем:
-
-```bash
-# Дамп из старого контейнера
-docker exec <старый_контейнер_pg94> pg_dump -U postgres robotom_users > robotom_backup.sql
-
-# Очистить том
-sudo rm -rf /home/robotom/rbtm_data/rbtm_web/db/*
-
-# Поднять новый стек и восстановить (шаги 4-7 выше)
 ```
 
 ---

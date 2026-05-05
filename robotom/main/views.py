@@ -1,21 +1,22 @@
 import json
-
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth import login as auth_login, authenticate
-from .forms import UserRegistrationForm, UserProfileRegistrationForm, UserRoleRequestForm, UserProfileFormDisabled, \
-    UserProfileFormEnabled, InactiveAuthenticationForm
-from .models import UserProfile, RoleRequest
-from django.core.mail import send_mail
-from django.conf import settings
-from django.urls import reverse
-from django.contrib import messages
 import logging
 import hashlib
 import datetime
 import random
+import traceback
 import requests
-from django.forms import ValidationError
+
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth import login as auth_login, authenticate
+from django.core.mail import send_mail
+from django.conf import settings
+from django.urls import reverse
+from django.contrib import messages
+
+from .forms import UserRegistrationForm, UserProfileRegistrationForm, UserRoleRequestForm, UserProfileFormDisabled, \
+    UserProfileFormEnabled, InactiveAuthenticationForm
+from .models import UserProfile, RoleRequest
 
 main_logger = logging.getLogger('main_logger')
 
@@ -75,12 +76,6 @@ def registration_view(request):
             user.is_active = False
             new_profile = userprofile_form.save(commit=False)
 
-            #attempt = try_user_sending(request, u'Невозможно завершить регистрацию', settings.STORAGE_CREATE_USER_HOST,
-            #                           user=user)
-
-            #if attempt:  # if something went wrong
-            #    return attempt
-
             user.save()
 
             salt = hashlib.sha1(str(random.random()).encode()).hexdigest()[:5]
@@ -96,9 +91,8 @@ def registration_view(request):
                 send_mail(email_subject, email_body, 'robotomproject@gmail.com',
                           [user.email], fail_silently=False)
             except BaseException as e:
-                import traceback
-                main_logger.error(traceback.print_exc()) 
-                main_logger.error(e)  
+                main_logger.error(traceback.format_exc())
+                main_logger.error(e)
                 messages.warning(request,
                                  'Произошла ошибка при отправке письма о подтверждении регистрации. Попробуйте \
                                  зарегистрироваться повторно, указав корректный email')
@@ -192,12 +186,6 @@ def profile_view(request):
             userprofile_form = UserProfileFormEnabled(request.POST, instance=request.user.userprofile)
             if userprofile_form.is_valid():
                 profile = userprofile_form.save(commit=False)
-                user_info = json.dumps({'username': profile.user.username, 'password': profile.user.password,
-                                        'role': ', '.join(profile.get_roles())})
-                #attempt = try_user_sending(request, u'Невозможно сохранить изменения профиля',
-                #                           settings.STORAGE_ALT_USER_HOST, user_info=user_info)
-                #if attempt:  # if something went wrong
-                #    return attempt
                 profile.save()
                 messages.success(request, 'Ваши данные были успешно сохранены!')
         elif 'cancel' in request.POST:
@@ -328,7 +316,6 @@ def role_request_view(request):
                       направлено Вам на указанный при регистрации ящик {}'.format(request.user.email))
 
     if request.method == 'POST' and request.user.is_active:
-        print(request.POST)
         if RoleRequest.objects.filter(user__user__pk=request.user.pk, role=request.POST[u'role']):
             role_request = RoleRequest.objects.get(user__user__pk=request.user.pk, role=request.POST[u'role'])
             role_form = UserRoleRequestForm(request.POST, instance=role_request)

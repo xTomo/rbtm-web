@@ -3,20 +3,20 @@
 from urllib.parse import urljoin
 import os
 
-# This settings is for local development
-# For production u have to create settings.py with actual production settings
-# (
-# DEBUG,
-# REQUEST_DEBUG,
-# ALLOWED_HOSTS,
-# SECRET_KEY,
-# DATABASES
-# )
+# Настройки для локальной разработки.
+# Для production создайте robotom/robotom/settings.py с реальными значениями.
+# Обязательные параметры:
+#   DEBUG, REQUEST_DEBUG, ALLOWED_HOSTS, SECRET_KEY, DATABASES,
+#   STORAGE_HOST, EXPERIMENT_HOST, RECONSTRUCTION_HOST,
+#   CSRF_TRUSTED_ORIGINS, EMAIL_*, CACHES, TOMO_NUM
 
 DEBUG = True
 REQUEST_DEBUG = True
 
-TIMEOUT_DEFAULT = 120  # timeout in secs
+# Номер томографа (используется как суффикс в URL Experiment API)
+TOMO_NUM = 1
+
+TIMEOUT_DEFAULT = 120  # таймаут HTTP-запросов к внешним API, секунды
 
 STORAGE_HOST = 'http://localhost:5006/'
 EXPERIMENT_HOST = 'http://localhost:5001/'
@@ -103,7 +103,6 @@ LANGUAGE_CODE = 'ru-ru'
 SITE_ID = 1
 
 USE_I18N = True
-USE_L10N = False
 USE_TZ = True
 
 # Absolute filesystem path to the directory that will hold user-uploaded files.

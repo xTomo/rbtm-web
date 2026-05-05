@@ -4,20 +4,17 @@ from django.conf import settings
 from django.urls import reverse
 from django.contrib import messages
 from django.contrib.messages import get_messages
-from django.core.files.storage import default_storage
 from django.http import HttpResponse, JsonResponse
 
 from .models import Tomograph
 from requests.exceptions import Timeout
 from functools import wraps
+from robotom.utils import force_https
 
 import base64
 import io
 import logging
-import hashlib
-import random
 import requests
-import tempfile
 import os
 import json
 import uuid
@@ -35,7 +32,7 @@ GET_HOR = 'get-horizontal-position'
 GET_ANGL = 'get-angle-position'
 GET_SHUT = 'get-shutter-state'
 
-TOMO_NUM = 1
+TOMO_NUM = getattr(settings, 'TOMO_NUM', 1)
 
 remote_url_settings = {
         GET_VOLT: settings.EXPERIMENT_SOURCE_GET_VOLT.format(TOMO_NUM),
@@ -68,16 +65,10 @@ def info_once_only(request, msg):
         messages.info(request, msg)
 
 
-def migrations():
-    if len(Tomograph.objects.all()) == 0:
-        tomo = Tomograph(state='unavailable')
-        tomo.save()
-
-
 def try_request_post(request, address, content, source_page, stream=False):
     result = {'response_dict': None, 'error': None}
     try:
-        answer = requests.post(address, content, timeout=settings.TIMEOUT_DEFAULT, stream=stream) 
+        answer = requests.post(address, content, timeout=settings.TIMEOUT_DEFAULT, stream=stream)
         result['response_dict'] = json.loads(answer.content)
         if answer.status_code != 200:
             messages.warning(request, u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
@@ -100,7 +91,7 @@ def try_request_post(request, address, content, source_page, stream=False):
 def try_request_get(request, address, source_page=''):
     result = {'response_dict': None, 'error': None}
     try:
-        answer = requests.get(address, timeout=settings.TIMEOUT_DEFAULT) 
+        answer = requests.get(address, timeout=settings.TIMEOUT_DEFAULT)
         result['response_dict'] = json.loads(answer.content)
         if answer.status_code != 200:
             messages.warning(request, u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
@@ -130,7 +121,6 @@ def try_request_get(request, address, source_page=''):
                                 Возможно, отсутствует подключение к сети.
                                 Попробуйте снова через некоторое время или свяжитесь с администратором'''
 
-
     return result
 
 
@@ -145,7 +135,7 @@ def check_result(result, request, tomo, success_msg=''):
     else:
         experiment_logger.error(u'Модуль "Эксперимент" работает некорректно в данный момент. Попробуйте позже {}'.format(
                     response_dict['error']))
-        messages.warning(request, 
+        messages.warning(request,
             u'Модуль "Эксперимент" работает некорректно в данный момент. Попробуйте позже {}'.format(response_dict['error']))
 
 
@@ -186,8 +176,6 @@ def update_state_before_run(view):
 @user_passes_test(has_experiment_access)
 def experiment_view(request):
 
-    migrations()
-
     tomo = get_object_or_404(Tomograph, pk=1)
     result = None
     success_msg = ''
@@ -220,16 +208,13 @@ def experiment_view(request):
 @user_passes_test(has_experiment_access)
 def experiment_adjustment(request):
 
-    migrations()
-
     js_urls = {k: request.build_absolute_uri(v) for k, v in local_url_settings.items()}
 
-    # force https in urls — kludged until build_absolute_uri not return correct protocol
+    # force https в URL — костыль, пока build_absolute_uri не возвращает корректный протокол
     host = request.get_host()
     prod = ('127.0.0.1' not in host) and ('localhost' not in host)
     if prod:
         js_urls = {k: force_https(v) for k, v in js_urls.items()}
-    # end of force https kludge
 
     js_url_settings = json.dumps(js_urls)
 
@@ -244,17 +229,17 @@ def experiment_adjustment(request):
             result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_HORIZ.format(TOMO_NUM), info, source_page)
             success_msg = u'Горизонтальное положение образца изменено'
 
-        if 'move_ver_submit' in request.POST: 
+        if 'move_ver_submit' in request.POST:
             info = json.dumps(int(request.POST['move_ver']))
             result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_VERT.format(TOMO_NUM), info, source_page)
             success_msg = u'Вертикальное положение образца изменено'
 
-        if 'rotate_submit' in request.POST: 
+        if 'rotate_submit' in request.POST:
             info = json.dumps(float(request.POST['rotate']))
             result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_ANGLE.format(TOMO_NUM), info, source_page)
             success_msg = u'Образец повернут'
 
-        if 'reset_submit' in request.POST: 
+        if 'reset_submit' in request.POST:
             result = try_request_get(request, settings.EXPERIMENT_MOTOR_RESET_ANGLE.format(TOMO_NUM), source_page)
             success_msg = u'Текущий угол поворота принят за 0'
 
@@ -267,12 +252,12 @@ def experiment_adjustment(request):
                 result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(TOMO_NUM), source_page)
                 success_msg = u'Заслонка закрыта'
 
-        if 'experiment_on_voltage' in request.POST: 
+        if 'experiment_on_voltage' in request.POST:
             info = json.dumps(float(request.POST['voltage']))
             result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_VOLT.format(TOMO_NUM), info, source_page)
             success_msg = u'Напряжение установлено'
 
-        if 'experiment_on_current' in request.POST: 
+        if 'experiment_on_current' in request.POST:
             info = json.dumps(float(request.POST['current']))
             result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_CURR.format(TOMO_NUM), info, source_page)
             success_msg = u'Сила тока установлена'
@@ -302,8 +287,6 @@ def experiment_adjustment(request):
 @login_required
 @user_passes_test(has_experiment_access)
 def experiment_interface(request):
-
-    migrations()
 
     tomo = get_object_or_404(Tomograph, pk=1)
     result = None
@@ -460,7 +443,7 @@ def get_autocomplete_data(request):
     })
 
 
-# Default integer downsampling factor sent to detector
+# Коэффициент прореживания кадра по умолчанию (целочисленный, передаётся детектору)
 PREVIEW_DOWNSAMPLE = 4
 
 
@@ -560,7 +543,3 @@ def experiment_tomograph(request, value_to_get):
     )
 
     return django_response
-
-
-def force_https(url):
-    return url.replace('http', 'https') if not url.startswith('https') else url

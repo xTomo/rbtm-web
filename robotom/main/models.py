@@ -51,18 +51,14 @@ class UserProfile(models.Model):
             roles.append(u'Исследователь') 
         return roles 
 
-    '''
-    short role name, for example, 'RES' or 'ADM'
-    '''
     def has_role(self, role):
+        """Проверяет наличие роли по короткому коду, например 'RES' или 'ADM'."""
         if role == 'NONE':
             return False
         return USER_ROLES[[role_tuple[0] for role_tuple in USER_ROLES].index(role)][1] in self.get_roles()
 
-    '''
-    long role name, for example, 'Исследователь'
-    '''
     def has_role_long(self, role):
+        """Проверяет наличие роли по полному названию, например 'Исследователь'."""
         return role in self.get_roles()
 
     def get_requests(self):

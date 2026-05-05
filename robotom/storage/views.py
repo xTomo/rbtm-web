@@ -69,9 +69,13 @@ class ExperimentRecord:
 
         raw_tags = record.get('tags', [])
         if isinstance(raw_tags, list):
-            self.tags = raw_tags
+            # Каждый элемент списка может сам быть строкой с запятыми
+            tags = []
+            for t in raw_tags:
+                tags.extend([x.strip() for x in str(t).split(',') if x.strip()])
+            self.tags = tags
         elif raw_tags:
-            self.tags = [str(raw_tags)]
+            self.tags = [x.strip() for x in str(raw_tags).split(',') if x.strip()]
         else:
             self.tags = []
 

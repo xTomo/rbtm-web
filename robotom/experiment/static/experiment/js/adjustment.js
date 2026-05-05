@@ -76,7 +76,7 @@ function updateShutterUI(state) {
             if (!btnClose.dataset.disabledByServer) btnClose.disabled = false;
         }
 
-    } else if (state === 'CLOSED') {
+    } else if (state === 'CLOSE') {
         // Label — red
         span.style.color = '#c62828';
         span.textContent = 'закрыта';
@@ -234,7 +234,7 @@ function ajaxShutterCommand(gateState) {
             if (resp.success) {
                 showToast(resp.message || 'Готово', 'success');
                 // Immediately update UI optimistically
-                updateShutterUI(gateState === 'open' ? 'OPEN' : 'CLOSED');
+                updateShutterUI(gateState === 'open' ? 'OPEN' : 'CLOSE');
             } else {
                 showToast(resp.message || 'Ошибка выполнения команды', 'error');
             }

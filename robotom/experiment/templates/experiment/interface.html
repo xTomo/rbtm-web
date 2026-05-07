@@ -36,13 +36,25 @@
                     </div>
 
                     {# ===== ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА ===== #}
-                    <div class="row" style="margin-bottom:10px">
-                        <div class="col-xs-12 text-right">
-                            <button type="button" id="toggle-mode-btn"
-                                    class="btn btn-sm btn-default"
-                                    style="min-width:160px">
-                                ⚙ Продвинутый режим
-                            </button>
+                    <div class="row" style="margin-bottom:14px">
+                        <div class="col-xs-12">
+                            <span style="font-size:13px; color:#888; margin-right:8px; vertical-align:middle">
+                                Активный режим:
+                            </span>
+                            <strong id="active-mode-label"
+                                    style="font-size:13px; margin-right:16px; vertical-align:middle; color:#333">
+                                Простой
+                            </strong>
+                            <div class="btn-group" role="group">
+                                <button type="button" id="btn-simple-mode"
+                                        class="btn btn-sm btn-primary">
+                                    Простой
+                                </button>
+                                <button type="button" id="btn-advanced-mode"
+                                        class="btn btn-sm btn-default">
+                                    Продвинутый
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -376,7 +388,7 @@
 
             if (advanced) {
                 /* переключаем в продвинутый режим */
-                if (!isAdvanced) $('#toggle-mode-btn').trigger('click');
+                if (!isAdvanced) setAdvancedMode();
                 setVal('#exposure_sec_a',        p.exposure_sec);
                 setVal('#series_length_a',       p.series_length);
                 setVal('#empty_period_a',        p.empty_period);
@@ -524,50 +536,54 @@
         /* ================================================================== */
         /* ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ                                               */
         /* ================================================================== */
-        $('#toggle-mode-btn').on('click', function () {
-            isAdvanced = !isAdvanced;
+        function setSimpleMode() {
+            isAdvanced = false;
+            $('#mode-input').val('simple');
+            $('#active-mode-label').text('Простой');
+            $('#btn-simple-mode').removeClass('btn-default').addClass('btn-primary');
+            $('#btn-advanced-mode').removeClass('btn-primary').addClass('btn-default');
 
-            if (isAdvanced) {
-                $(this).text('Простой режим')
-                       .removeClass('btn-default').addClass('btn-warning');
-                $('#mode-input').val('advanced');
+            /* Переносим значения из продвинутого в простой */
+            $('#de_quantity').val($('#series_length_a').val());
+            $('#exposure_sec').val($('#exposure_sec_a').val());
+            $('#data_shots_quantity_s').val($('#data_shots_quantity_a').val());
+            $('#data_angle_s').val($('#data_angle_a').val());
+            $('#data_same_s').val($('#data_same_a').val());
 
-                /* Переносим значения из простого в продвинутый */
-                var deQty  = $('#de_quantity').val();
-                var expSec = $('#exposure_sec').val();
-                if (expSec) { $('#exposure_sec_a').val(expSec); }
-                if (deQty)  { $('#series_length_a').val(deQty); }
-                $('#data_shots_quantity_a').val($('#data_shots_quantity_s').val());
-                $('#data_angle_a').val($('#data_angle_s').val());
-                $('#data_same_a').val($('#data_same_s').val());
-
-                $('#simple-mode input').prop('disabled', true);
-                $('#advanced-mode input').prop('disabled', false);
-                $('#simple-mode').hide();
-                $('#advanced-mode').show();
-                updateTotalAngle($('#data_shots_quantity_a'));
-
-            } else {
-                $(this).text('Продвинутый режим')
-                       .removeClass('btn-warning').addClass('btn-default');
-                $('#mode-input').val('simple');
-
-                /* Переносим значения из продвинутого в простой */
-                $('#de_quantity').val($('#series_length_a').val());
-                $('#exposure_sec').val($('#exposure_sec_a').val());
-                $('#data_shots_quantity_s').val($('#data_shots_quantity_a').val());
-                $('#data_angle_s').val($('#data_angle_a').val());
-                $('#data_same_s').val($('#data_same_a').val());
-
-                $('#advanced-mode input').prop('disabled', true);
-                $('#simple-mode input').prop('disabled', false);
-                $('#advanced-mode').hide();
-                $('#simple-mode').show();
-                updateTotalAngle($('#data_shots_quantity_s'));
-            }
-
+            $('#advanced-mode input').prop('disabled', true);
+            $('#simple-mode input').prop('disabled', false);
+            $('#advanced-mode').hide();
+            $('#simple-mode').show();
+            updateTotalAngle($('#data_shots_quantity_s'));
             updateStartBtn();
-        });
+        }
+
+        function setAdvancedMode() {
+            isAdvanced = true;
+            $('#mode-input').val('advanced');
+            $('#active-mode-label').text('Продвинутый');
+            $('#btn-advanced-mode').removeClass('btn-default').addClass('btn-primary');
+            $('#btn-simple-mode').removeClass('btn-primary').addClass('btn-default');
+
+            /* Переносим значения из простого в продвинутый */
+            var deQty  = $('#de_quantity').val();
+            var expSec = $('#exposure_sec').val();
+            if (expSec) { $('#exposure_sec_a').val(expSec); }
+            if (deQty)  { $('#series_length_a').val(deQty); }
+            $('#data_shots_quantity_a').val($('#data_shots_quantity_s').val());
+            $('#data_angle_a').val($('#data_angle_s').val());
+            $('#data_same_a').val($('#data_same_s').val());
+
+            $('#simple-mode input').prop('disabled', true);
+            $('#advanced-mode input').prop('disabled', false);
+            $('#simple-mode').hide();
+            $('#advanced-mode').show();
+            updateTotalAngle($('#data_shots_quantity_a'));
+            updateStartBtn();
+        }
+
+        $('#btn-simple-mode').on('click', setSimpleMode);
+        $('#btn-advanced-mode').on('click', setAdvancedMode);
 
         /* ================================================================== */
         /* ПОЛЛИНГ СТАТУСА ЭКСПЕРИМЕНТА                                       */

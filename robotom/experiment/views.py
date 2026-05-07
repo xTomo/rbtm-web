@@ -330,50 +330,59 @@ def experiment_interface(request):
 
             is_advanced = request.POST.get('mode') == 'advanced'
 
-            # Экспозиции вводятся в секундах, переводим в миллисекунды
             if is_advanced:
-                dark_count = int(float(request.POST['dark_quantity']))
-                dark_exposure_ms = float(request.POST['dark_exposure_sec']) * 1000.0
-                empty_count = int(float(request.POST['empty_quantity']))
-                empty_exposure_ms = float(request.POST['empty_exposure_sec']) * 1000.0
-                data_exposure_ms = float(request.POST['data_exposure_sec']) * 1000.0
+                # Продвинутый режим: единая экспозиция, series_length, empty_period
+                exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                series_length = int(float(request.POST.get('series_length', 10)))
+                empty_period = int(float(request.POST.get('empty_period', 50)))
+                data_count_per_step = int(float(request.POST.get('data_same', 1)))
+
+                experiment_data = json.dumps({
+                    'exp_id': str(exp_id),
+                    'specimen': request.POST['name'],
+                    'tags': request.POST['tags'],
+                    'timestamp': timestamp,
+                    'datetime': current_datetime,
+                    'experiment parameters': {
+                        'advanced': True,
+                        'exposure': exposure_ms,
+                        'series_length': series_length,
+                        'data_total': int(float(request.POST['data_shots_quantity'])),
+                        'data_angle_step': float(request.POST['data_angle']),
+                        'data_count_per_step': data_count_per_step,
+                        'empty_period': empty_period,
+                    }
+                })
             else:
+                # Простой режим: одинаковая экспозиция и кол-во для dark/empty
                 de_count = int(float(request.POST['de_quantity']))
                 exposure_ms = float(request.POST['exposure_sec']) * 1000.0
-                dark_count = de_count
-                dark_exposure_ms = exposure_ms
-                empty_count = de_count
-                empty_exposure_ms = exposure_ms
-                data_exposure_ms = exposure_ms
 
-            experiment_data = json.dumps({
-                'exp_id': str(exp_id),
-                'specimen': request.POST['name'],
-                'tags': request.POST['tags'],
-                'timestamp': timestamp,
-                'datetime': current_datetime,
-                'experiment parameters':
-                    {
-                        'advanced': is_advanced,
-                        'DARK':
-                            {
-                                'count': dark_count,
-                                'exposure': dark_exposure_ms,
-                            },
-                        'EMPTY':
-                            {
-                                'count': empty_count,
-                                'exposure': empty_exposure_ms,
-                            },
-                        'DATA':
-                            {
-                                'step count': int(float(request.POST['data_shots_quantity'])),
-                                'exposure': data_exposure_ms,
-                                'angle step': float(request.POST['data_angle']),
-                                'count per step': int(float(request.POST['data_same']))
-                            }
+                experiment_data = json.dumps({
+                    'exp_id': str(exp_id),
+                    'specimen': request.POST['name'],
+                    'tags': request.POST['tags'],
+                    'timestamp': timestamp,
+                    'datetime': current_datetime,
+                    'experiment parameters': {
+                        'advanced': False,
+                        'DARK': {
+                            'count': de_count,
+                            'exposure': exposure_ms,
+                        },
+                        'EMPTY': {
+                            'count': de_count,
+                            'exposure': exposure_ms,
+                        },
+                        'DATA': {
+                            'step count': int(float(request.POST['data_shots_quantity'])),
+                            'exposure': exposure_ms,
+                            'angle step': float(request.POST['data_angle']),
+                            'count per step': int(float(request.POST.get('data_same', 1))),
+                        }
                     }
-            })
+                })
+
             result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), experiment_data, source_page)
             success_msg = u'Эксперимент успешно начался'
 
@@ -392,6 +401,56 @@ def experiment_interface(request):
         'caption': 'Эксперимент',
         'tomograph': tomo,
     })
+
+
+@login_required
+@user_passes_test(has_experiment_access)
+def experiment_status(request):
+    """Прокси к Flask /experiment/status — возвращает JSON статуса эксперимента."""
+    try:
+        answer = requests.get(
+            settings.EXPERIMENT_GET_STATUS.format(TOMO_NUM),
+            timeout=settings.TIMEOUT_DEFAULT,
+        )
+        return HttpResponse(
+            content=answer.content,
+            status=answer.status_code,
+            content_type='application/json',
+        )
+    except Exception as e:
+        experiment_logger.error(u'Ошибка получения статуса эксперимента: {}'.format(e))
+        return JsonResponse({'success': False, 'error': str(e)}, status=502)
+
+
+@login_required
+@user_passes_test(has_experiment_access)
+def experiment_last_frame(request):
+    """Прокси к Flask /experiment/last-frame — возвращает npz с последним кадром."""
+    try:
+        answer = requests.get(
+            settings.EXPERIMENT_GET_LAST_FRAME.format(TOMO_NUM),
+            timeout=max(settings.TIMEOUT_DEFAULT, 60),
+            stream=True,
+        )
+        if answer.status_code != 200:
+            return JsonResponse({'success': False, 'error': 'detector error {}'.format(answer.status_code)}, status=502)
+        raw = b''.join(answer.iter_content(1024 * 8))
+        # Декодируем npz и отдаём как base64 (аналогично get_preview_data)
+        npz = np.load(io.BytesIO(raw))
+        arr = npz['data'].astype(np.uint16)
+        arr_min = int(arr.min())
+        arr_max = int(arr.max())
+        pixels_b64 = base64.b64encode(arr.tobytes()).decode('ascii')
+        return JsonResponse({
+            'width': int(arr.shape[1]),
+            'height': int(arr.shape[0]),
+            'data_min': arr_min,
+            'data_max': arr_max,
+            'pixels_b64': pixels_b64,
+        })
+    except Exception as e:
+        experiment_logger.error(u'Ошибка получения последнего кадра: {}'.format(e))
+        return JsonResponse({'success': False, 'error': str(e)}, status=502)
 
 
 @login_required
@@ -442,20 +501,48 @@ def get_autocomplete_data(request):
                 last_exp = experiments[0]
                 try:
                     ep = last_exp.get('experiment parameters', {})
-                    dark = ep.get('DARK', {})
-                    empty = ep.get('EMPTY', {})
-                    data = ep.get('DATA', {})
-                    last_params = {
-                        'advanced': ep.get('advanced', False),
-                        'dark_count': dark.get('count', ''),
-                        'dark_exposure_sec': round(dark.get('exposure', 0) / 1000.0, 3) if dark.get('exposure') else '',
-                        'empty_count': empty.get('count', ''),
-                        'empty_exposure_sec': round(empty.get('exposure', 0) / 1000.0, 3) if empty.get('exposure') else '',
-                        'data_step_count': data.get('step count', ''),
-                        'data_exposure_sec': round(data.get('exposure', 0) / 1000.0, 3) if data.get('exposure') else '',
-                        'data_angle_step': data.get('angle step', ''),
-                        'data_count_per_step': data.get('count per step', ''),
-                    }
+                    is_adv = ep.get('advanced', False)
+
+                    if is_adv:
+                        # Продвинутый режим: плоская структура
+                        exp_ms = ep.get('exposure', 0)
+                        exp_sec = round(exp_ms / 1000.0, 3) if exp_ms else ''
+                        last_params = {
+                            'advanced': True,
+                            'exposure_sec': exp_sec,
+                            'series_length': ep.get('series_length', 10),
+                            'data_step_count': ep.get('data_total', ''),
+                            'data_angle_step': ep.get('data_angle_step', ''),
+                            'data_count_per_step': ep.get('data_count_per_step', 1),
+                            'empty_period': ep.get('empty_period', 50),
+                            # Для совместимости при переключении в простой режим
+                            'dark_count': ep.get('series_length', ''),
+                            'dark_exposure_sec': exp_sec,
+                            'empty_count': ep.get('series_length', ''),
+                            'empty_exposure_sec': exp_sec,
+                            'data_exposure_sec': exp_sec,
+                        }
+                    else:
+                        # Простой режим: структура DARK/EMPTY/DATA
+                        dark = ep.get('DARK', {})
+                        empty = ep.get('EMPTY', {})
+                        data = ep.get('DATA', {})
+                        dark_exp_sec = round(dark.get('exposure', 0) / 1000.0, 3) if dark.get('exposure') else ''
+                        last_params = {
+                            'advanced': False,
+                            'dark_count': dark.get('count', ''),
+                            'dark_exposure_sec': dark_exp_sec,
+                            'empty_count': empty.get('count', ''),
+                            'empty_exposure_sec': round(empty.get('exposure', 0) / 1000.0, 3) if empty.get('exposure') else '',
+                            'data_step_count': data.get('step count', ''),
+                            'data_exposure_sec': round(data.get('exposure', 0) / 1000.0, 3) if data.get('exposure') else '',
+                            'data_angle_step': data.get('angle step', ''),
+                            'data_count_per_step': data.get('count per step', 1),
+                            # Для совместимости при переключении в продвинутый режим
+                            'exposure_sec': dark_exp_sec,
+                            'series_length': dark.get('count', 10),
+                            'empty_period': 50,
+                        }
                 except Exception as e:
                     experiment_logger.error(u'Ошибка разбора параметров последнего эксперимента: {}'.format(e))
 

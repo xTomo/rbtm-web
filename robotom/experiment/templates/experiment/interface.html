@@ -105,42 +105,34 @@
                     {# ===== ПРОДВИНУТЫЙ РЕЖИМ ===== #}
                     <div id="advanced-mode" style="display:none">
 
+                        <h4>Параметры съёмки</h4>
                         <div class="row">
-                            <div class="col-xs-6"><h4>Кадры DARK</h4></div>
-                            <div class="col-xs-6"><h4>Кадры EMPTY</h4></div>
+                            <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
+                                <div class="form-group">
+                                    <label for="exposure_sec_a">Экспозиция, с</label>
+                                    <input type="number" step="0.1" min="0.1" class="form-control req-field-adv"
+                                           id="exposure_sec_a" name="exposure_sec"
+                                           placeholder="с" disabled>
+                                </div>
+                            </div>
                         </div>
 
+                        <h4>Серии калибровочных кадров</h4>
                         <div class="row">
                             <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
                                 <div class="form-group">
-                                    <label for="dark_quantity_a">Количество DARK</label>
-                                    <input type="number" step="1" min="0" class="form-control req-field-adv"
-                                           id="dark_quantity_a" name="dark_quantity"
-                                           placeholder="Кол-во" disabled>
+                                    <label for="series_length_a">Длина серии dark/empty, кадров</label>
+                                    <input type="number" step="1" min="1" value="10" class="form-control req-field-adv"
+                                           id="series_length_a" name="series_length"
+                                           placeholder="10" disabled>
                                 </div>
                             </div>
                             <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
                                 <div class="form-group">
-                                    <label for="dark_exposure_sec_a">Экспозиция DARK, с</label>
-                                    <input type="number" step="1" min="0" class="form-control req-field-adv"
-                                           id="dark_exposure_sec_a" name="dark_exposure_sec"
-                                           placeholder="с" disabled>
-                                </div>
-                            </div>
-                            <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
-                                <div class="form-group">
-                                    <label for="empty_quantity_a">Количество EMPTY</label>
-                                    <input type="number" step="1" min="0" class="form-control req-field-adv"
-                                           id="empty_quantity_a" name="empty_quantity"
-                                           placeholder="Кол-во" disabled>
-                                </div>
-                            </div>
-                            <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
-                                <div class="form-group">
-                                    <label for="empty_exposure_sec_a">Экспозиция EMPTY, с</label>
-                                    <input type="number" step="1" min="0" class="form-control req-field-adv"
-                                           id="empty_exposure_sec_a" name="empty_exposure_sec"
-                                           placeholder="с" disabled>
+                                    <label for="empty_period_a">Периодичность empty, позиций</label>
+                                    <input type="number" step="1" min="1" value="50" class="form-control req-field-adv"
+                                           id="empty_period_a" name="empty_period"
+                                           placeholder="50" disabled>
                                 </div>
                             </div>
                         </div>
@@ -149,19 +141,19 @@
                         <div class="row">
                             <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
                                 <div class="form-group">
-                                    <label for="data_shots_quantity_a">Количество Data кадров</label>
+                                    <label for="data_shots_quantity_a">Количество DATA позиций</label>
                                     <input type="number" step="1" min="0" class="form-control req-field-adv angle-calc"
                                            id="data_shots_quantity_a" name="data_shots_quantity"
                                            placeholder="Кол-во" disabled
                                            data-partner="data_angle_a" data-total-id="total_angle_a">
                                 </div>
                             </div>
-                            <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
+                            <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:220px">
                                 <div class="form-group">
-                                    <label for="data_exposure_sec_a">Экспозиция DATA, с</label>
-                                    <input type="number" step="1" min="0" class="form-control req-field-adv"
-                                           id="data_exposure_sec_a" name="data_exposure_sec"
-                                           placeholder="с" disabled>
+                                    <label for="data_same_a">Кадров на позицию</label>
+                                    <input type="number" step="1" min="1" value="1" class="form-control req-field-adv"
+                                           id="data_same_a" name="data_same"
+                                           placeholder="1" disabled>
                                 </div>
                             </div>
                             <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:240px">
@@ -171,14 +163,6 @@
                                            id="data_angle_a" name="data_angle"
                                            placeholder="°" disabled
                                            data-partner="data_shots_quantity_a" data-total-id="total_angle_a">
-                                </div>
-                            </div>
-                            <div class="col-xs-4 col-sm-3 col-md-2" style="max-width:220px">
-                                <div class="form-group">
-                                    <label for="data_same_a">Кадров на угол</label>
-                                    <input type="number" step="1" min="1" value="1" class="form-control req-field-adv"
-                                           id="data_same_a" name="data_same"
-                                           placeholder="1" disabled>
                                 </div>
                             </div>
                             <div class="col-xs-6 col-sm-4 col-md-3" style="max-width:240px">
@@ -203,6 +187,62 @@
                            name="turn_down" value="Закончить эксперимент"
                             {% if user.is_authenticated and user.userprofile.is_experimentator and tomograph.state == "experiment" %}{% else %}disabled{% endif %}>
                 </form>
+            </div>
+        </div>
+
+        {# ===== БЛОК СТАТУСА ЭКСПЕРИМЕНТА ===== #}
+        <div class="panel panel-default" id="exp-status-panel">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    Ход эксперимента
+                    <span class="pull-right" id="exp-status-badge">
+                        <span class="label label-default">Не запущен</span>
+                    </span>
+                </h3>
+            </div>
+            <div class="panel-body">
+
+                {# Прогресс-бар #}
+                <div id="exp-progress-wrap">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+                        <span id="exp-progress-text" style="font-size:13px; color:#555">—</span>
+                        <span style="font-size:13px; color:#888">
+                            <span id="exp-elapsed-text"></span>
+                            <span id="exp-eta-text" style="margin-left:10px; color:#5a9"></span>
+                        </span>
+                    </div>
+                    <div class="progress" style="margin-bottom:8px; height:18px">
+                        <div id="exp-progress-bar" class="progress-bar" role="progressbar"
+                             style="width:0%; transition:width 0.5s ease; min-width:2px">0%</div>
+                    </div>
+                    <div id="exp-mode-text" style="font-size:13px; color:#555; margin-bottom:8px">—</div>
+                </div>
+
+                {# Цветной таймлайн #}
+                <div style="margin-bottom:12px">
+                    <canvas id="exp-timeline-canvas" height="20"
+                            style="width:100%; border:1px solid #ddd; border-radius:3px; display:block"></canvas>
+                    <div style="font-size:11px; color:#888; margin-top:3px">
+                        <span style="display:inline-block;width:12px;height:12px;background:#555;vertical-align:middle"></span> dark &nbsp;
+                        <span style="display:inline-block;width:12px;height:12px;background:#f0c040;vertical-align:middle"></span> empty &nbsp;
+                        <span style="display:inline-block;width:12px;height:12px;background:#4a90d9;vertical-align:middle"></span> data &nbsp;
+                        <span style="display:inline-block;width:12px;height:12px;background:#e8843a;vertical-align:middle"></span> data_check &nbsp;
+                        <span style="display:inline-block;width:12px;height:12px;background:#e0e0e0;border:1px solid #ccc;vertical-align:middle"></span> не снято
+                    </div>
+                </div>
+
+                {# Превью последнего кадра #}
+                <div>
+                    <div style="display:flex; align-items:center; margin-bottom:6px">
+                        <strong style="font-size:13px">Последний кадр</strong>
+                        <button type="button" id="refresh-frame-btn" class="btn btn-xs btn-default"
+                                style="margin-left:10px">Обновить</button>
+                        <span id="frame-status-text" style="font-size:12px; color:#888; margin-left:10px"></span>
+                    </div>
+                    <canvas id="exp-frame-canvas"
+                            style="max-width:100%; border:1px solid #ddd; border-radius:3px; display:block; background:#222"></canvas>
+                </div>
+
             </div>
         </div>
     </div>
@@ -333,12 +373,10 @@
             if (advanced) {
                 /* переключаем в продвинутый режим */
                 if (!isAdvanced) $('#toggle-mode-btn').trigger('click');
-                setVal('#dark_quantity_a',       p.dark_count);
-                setVal('#dark_exposure_sec_a',   p.dark_exposure_sec);
-                setVal('#empty_quantity_a',      p.empty_count);
-                setVal('#empty_exposure_sec_a',  p.empty_exposure_sec);
+                setVal('#exposure_sec_a',        p.exposure_sec);
+                setVal('#series_length_a',       p.series_length);
+                setVal('#empty_period_a',        p.empty_period);
                 setVal('#data_shots_quantity_a', p.data_step_count);
-                setVal('#data_exposure_sec_a',   p.data_exposure_sec);
                 setVal('#data_angle_a',          p.data_angle_step);
                 setVal('#data_same_a',           p.data_count_per_step);
                 updateTotalAngle($('#data_shots_quantity_a'));
@@ -490,10 +528,11 @@
                        .removeClass('btn-default').addClass('btn-warning');
                 $('#mode-input').val('advanced');
 
+                /* Переносим значения из простого в продвинутый */
                 var deQty  = $('#de_quantity').val();
                 var expSec = $('#exposure_sec').val();
-                if (deQty)  { $('#dark_quantity_a, #empty_quantity_a').val(deQty); }
-                if (expSec) { $('#dark_exposure_sec_a, #empty_exposure_sec_a, #data_exposure_sec_a').val(expSec); }
+                if (expSec) { $('#exposure_sec_a').val(expSec); }
+                if (deQty)  { $('#series_length_a').val(deQty); }
                 $('#data_shots_quantity_a').val($('#data_shots_quantity_s').val());
                 $('#data_angle_a').val($('#data_angle_s').val());
                 $('#data_same_a').val($('#data_same_s').val());
@@ -509,8 +548,9 @@
                        .removeClass('btn-warning').addClass('btn-default');
                 $('#mode-input').val('simple');
 
-                $('#de_quantity').val($('#dark_quantity_a').val());
-                $('#exposure_sec').val($('#dark_exposure_sec_a').val());
+                /* Переносим значения из продвинутого в простой */
+                $('#de_quantity').val($('#series_length_a').val());
+                $('#exposure_sec').val($('#exposure_sec_a').val());
                 $('#data_shots_quantity_s').val($('#data_shots_quantity_a').val());
                 $('#data_angle_s').val($('#data_angle_a').val());
                 $('#data_same_s').val($('#data_same_a').val());
@@ -524,6 +564,167 @@
 
             updateStartBtn();
         });
+
+        /* ================================================================== */
+        /* ПОЛЛИНГ СТАТУСА ЭКСПЕРИМЕНТА                                       */
+        /* ================================================================== */
+        var STATUS_URL     = "{% url 'experiment:status' %}";
+        var LAST_FRAME_URL = "{% url 'experiment:last_frame' %}";
+        var statusTimer    = null;
+        var frameTimer     = null;
+        var lastFrameNum   = -1;
+
+        var MODE_COLORS = {
+            'dark':       '#555555',
+            'empty':      '#f0c040',
+            'data':       '#4a90d9',
+            'data_check': '#e8843a',
+        };
+
+        function drawTimeline(timeline, totalFrames) {
+            var canvas = document.getElementById('exp-timeline-canvas');
+            if (!canvas) return;
+            var ctx    = canvas.getContext('2d');
+            var W      = canvas.offsetWidth || 600;
+            var H      = canvas.height;
+            canvas.width = W;
+
+            ctx.clearRect(0, 0, W, H);
+
+            /* фон (не снято) */
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillRect(0, 0, W, H);
+
+            if (!totalFrames || !timeline || !timeline.length) return;
+
+            var x = 0;
+            for (var i = 0; i < timeline.length; i++) {
+                var seg    = timeline[i];
+                var segW   = Math.max(1, Math.round(seg.count / totalFrames * W));
+                ctx.fillStyle = MODE_COLORS[seg.mode] || '#aaa';
+                ctx.fillRect(x, 0, segW, H);
+                x += segW;
+            }
+        }
+
+        function formatElapsed(sec) {
+            if (!sec) return '';
+            var m = Math.floor(sec / 60);
+            var s = Math.floor(sec % 60);
+            return m + 'м ' + (s < 10 ? '0' : '') + s + 'с';
+        }
+
+        function updateStatusUI(data) {
+            var result = data.result || {};
+            var running = result.running;
+
+            /* Бейдж статуса */
+            var $badge = $('#exp-status-badge');
+            if (running) {
+                $badge.html('<span class="label label-success">Идёт</span>');
+            } else if (result.frame_num > 0) {
+                $badge.html('<span class="label label-default">Завершён</span>');
+            } else {
+                $badge.html('<span class="label label-default">Не запущен</span>');
+            }
+
+            /* Прогресс */
+            var pct     = result.progress_pct || 0;
+            var frameN  = result.frame_num    || 0;
+            var totalF  = result.total_frames || 0;
+            $('#exp-progress-bar').css('width', pct + '%').text(pct + '%');
+            $('#exp-progress-text').text(frameN + ' / ' + totalF + '  (' + pct + '%)');
+            $('#exp-elapsed-text').text(formatElapsed(result.elapsed_sec));
+
+            /* ETA: оценка оставшегося времени */
+            var $eta = $('#exp-eta-text');
+            if (running && frameN > 0 && totalF > frameN && result.elapsed_sec > 0) {
+                var secPerFrame = result.elapsed_sec / frameN;
+                var remaining   = Math.round(secPerFrame * (totalF - frameN));
+                $eta.text('~ ' + formatElapsed(remaining) + ' осталось');
+            } else if (!running && frameN > 0) {
+                $eta.text('');
+            } else {
+                $eta.text('');
+            }
+
+            /* Текущий режим */
+            var modeMap = {'dark':'DARK','empty':'EMPTY','data':'DATA','data_check':'DATA CHECK','pending':'—','none':'—'};
+            var modeLabel = modeMap[result.current_mode] || result.current_mode || '—';
+            var angleStr  = (result.current_angle !== undefined) ? ('Угол: ' + result.current_angle + '°') : '';
+            $('#exp-mode-text').text('Режим: ' + modeLabel + (angleStr ? '  |  ' + angleStr : ''));
+
+            /* Таймлайн */
+            drawTimeline(result.timeline, result.total_frames);
+
+            /* Запускаем/останавливаем поллинг кадров */
+            if (running && frameN !== lastFrameNum) {
+                lastFrameNum = frameN;
+                /* Каждые 10 секунд обновляем превью */
+                if (!frameTimer) {
+                    fetchLastFrame();
+                    frameTimer = setInterval(fetchLastFrame, 10000);
+                }
+            }
+            if (!running && frameTimer) {
+                clearInterval(frameTimer);
+                frameTimer = null;
+            }
+        }
+
+        function pollStatus() {
+            $.getJSON(STATUS_URL, function(data) {
+                if (data.success !== false) {
+                    updateStatusUI(data);
+                }
+            }).fail(function() {
+                $('#exp-status-badge').html('<span class="label label-warning">Нет связи</span>');
+            });
+        }
+
+        function fetchLastFrame() {
+            var $canvas = $('#exp-frame-canvas');
+            var $status = $('#frame-status-text');
+            $status.text('Загрузка...');
+            $.getJSON(LAST_FRAME_URL, function(data) {
+                if (data.success === false || !data.pixels_b64) {
+                    $status.text(data.error || 'Нет кадра');
+                    return;
+                }
+                var w = data.width, h = data.height;
+                var raw = atob(data.pixels_b64);
+                var buf = new ArrayBuffer(raw.length);
+                var view = new Uint8Array(buf);
+                for (var i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+                var u16 = new Uint16Array(buf);
+                var dmin = data.data_min, dmax = data.data_max, range = dmax - dmin || 1;
+
+                $canvas[0].width  = w;
+                $canvas[0].height = h;
+                var ctx = $canvas[0].getContext('2d');
+                var imgData = ctx.createImageData(w, h);
+                var px = imgData.data;
+                for (var j = 0; j < u16.length; j++) {
+                    var v = Math.round((u16[j] - dmin) / range * 255);
+                    px[j*4]   = v;
+                    px[j*4+1] = v;
+                    px[j*4+2] = v;
+                    px[j*4+3] = 255;
+                }
+                ctx.putImageData(imgData, 0, 0);
+                $status.text('Обновлено ' + new Date().toLocaleTimeString());
+            }).fail(function() {
+                $status.text('Ошибка получения кадра');
+            });
+        }
+
+        /* Запускаем поллинг статуса каждые 2 секунды */
+        pollStatus();
+        statusTimer = setInterval(pollStatus, 2000);
+
+        /* Кнопка "Обновить кадр" */
+        $('#refresh-frame-btn').on('click', fetchLastFrame);
+
     });
     </script>
 {% endblock content %}

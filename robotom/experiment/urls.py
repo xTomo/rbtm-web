@@ -10,6 +10,8 @@ urlpatterns = [
     re_path(r'^adjustment/preview-data/$', views.get_preview_data, name='preview_data'),
     re_path(r'^interface/$', views.experiment_interface, name='index_interface'),
     re_path(r'^autocomplete/$', views.get_autocomplete_data, name='autocomplete'),
+    re_path(r'^status/$', views.experiment_status, name='status'),
+    re_path(r'^last-frame/$', views.experiment_last_frame, name='last_frame'),
     re_path(r'^tomograph/(?P<value_to_get>\S+)/$', views.experiment_tomograph, name='index_tomograph'),
 
 ]

@@ -55,6 +55,8 @@ EXPERIMENT_DETECTOR_GET_MODEL = urljoin(EXPERIMENT_HOST, '/tomograph/{}/detector
 
 EXPERIMENT_START = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/start')
 EXPERIMENT_STOP = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/stop')
+EXPERIMENT_GET_STATUS = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/status')
+EXPERIMENT_GET_LAST_FRAME = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/last-frame')
 
 EXPERIMENT_MOTOR_GET_HORIZ = urljoin(EXPERIMENT_HOST, '/tomograph/{}/motor/get-horizontal-position')
 EXPERIMENT_MOTOR_GET_VERT = urljoin(EXPERIMENT_HOST, '/tomograph/{}/motor/get-vertical-position')

@@ -132,9 +132,17 @@ function fetchDetectorModel() {
             var resp = JSON.parse(this.response);
             var el = document.getElementById('detector-model-info');
             if (!el) return;
-            el.textContent = resp.success
-                ? 'Детектор: ' + resp.result
-                : 'Детектор: недоступен';
+            if (resp.success && resp.result) {
+                var model = resp.result.model || resp.result;
+                var pixelSize = resp.result.pixel_size_mm;
+                var text = 'Детектор: ' + model;
+                if (pixelSize !== undefined && pixelSize !== null) {
+                    text += ', размер пикселя: ' + (pixelSize * 1e3).toFixed(2) + ' мкм';
+                }
+                el.textContent = text;
+            } else {
+                el.textContent = 'Детектор: недоступен';
+            }
         } catch (e) {}
     };
     xhr.onerror = function() {

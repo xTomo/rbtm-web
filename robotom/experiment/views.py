@@ -465,6 +465,70 @@ def experiment_last_frame(request):
 
 @login_required
 @user_passes_test(has_experiment_access)
+def experiment_storage_preview(request):
+    """
+    GET ?exp_id=<uuid> → возвращает URL последнего PNG кадра из Storage.
+    Скачивает и кеширует PNG через тот же механизм что frames_downloading.
+    """
+    import os
+    import tempfile
+    from django.core.files.storage import default_storage
+
+    exp_id = request.GET.get('exp_id', '').strip()
+    if not exp_id:
+        return JsonResponse({'success': False, 'error': 'exp_id required'}, status=400)
+
+    try:
+        # Получаем список кадров эксперимента из Storage
+        frame_info = json.dumps({'exp_id': exp_id})
+        frames_resp = requests.post(
+            settings.STORAGE_FRAMES_INFO_HOST,
+            frame_info,
+            timeout=settings.TIMEOUT_DEFAULT,
+        )
+        if frames_resp.status_code != 200:
+            return JsonResponse({'success': False, 'error': 'storage error {}'.format(frames_resp.status_code)}, status=502)
+
+        frames_info = json.loads(frames_resp.content)
+        if not frames_info:
+            return JsonResponse({'success': False, 'error': 'no frames yet'})
+
+        # Берём последний кадр (storage отдаёт по порядку)
+        last_frame = frames_info[-1]
+        if '$oid' in last_frame.get('_id', {}):
+            frame_id = str(last_frame['_id']['$oid'])
+        else:
+            frame_id = str(last_frame.get('_id', ''))
+
+        if not frame_id:
+            return JsonResponse({'success': False, 'error': 'bad frame id'})
+
+        file_name = frame_id + '.png'
+        media_path = os.path.join(settings.MEDIA_ROOT, file_name)
+        media_url = settings.MEDIA_URL + file_name
+
+        # Скачиваем если ещё нет в кеше
+        if not os.path.exists(media_path):
+            png_url = settings.STORAGE_FRAMES_PNG.format(exp_id=exp_id, frame_id=frame_id)
+            frame_response = requests.get(png_url, timeout=settings.TIMEOUT_DEFAULT, stream=True)
+            if frame_response.status_code == 200:
+                temp_file = tempfile.TemporaryFile()
+                for block in frame_response.iter_content(1024 * 8):
+                    if block:
+                        temp_file.write(block)
+                default_storage.save(file_name, temp_file)
+            else:
+                return JsonResponse({'success': False, 'error': 'could not download frame png'}, status=502)
+
+        return JsonResponse({'success': True, 'url': media_url, 'frame_id': frame_id})
+
+    except Exception as e:
+        experiment_logger.error(u'Ошибка storage-preview: {}'.format(e))
+        return JsonResponse({'success': False, 'error': str(e)}, status=502)
+
+
+@login_required
+@user_passes_test(has_experiment_access)
 def get_autocomplete_data(request):
     """Возвращает уникальные/недавние имена образцов, теги и параметры последнего эксперимента."""
     specimens = []

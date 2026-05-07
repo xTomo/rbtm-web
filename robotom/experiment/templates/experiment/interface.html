@@ -572,11 +572,12 @@
         /* ================================================================== */
         /* ПОЛЛИНГ СТАТУСА ЭКСПЕРИМЕНТА                                       */
         /* ================================================================== */
-        var STATUS_URL     = "{% url 'experiment:status' %}";
-        var LAST_FRAME_URL = "{% url 'experiment:last_frame' %}";
+        var STATUS_URL          = "{% url 'experiment:status' %}";
+        var STORAGE_PREVIEW_URL = "{% url 'experiment:storage_preview' %}";
         var statusTimer    = null;
         var frameTimer     = null;
         var lastFrameNum   = -1;
+        var currentExpId   = '';
 
         var MODE_COLORS = {
             'dark':       '#555555',
@@ -622,14 +623,23 @@
             var result = data.result || {};
             var running = result.running;
 
-            /* Бейдж статуса */
-            var $badge = $('#exp-status-badge');
+            /* Сохраняем exp_id для превью */
+            if (result.exp_id) { currentExpId = result.exp_id; }
+
+            /* Бейдж статуса + кнопка завершения */
+            var $badge    = $('#exp-status-badge');
+            var $stopBtn  = $('input[name="turn_down"]');
             if (running) {
                 $badge.html('<span class="label label-success">Идёт</span>');
+                $stopBtn.prop('disabled', false);
             } else if (result.frame_num > 0) {
                 $badge.html('<span class="label label-default">Завершён</span>');
+                $stopBtn.prop('disabled', true);
+                /* Останавливаем поллинг статуса после завершения */
+                if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
             } else {
                 $badge.html('<span class="label label-default">Не запущен</span>');
+                $stopBtn.prop('disabled', true);
             }
 
             /* Прогресс */
@@ -687,35 +697,22 @@
         }
 
         function fetchLastFrame() {
+            if (!currentExpId) return;
             var $canvas = $('#exp-frame-canvas');
             var $status = $('#frame-status-text');
             $status.text('Загрузка...');
-            $.getJSON(LAST_FRAME_URL, function(data) {
-                if (data.success === false || !data.pixels_b64) {
+            $.getJSON(STORAGE_PREVIEW_URL + '?exp_id=' + encodeURIComponent(currentExpId), function(data) {
+                if (data.success === false || !data.url) {
                     $status.text(data.error || 'Нет кадра');
                     return;
                 }
-                var w = data.width, h = data.height;
-                var raw = atob(data.pixels_b64);
-                var buf = new ArrayBuffer(raw.length);
-                var view = new Uint8Array(buf);
-                for (var i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
-                var u16 = new Uint16Array(buf);
-                var dmin = data.data_min, dmax = data.data_max, range = dmax - dmin || 1;
-
-                $canvas[0].width  = w;
-                $canvas[0].height = h;
-                var ctx = $canvas[0].getContext('2d');
-                var imgData = ctx.createImageData(w, h);
-                var px = imgData.data;
-                for (var j = 0; j < u16.length; j++) {
-                    var v = Math.round((u16[j] - dmin) / range * 255);
-                    px[j*4]   = v;
-                    px[j*4+1] = v;
-                    px[j*4+2] = v;
-                    px[j*4+3] = 255;
+                /* Отображаем PNG напрямую через <img> */
+                var $img = $canvas.siblings('img.preview-img');
+                if (!$img.length) {
+                    $img = $('<img class="preview-img" style="max-width:100%; border:1px solid #ddd; border-radius:3px; display:block">');
+                    $canvas.hide().after($img);
                 }
-                ctx.putImageData(imgData, 0, 0);
+                $img.attr('src', data.url + '?t=' + Date.now());
                 $status.text('Обновлено ' + new Date().toLocaleTimeString());
             }).fail(function() {
                 $status.text('Ошибка получения кадра');

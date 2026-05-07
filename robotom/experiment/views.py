@@ -41,6 +41,16 @@ _detector_model_url_tpl = getattr(
     'EXPERIMENT_DETECTOR_GET_MODEL',
     _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/detector/model',
 )
+_experiment_get_status_tpl = getattr(
+    settings,
+    'EXPERIMENT_GET_STATUS',
+    _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/experiment/status',
+)
+_experiment_get_last_frame_tpl = getattr(
+    settings,
+    'EXPERIMENT_GET_LAST_FRAME',
+    _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/experiment/last-frame',
+)
 
 remote_url_settings = {
         GET_VOLT: settings.EXPERIMENT_SOURCE_GET_VOLT.format(TOMO_NUM),
@@ -409,7 +419,7 @@ def experiment_status(request):
     """Прокси к Flask /experiment/status — возвращает JSON статуса эксперимента."""
     try:
         answer = requests.get(
-            settings.EXPERIMENT_GET_STATUS.format(TOMO_NUM),
+            _experiment_get_status_tpl.format(TOMO_NUM),
             timeout=settings.TIMEOUT_DEFAULT,
         )
         return HttpResponse(
@@ -428,7 +438,7 @@ def experiment_last_frame(request):
     """Прокси к Flask /experiment/last-frame — возвращает npz с последним кадром."""
     try:
         answer = requests.get(
-            settings.EXPERIMENT_GET_LAST_FRAME.format(TOMO_NUM),
+            _experiment_get_last_frame_tpl.format(TOMO_NUM),
             timeout=max(settings.TIMEOUT_DEFAULT, 60),
             stream=True,
         )

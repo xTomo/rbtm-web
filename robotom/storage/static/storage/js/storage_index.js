@@ -25,27 +25,12 @@ function deleteExperiment(experiment_id) {
             method: 'GET',
             dataType: 'text',
             success: function () {
-                var errorMessage = document.createElement('div');
-                errorMessage.className = 'row';
-                errorMessage.innerHTML = '<div class="col-sm-6 col-sm-offset-3 col-lg-4 col-lg-offset-3">' +
-                        '<div class="alert alert-success">' + '<a class="close" data-dismiss="alert"">&times;</a>' +
-                        'Эксперимент успешно удален</div></div>';
-
-                var searchResult = document.getElementsByClassName('container-fluid')[2];
-                searchResult.parentNode.insertBefore(errorMessage, searchResult);
-
-                var td = document.getElementById('id' + experiment_id);
-                td.parentNode.removeChild(td);
+                window.showToast('Эксперимент успешно удалён', 'success');
+                var row = document.getElementById('id' + experiment_id);
+                if (row) { row.parentNode.removeChild(row); }
             },
             error: function () {
-                var errorMessage = document.createElement('div');
-                errorMessage.className = 'row';
-                errorMessage.innerHTML = '<div class="col-sm-6 col-sm-offset-3 col-lg-4 col-lg-offset-3">' +
-                        '<div class="alert alert-danger">' + '<a class="close" data-dismiss="alert"">&times;</a>' +
-                        'Не удалось удалить эксперимент</div></div>';
-
-                var searchResult = document.getElementsByClassName('container-fluid')[2];
-                searchResult.parentNode.insertBefore(errorMessage, searchResult);
+                window.showToast('Не удалось удалить эксперимент', 'error');
             }
         });
     }

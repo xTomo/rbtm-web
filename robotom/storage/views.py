@@ -27,25 +27,37 @@ def is_active(user):
 class ExperimentRecord:
     def __init__(self, record):
         self.experiment_id = record['_id']
-        if 'specimen' in record:
-            self.specimen = record['specimen']
-        else:
-            self.specimen = ''
-        self.dark_count = record['experiment parameters']['DARK']['count']
-        self.dark_exposure = record['experiment parameters']['DARK']['exposure']
+        self.specimen = record.get('specimen', '')
+        ep = record.get('experiment parameters', {})
+        is_advanced = ep.get('advanced', False)
 
-        if record['finished']:
-            self.finished = u'Завершен'
+        self.finished = u'Завершен' if record.get('finished') else u'Не завершен'
+        self.advanced = u'Продвинутый' if is_advanced else u'Стандартный'
+
+        if is_advanced:
+            # Продвинутый режим: плоская структура
+            exposure_ms = ep.get('exposure', 0)
+            self.dark_count = ep.get('series_length', '')
+            self.dark_exposure = exposure_ms
+            self.empty_count = ep.get('series_length', '')
+            self.empty_exposure = exposure_ms
+            self.data_angle_step = ep.get('data_angle_step', '')
+            self.data_count_per_step = ep.get('data_count_per_step', 1)
+            self.data_step_count = ep.get('data_total', '')
         else:
-            self.finished = u'Не завершен'
-        if record['experiment parameters']['advanced']:
-            self.advanced = u'Продвинутый'
-        else:
-            self.advanced = u'Стандартный'
-        self.data_angle_step = record['experiment parameters']['DATA']['angle step']
-        self.data_count_per_step = record['experiment parameters']['DATA']['count per step']
-        self.data_step_count = record['experiment parameters']['DATA']['step count']
-        exposure_ms = record['experiment parameters']['DATA']['exposure']
+            # Простой режим: вложенная структура DARK/EMPTY/DATA
+            dark = ep.get('DARK', {})
+            empty = ep.get('EMPTY', {})
+            data = ep.get('DATA', {})
+            self.dark_count = dark.get('count', '')
+            self.dark_exposure = dark.get('exposure', '')
+            self.empty_count = empty.get('count', '')
+            self.empty_exposure = empty.get('exposure', '')
+            self.data_angle_step = data.get('angle step', '')
+            self.data_count_per_step = data.get('count per step', 1)
+            self.data_step_count = data.get('step count', '')
+            exposure_ms = data.get('exposure', 0)
+
         try:
             exposure_s = float(exposure_ms) / 1000.0
             # Показываем целое число если дробная часть нулевая
@@ -55,8 +67,7 @@ class ExperimentRecord:
                 self.data_exposure = '{:.3g}'.format(exposure_s)
         except (TypeError, ValueError):
             self.data_exposure = exposure_ms
-        self.empty_count = record['experiment parameters']['EMPTY']['count']
-        self.empty_exposure = record['experiment parameters']['EMPTY']['exposure']
+
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.recon_url = settings.RECONSTRUCTION_URL.format(exp_id=self.experiment_id)
         raw_dt = record['datetime']

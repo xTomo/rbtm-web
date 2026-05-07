@@ -338,6 +338,7 @@ def frames_downloading(request, storage_record_id):
         return HttpResponseBadRequest(u'Не удалось получить список изображений. Сервер хранилища не отвечает.',
                                       content_type='text/plain')
 
+    failed = 0
     for frame in frames_list:
         file_name = frame.id + '.png'
         if not os.path.exists(os.path.join(settings.MEDIA_ROOT, file_name)):
@@ -357,22 +358,20 @@ def frames_downloading(request, storage_record_id):
                 else:
                     storage_logger.error(u'Не удается получить изображениe {}. Ошибка: {}'.format(
                         frame.num, frame_response.status_code))
-                    return HttpResponseBadRequest(
-                        u'Ошибкa {} при получении изображения'.format(frame_response.status_code),
-                        content_type='text/plain')
+                    failed += 1
             except Timeout as e:
                 storage_logger.error(
-                    u'Получение изображений: Не удается получить изображения. Ошибка: {}'.format(str(e)))
-                return HttpResponseBadRequest(
-                    u'Не удалось получить изображение номер {}. Истекло время ожидания ответа'.format(frame.num),
-                    content_type='text/plain')
+                    u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
+                failed += 1
             except BaseException as e:
                 storage_logger.error(
-                    u'Получение изображений: Не удается получить изображения. Ошибка: {}'.format(str(e)))
-                return HttpResponseBadRequest(
-                    u'Не удалось получить изображение номер {}. Сервер хранилища не отвечает.'.format(frame.num),
-                    content_type='text/plain')
+                    u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
+                failed += 1
 
+    if failed > 0:
+        return HttpResponse(
+            u'Изображения загружены с {} ошибками из {}'.format(failed, len(frames_list)),
+            content_type='text/plain')
     return HttpResponse(u'Изображения получены успешно', content_type='text/plain')
 
 

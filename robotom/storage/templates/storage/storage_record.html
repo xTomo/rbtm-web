@@ -57,10 +57,6 @@
         </div>
 
         <div class="container-fluid">
-            <div class="alert alert-info" id="LoadStatus">Статус загрузки изображений: загружается</div>
-        </div>
-
-        <div class="container-fluid">
             <div class="panel panel-default">
                 <div class="panel-heading">
                     <h4>Список изображений эксперимента <small><a class="glyphicon glyphicon-chevron-down" href="#end"></a></small></h4>
@@ -235,18 +231,15 @@
                 url: '{% url 'storage:frames_downloading' record_id %}',
                 method: 'GET',
                 dataType: 'text',
-                success: function (data, textStatus, jqXHR) {
-                    {#                    alert(data + " " + textStatus + " " + jqXHR);#}
-                    var status = document.getElementById("LoadStatus");
-                    status.innerText = "Статус загрузки изображений: загружено";
-                    status.className = "alert alert-success"
-
+                success: function (data) {
+                    if (data && data.indexOf('ошибками') !== -1) {
+                        window.showToast(data, 'warning');
+                    } else {
+                        window.showToast('Изображения загружены успешно', 'success');
+                    }
                 },
-                error: function (jqXHR, textStatus, errorThrown) {
-                    {#                    alert(jqXHR.responseText);#}
-                    var status = document.getElementById("LoadStatus");
-                    status.innerText = "Статус загрузки изображений: ошибка";
-                    status.className = "alert alert-danger"
+                error: function (jqXHR) {
+                    window.showToast('Ошибка загрузки изображений: ' + (jqXHR.responseText || 'нет ответа'), 'error');
                 }
             });
         });

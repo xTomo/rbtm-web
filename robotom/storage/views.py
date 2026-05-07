@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import time
 import requests
 import json
 import h5py
@@ -338,34 +339,48 @@ def frames_downloading(request, storage_record_id):
         return HttpResponseBadRequest(u'Не удалось получить список изображений. Сервер хранилища не отвечает.',
                                       content_type='text/plain')
 
+    PNG_RETRIES = 5       # число попыток при 404 (PNG ещё генерируется в storage)
+    PNG_RETRY_DELAY = 3   # секунд между попытками
+
     failed = 0
     for frame in frames_list:
         file_name = frame.id + '.png'
         if not os.path.exists(os.path.join(settings.MEDIA_ROOT, file_name)):
-            try:
-                storage_logger.debug(
-                    u'Получение изображений: Запрос на получение изображения номер {}'.format(frame.id))
-                frame_response = requests.get(settings.STORAGE_FRAMES_PNG.format(exp_id=storage_record_id, frame_id=frame.id),
-                                              timeout=settings.TIMEOUT_DEFAULT, stream=True)
-                if frame_response.status_code == 200:
-                    temp_file = tempfile.TemporaryFile()
-                    for block in frame_response.iter_content(1024 * 8):
-                        if not block:
-                            break
-                        temp_file.write(block)
-                    # default_storage.save() expects a path relative to MEDIA_ROOT, not absolute
-                    default_storage.save(file_name, temp_file)
-                else:
-                    storage_logger.error(u'Не удается получить изображениe {}. Ошибка: {}'.format(
-                        frame.num, frame_response.status_code))
-                    failed += 1
-            except Timeout as e:
-                storage_logger.error(
-                    u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
-                failed += 1
-            except BaseException as e:
-                storage_logger.error(
-                    u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
+            saved = False
+            for attempt in range(PNG_RETRIES):
+                try:
+                    storage_logger.debug(
+                        u'Получение изображений: Запрос кадра {} (попытка {}/{})'.format(frame.id, attempt + 1, PNG_RETRIES))
+                    frame_response = requests.get(
+                        settings.STORAGE_FRAMES_PNG.format(exp_id=storage_record_id, frame_id=frame.id),
+                        timeout=settings.TIMEOUT_DEFAULT, stream=True)
+                    if frame_response.status_code == 200:
+                        temp_file = tempfile.TemporaryFile()
+                        for block in frame_response.iter_content(1024 * 8):
+                            if not block:
+                                break
+                            temp_file.write(block)
+                        default_storage.save(file_name, temp_file)
+                        saved = True
+                        break
+                    elif frame_response.status_code == 404 and attempt < PNG_RETRIES - 1:
+                        # PNG ещё генерируется в storage — ждём и повторяем
+                        storage_logger.debug(
+                            u'Кадр {} ещё не готов (404), ожидание {}с...'.format(frame.id, PNG_RETRY_DELAY))
+                        time.sleep(PNG_RETRY_DELAY)
+                    else:
+                        storage_logger.error(u'Не удается получить изображениe {}. Ошибка: {}'.format(
+                            frame.num, frame_response.status_code))
+                        break
+                except Timeout as e:
+                    storage_logger.error(
+                        u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
+                    break
+                except BaseException as e:
+                    storage_logger.error(
+                        u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
+                    break
+            if not saved:
                 failed += 1
 
     if failed > 0:

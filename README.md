@@ -105,12 +105,92 @@ rbtm-web/
 Состояние томографа: `unavailable` / `ready` / `experiment`. Один экземпляр на установку.
 Создаётся автоматически при первом запуске через сигнал `post_migrate` в `ExperimentConfig.ready()`.
 
+## Форматы эксперимента
+
+### Простой режим (`mode=simple`)
+
+В UI задаются: единое количество dark/empty, единая экспозиция, количество угловых позиций, угловой шаг, кадров на позицию.
+
+**Параметры, отправляемые в `rbtm-drivers-next`:**
+```json
+{
+  "exp_id": "uuid",
+  "specimen": "название",
+  "tags": "тег1, тег2",
+  "experiment parameters": {
+    "advanced": false,
+    "DARK":  { "count": 10,  "exposure": 3000.0 },
+    "EMPTY": { "count": 10,  "exposure": 3000.0 },
+    "DATA":  { "step count": 500, "exposure": 3000.0, "angle step": 0.36, "count per step": 1 }
+  }
+}
+```
+
+**Последовательность кадров:**
+```
+[dark × N] → [empty × N] → [data × step_count × cps]
+```
+
+### Продвинутый режим (`mode=advanced`)
+
+В UI задаются: единая экспозиция, длина серии dark/empty, периодичность вставки empty, количество data-позиций, угловой шаг, кадров на позицию.
+
+**Параметры, отправляемые в `rbtm-drivers-next`:**
+```json
+{
+  "exp_id": "uuid",
+  "specimen": "название",
+  "tags": "тег1, тег2",
+  "experiment parameters": {
+    "advanced":            true,
+    "exposure":            3000.0,
+    "series_length":       10,
+    "data_total":          500,
+    "data_angle_step":     0.36,
+    "data_count_per_step": 1,
+    "empty_period":        50
+  }
+}
+```
+
+**Последовательность кадров:**
+```
+[dark × series_length]
+[empty × series_length]
+─ повтор для каждой угловой позиции ─────────────────────────────
+  [data × data_count_per_step]
+  каждые empty_period позиций (кроме последней):
+    [empty × series_length]
+    [data_check × data_count_per_step]  ← тот же угол, для контроля дрейфа
+──────────────────────────────────────────────────────────────────
+```
+
+**Визуализация (data_total=150, empty_period=50, series_length=5):**
+```
+[dark×5][empty×5][data×50][empty×5][chk][data×50][empty×5][chk][data×50]
+```
+
+### Мониторинг выполнения
+
+На странице `/experiment/interface/` отображается блок статуса в реальном времени (поллинг каждые 2 сек):
+- Bootstrap прогресс-бар
+- Цветной таймлайн сегментов (dark / empty / data / data_check)
+- Оценка оставшегося времени (ETA)
+- Превью последнего кадра из Storage (поллинг каждые 10 сек)
+- Кнопка "Закончить эксперимент" автоматически блокируется по завершении
+
+---
+
 ## URL-маршруты
 
 | Префикс | Приложение | Namespace |
 |---|---|---|
 | `/` | `main` | `main` |
 | `/experiment/` | `experiment` | `experiment` |
+| `/experiment/interface/` | Запуск эксперимента | `experiment:index_interface` |
+| `/experiment/status/` | Прокси к статусу (JSON) | `experiment:status` |
+| `/experiment/last-frame/` | Прокси к последнему кадру (npz) | `experiment:last_frame` |
+| `/experiment/storage-preview/` | PNG превью из Storage для мониторинга | `experiment:storage_preview` |
 | `/storage/` | `storage` | `storage` |
 | `/admin/` | Django Admin | — |
 | `/accounts/` | `django.contrib.auth` | — |

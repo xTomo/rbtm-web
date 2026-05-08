@@ -66,6 +66,7 @@ EXPERIMENT_SOURCE_GET_VOLT = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/get-
 EXPERIMENT_SOURCE_GET_CURR = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/get-current')
 
 EXPERIMENT_GET_STATE = urljoin(EXPERIMENT_HOST, '/tomograph/{}/state')
+EXPERIMENT_SOURCE_GET_STATE = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/state')
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..')

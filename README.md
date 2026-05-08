@@ -185,8 +185,10 @@ rbtm-web/
 
 | Префикс | Приложение | Namespace |
 |---|---|---|
-| `/` | `main` | `main` |
-| `/experiment/` | `experiment` | `experiment` |
+| `/` | `main` (→ redirect на `/storage/`) | `main` |
+| `/experiment/` | `experiment` (→ redirect на `/experiment/interface/`) | `experiment` |
+| `/experiment/control/` | Управление томографом (источник + юстировка) | `experiment:index_control` |
+| `/experiment/source/state/` | Состояние источника (JSON, AJAX-поллинг) | `experiment:source_state` |
 | `/experiment/interface/` | Запуск эксперимента | `experiment:index_interface` |
 | `/experiment/status/` | Прокси к статусу (JSON) | `experiment:status` |
 | `/experiment/last-frame/` | Прокси к последнему кадру (npz) | `experiment:last_frame` |
@@ -229,6 +231,12 @@ rbtm-web/
 - `STORAGE_HOST = 'http://rbtmstorage_server_1:5006/'`
 - `EXPERIMENT_HOST = 'http://10.0.6.86:5001/'` (реальный IP томографа)
 - `CSRF_TRUSTED_ORIGINS` — список доменов и IP, с которых принимаются POST-запросы
+
+> **При обновлении:** добавить в `settings.py` строку:
+> ```python
+> EXPERIMENT_SOURCE_GET_STATE = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/state')
+> ```
+> (автоматически наследуется из `dev_settings.py`, но в production файле должна быть явно)
 
 ## Запуск
 

@@ -6,6 +6,8 @@ app_name = 'experiment'
 urlpatterns = [
 
     re_path(r'^$', views.experiment_view, name='index'),
+    re_path(r'^control/$', views.experiment_control, name='index_control'),
+    re_path(r'^source/state/$', views.experiment_source_state, name='source_state'),
     re_path(r'^adjustment/$', views.experiment_adjustment, name='index_adjustment'),
     re_path(r'^adjustment/preview-data/$', views.get_preview_data, name='preview_data'),
     re_path(r'^interface/$', views.experiment_interface, name='index_interface'),

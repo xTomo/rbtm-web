@@ -199,31 +199,131 @@ def update_state_before_run(view):
 @login_required
 @user_passes_test(has_experiment_access)
 def experiment_view(request):
+    return redirect(reverse('experiment:index_interface'))
+
+
+@login_required
+@user_passes_test(has_experiment_access)
+def experiment_source_state(request):
+    """Прокси к Flask /source/state — возвращает JSON состояния источника.
+
+    Response: {"on": bool, "busy": bool}
+    """
+    try:
+        answer = requests.get(
+            settings.EXPERIMENT_SOURCE_GET_STATE.format(TOMO_NUM),
+            timeout=settings.TIMEOUT_DEFAULT,
+        )
+        data = json.loads(answer.content)
+        result = data.get('result', {}) or {}
+        return JsonResponse({
+            'on': bool(result.get('on', False)),
+            'busy': bool(result.get('busy', False)),
+        })
+    except Exception as e:
+        experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(e))
+        return JsonResponse({'on': False, 'busy': False, 'error': str(e)}, status=502)
+
+
+@update_state_before_run
+@login_required
+@user_passes_test(has_experiment_access)
+def experiment_control(request):
+    """Страница управления томографом: включение/выключение источника + панель узлов."""
+
+    js_urls = {k: request.build_absolute_uri(v) for k, v in local_url_settings.items()}
+
+    host = request.get_host()
+    prod = ('127.0.0.1' not in host) and ('localhost' not in host)
+    if prod:
+        js_urls = {k: force_https(v) for k, v in js_urls.items()}
+
+    js_url_settings = json.dumps(js_urls)
 
     tomo = get_object_or_404(Tomograph, pk=1)
     result = None
     success_msg = ''
-    source_page = 'experiment:index'
+    source_page = 'experiment:index_control'
 
     if request.method == 'POST':
-        if 'on_exp' in request.POST:
-            success_msg = u'Томограф включен'
+        if 'source_on' in request.POST:
             result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_ON.format(TOMO_NUM), source_page)
+            success_msg = u'Команда включения источника отправлена'
 
-        if 'of_exp' in request.POST:
-            success_msg = u'Томограф выключен'
+        if 'source_off' in request.POST:
             result = try_request_get(request, settings.EXPERIMENT_SOURCE_POWER_OFF.format(TOMO_NUM), source_page)
+            success_msg = u'Источник выключен'
+
+        if 'move_hor_submit' in request.POST:
+            info = json.dumps(int(request.POST['move_hor']))
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_HORIZ.format(TOMO_NUM), info, source_page)
+            success_msg = u'Горизонтальное положение образца изменено'
+
+        if 'move_ver_submit' in request.POST:
+            info = json.dumps(int(request.POST['move_ver']))
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_VERT.format(TOMO_NUM), info, source_page)
+            success_msg = u'Вертикальное положение образца изменено'
+
+        if 'rotate_submit' in request.POST:
+            info = json.dumps(float(request.POST['rotate']))
+            result = try_request_post(request, settings.EXPERIMENT_MOTOR_SET_ANGLE.format(TOMO_NUM), info, source_page)
+            success_msg = u'Образец повернут'
+
+        if 'reset_submit' in request.POST:
+            result = try_request_get(request, settings.EXPERIMENT_MOTOR_RESET_ANGLE.format(TOMO_NUM), source_page)
+            success_msg = u'Текущий угол поворота принят за 0'
+
+        if 'text_gate' in request.POST:
+            if request.POST.get('gate_state', None) == 'open':
+                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_OPEN.format(TOMO_NUM), source_page)
+                success_msg = u'Заслонка открыта'
+            elif request.POST.get('gate_state', None) == 'close':
+                result = try_request_get(request, settings.EXPERIMENT_SHUTTER_CLOSE.format(TOMO_NUM), source_page)
+                success_msg = u'Заслонка закрыта'
+
+        if 'experiment_on_voltage' in request.POST:
+            info = json.dumps(float(request.POST['voltage']))
+            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_VOLT.format(TOMO_NUM), info, source_page)
+            success_msg = u'Напряжение установлено'
+
+        if 'experiment_on_current' in request.POST:
+            info = json.dumps(float(request.POST['current']))
+            result = try_request_post(request, settings.EXPERIMENT_SOURCE_SET_CURR.format(TOMO_NUM), info, source_page)
+            success_msg = u'Сила тока установлена'
+
+        if 'picture_exposure_submit' in request.POST:
+            exposure_sec = request.POST.get('picture_exposure', '')
+            return render(request, 'experiment/control.html', {
+                'caption': 'Управление томографом',
+                'preview': True,
+                'exposure_sec': exposure_sec,
+                'tomograph': tomo,
+                'js_url_settings': js_url_settings,
+            })
 
     if result:
-        if result['error']:
-            return result['error']
-        check_result(result, request, tomo, success_msg)
+        if is_ajax(request):
+            if result['error']:
+                error_messages = [str(m) for m in get_messages(request)]
+                msg = error_messages[-1] if error_messages else 'Ошибка выполнения команды'
+                return JsonResponse({'success': False, 'message': msg})
+            response_dict = result['response_dict']
+            if response_dict and response_dict.get('success'):
+                tomo.save()
+                return JsonResponse({'success': True, 'message': success_msg})
+            else:
+                err_detail = (response_dict or {}).get('error', '')
+                msg = 'Ошибка: {}'.format(err_detail) if err_detail else 'Ошибка выполнения команды'
+                return JsonResponse({'success': False, 'message': msg})
+        else:
+            if result['error']:
+                return result['error']
+            check_result(result, request, tomo, success_msg)
 
-    get_current_state(request, tomo)
-    set_current_state_msg(request, tomo)
-    return render(request, 'experiment/start.html', {
-        'caption': 'Эксперимент',
+    return render(request, 'experiment/control.html', {
+        'caption': 'Управление томографом',
         'tomograph': tomo,
+        'js_url_settings': js_url_settings,
     })
 
 

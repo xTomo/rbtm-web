@@ -22,8 +22,7 @@ main_logger = logging.getLogger('main_logger')
 
 
 def index(request):
-    host_is_secure = 'https' if request.is_secure() else 'not https'
-    return render(request, 'main/index.html', {'caption': 'ROBO-TOM', 'host_is_secure': host_is_secure})
+    return redirect(reverse('storage:index'))
 
 
 def confirm_view(request, activation_key):

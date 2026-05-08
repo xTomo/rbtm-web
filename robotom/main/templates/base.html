@@ -55,7 +55,8 @@
             <ul class="nav navbar-nav">
                 {% if user.is_authenticated %}
                     {% if user.userprofile.is_admin or user.userprofile.is_experimentator %}
-                        <li><a href="{% url 'experiment:index' %}">Эксперимент</a></li>
+                        <li><a href="{% url 'experiment:index_control' %}">Управление томографом</a></li>
+                        <li><a href="{% url 'experiment:index_interface' %}">Эксперимент</a></li>
                     {% endif %}
                 {% endif %}
                 <li><a href="{% url 'storage:index' %}">Хранилище</a></li>

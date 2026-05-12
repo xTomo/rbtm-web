@@ -115,6 +115,9 @@
                                            style="background:#f5f5f5; color:#555">
                                 </div>
                             </div>
+                            <div class="col-xs-12" style="margin-top:4px; margin-bottom:8px">
+                                <span id="duration-estimate-s" style="font-size:13px; color:#555;"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -188,6 +191,9 @@
                                            placeholder="—" readonly
                                            style="background:#f5f5f5; color:#555">
                                 </div>
+                            </div>
+                            <div class="col-xs-12" style="margin-top:4px; margin-bottom:8px">
+                                <span id="duration-estimate-a" style="font-size:13px; color:#555;"></span>
                             </div>
                         </div>
                     </div>
@@ -529,6 +535,7 @@
         $('#exp-form').on('input change', 'input', function () {
             if ($(this).hasClass('angle-calc')) updateTotalAngle($(this));
             updateStartBtn();
+            calcDuration();
         });
 
         updateStartBtn();
@@ -556,6 +563,7 @@
             $('#simple-mode').show();
             updateTotalAngle($('#data_shots_quantity_s'));
             updateStartBtn();
+            calcDuration();
         }
 
         function setAdvancedMode() {
@@ -580,6 +588,7 @@
             $('#advanced-mode').show();
             updateTotalAngle($('#data_shots_quantity_a'));
             updateStartBtn();
+            calcDuration();
         }
 
         $('#btn-simple-mode').on('click', setSimpleMode);
@@ -635,6 +644,117 @@
             return m + 'м ' + (s < 10 ? '0' : '') + s + 'с';
         }
 
+        function formatDuration(sec) {
+            sec = Math.round(sec);
+            if (sec <= 0) return '< 1м';
+            var h = Math.floor(sec / 3600);
+            var m = Math.floor((sec % 3600) / 60);
+            if (h > 0) return h + 'ч ' + m + 'м';
+            return m + 'м';
+        }
+
+        function formatEndTime(remainingSec) {
+            var d = new Date(Date.now() + remainingSec * 1000);
+            var hh = d.getHours();
+            var mm = d.getMinutes();
+            return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+        }
+
+        /* ================================================================== */
+        /* РАСЧЁТ ОЖИДАЕМОЙ ДЛИТЕЛЬНОСТИ (форма планирования)                 */
+        /* ================================================================== */
+        /*
+         * ПРОСТОЙ РЕЖИМ (Experiment):
+         *   de_quantity   — число DARK кадров = число EMPTY кадров
+         *   shots         — число угловых позиций (шагов вращения)
+         *   data_same     — кадров на каждой угловой позиции
+         *   exposure_sec  — выдержка одного кадра, с
+         *
+         *   total_frames = de_quantity × 2          (DARK + EMPTY)
+         *                + shots × data_same         (DATA)
+         *
+         *   overhead на кадр = 0.5 с (детектор сохраняет/передаёт кадр)
+         *   горизонтальный двигатель: 2 движения (move_away + move_back для EMPTY) × 10 с = 20 с
+         *
+         *   duration_sec = total_frames × (exposure_sec + 0.5) + 20
+         *
+         * ПРОДВИНУТЫЙ РЕЖИМ (AdvancedExperiment):
+         *   series_length  — длина серии dark/empty кадров
+         *   data_total     — число угловых позиций (DATA)
+         *   per_step       — кадров на позицию
+         *   empty_period   — вставлять периодическую empty каждые N позиций
+         *
+         *   num_inserts = floor((data_total - 1) / empty_period)
+         *     (последняя позиция НЕ триггерит вставку — отсюда -1)
+         *
+         *   total_frames = series_length                        // DARK в начале
+         *                + series_length                        // начальная EMPTY
+         *                + data_total × per_step                // DATA кадры
+         *                + num_inserts × series_length          // периодические EMPTY
+         *                + num_inserts × per_step               // DATA CHECK после каждой вставки
+         *
+         *   горизонтальный двигатель:
+         *     каждая empty-серия: move_away + move_back = 2 движения
+         *     таких серий: 1 (начальная) + num_inserts (периодические)
+         *     итого: (1 + num_inserts) × 2 × 10 с
+         *
+         *   duration_sec = total_frames × (exposure_sec + 0.5)
+         *                + (1 + num_inserts) × 2 × 10
+         */
+        function calcDuration() {
+            var spanS = document.getElementById('duration-estimate-s');
+            var spanA = document.getElementById('duration-estimate-a');
+
+            if (!isAdvanced) {
+                /* --- Простой режим --- */
+                var deQty   = parseFloat($('#de_quantity').val());
+                var expSec  = parseFloat($('#exposure_sec').val());
+                var shots   = parseFloat($('#data_shots_quantity_s').val());
+                var same    = parseFloat($('#data_same_s').val()) || 1;
+
+                if (isNaN(deQty) || isNaN(expSec) || isNaN(shots)) {
+                    if (spanS) spanS.textContent = '';
+                    return;
+                }
+
+                /* total_frames = DARK + EMPTY + DATA */
+                var frames   = deQty * 2 + shots * same;
+                /* +0.5 с overhead на кадр; +20 с горизонтальный двигатель (move_away + move_back) */
+                var durSec   = frames * (expSec + 0.5) + 20;
+                if (spanS) spanS.textContent = '⏱ ~' + formatDuration(durSec) + '  ·  завершение ~' + formatEndTime(durSec);
+                if (spanA) spanA.textContent = '';
+
+            } else {
+                /* --- Продвинутый режим --- */
+                var expMs        = parseFloat($('#exposure_sec_a').val());    // экспозиция, с
+                var seriesLen    = parseFloat($('#series_length_a').val());   // длина серии dark/empty
+                var dataTotal    = parseFloat($('#data_shots_quantity_a').val()); // число угловых позиций
+                var perStep      = parseFloat($('#data_same_a').val()) || 1;  // кадров на позицию
+                var emptyPeriod  = parseFloat($('#empty_period_a').val());    // периодичность empty
+
+                if (isNaN(expMs) || isNaN(seriesLen) || isNaN(dataTotal) || isNaN(emptyPeriod)) {
+                    if (spanA) spanA.textContent = '';
+                    return;
+                }
+
+                /* Количество периодических вставок empty (последняя позиция не триггерит) */
+                var numInserts = Math.floor((dataTotal - 1) / emptyPeriod);
+
+                /* Итого кадров: dark + initial_empty + data + periodic_empty + data_check */
+                var frames     = seriesLen * 2
+                               + dataTotal * perStep
+                               + numInserts * seriesLen
+                               + numInserts * perStep;
+
+                /* Движений горизонтального двигателя: (1 начальная + num_inserts) × 2 (туда+обратно) */
+                var horizMoves = (1 + numInserts) * 2;
+                var durSec     = frames * (expMs + 0.5) + horizMoves * 10;
+
+                if (spanA) spanA.textContent = '⏱ ~' + formatDuration(durSec) + '  ·  завершение ~' + formatEndTime(durSec);
+                if (spanS) spanS.textContent = '';
+            }
+        }
+
         function updateStatusUI(data) {
             var result = data.result || {};
             var running = result.running;
@@ -671,7 +791,7 @@
             if (running && frameN > 0 && totalF > frameN && result.elapsed_sec > 0) {
                 var secPerFrame = result.elapsed_sec / frameN;
                 var remaining   = Math.round(secPerFrame * (totalF - frameN));
-                $eta.text('~ ' + formatElapsed(remaining) + ' осталось');
+                $eta.text('~' + formatDuration(remaining) + ' осталось  ·  завершение ~' + formatEndTime(remaining));
             } else if (!running && frameN > 0) {
                 $eta.text('');
             } else {

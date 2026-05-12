@@ -378,7 +378,19 @@
         var btnOn = document.getElementById('btn-source-on');
         var btnOff = document.getElementById('btn-source-off');
 
-        function updateSourceBadge(on, busy) {
+        function updateSourceBadge(on, busy, mocked) {
+            if (mocked) {
+                /* Источник замокан (mock=True в devices.cfg) — реальное устройство
+                 * не подключено. Команды включения/выключения игнорируются.
+                 * Показываем нейтральный бейдж и блокируем обе кнопки. */
+                badge.className = 'label label-default';
+                badge.textContent = 'Не управляется';
+                spinner.style.display = 'none';
+                if (btnOn)  btnOn.disabled  = true;
+                if (btnOff) btnOff.disabled = true;
+                return;
+            }
+
             if (busy) {
                 badge.className = 'label label-warning';
                 badge.textContent = 'включается...';
@@ -408,7 +420,7 @@
                 method: 'GET',
                 timeout: 5000,
                 success: function (data) {
-                    updateSourceBadge(!!data.on, !!data.busy);
+                    updateSourceBadge(!!data.on, !!data.busy, !!data.mocked);
                 },
                 error: function () {
                     badge.className = 'label label-danger';

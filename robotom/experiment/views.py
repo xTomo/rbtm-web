@@ -207,7 +207,10 @@ def experiment_view(request):
 def experiment_source_state(request):
     """Прокси к Flask /source/state — возвращает JSON состояния источника.
 
-    Response: {"on": bool, "busy": bool}
+    Response: {"on": bool, "busy": bool, "mocked": bool}
+      mocked=True означает, что источник работает в режиме заглушки
+      (физически не подключён). В этом случае UI блокирует кнопки управления
+      и показывает статус «Не управляется».
     """
     try:
         answer = requests.get(
@@ -219,10 +222,11 @@ def experiment_source_state(request):
         return JsonResponse({
             'on': bool(result.get('on', False)),
             'busy': bool(result.get('busy', False)),
+            'mocked': bool(result.get('mocked', False)),
         })
     except Exception as e:
         experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(e))
-        return JsonResponse({'on': False, 'busy': False, 'error': str(e)}, status=502)
+        return JsonResponse({'on': False, 'busy': False, 'mocked': False, 'error': str(e)}, status=502)
 
 
 @update_state_before_run

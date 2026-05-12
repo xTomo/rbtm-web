@@ -224,6 +224,9 @@
             </div>
             <div class="panel-body">
 
+                {# Предупреждение о зависании — показывается если нет новых кадров сверх порога #}
+                <div id="exp-hung-alert" class="alert alert-warning" style="display:none; margin-bottom:8px;"></div>
+
                 {# Прогресс-бар #}
                 <div id="exp-progress-wrap">
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px">
@@ -806,6 +809,41 @@
 
             /* Таймлайн */
             drawTimeline(result.timeline, result.total_frames);
+
+            /* ---- Детекция зависания ----------------------------------------
+             * Используем last_frame_at — Unix timestamp последнего снятого кадра
+             * из status_dict на сервере (rbtm-drivers-next).
+             *
+             * Порог адаптивный: 3 × средняя длительность одного кадра,
+             * но не менее 60 сек. Это позволяет не триггерить ложные срабатывания
+             * при больших экспозициях или движении двигателя.
+             *
+             * Не проверяем зависание:
+             *   - если эксперимент не идёт (running = false)
+             *   - если кадров ещё не было (last_frame_at = null / frame_num = 0)
+             *   - в первые 60 секунд после старта (прогрев, dark-кадры)
+             */
+            var $hungAlert = $('#exp-hung-alert');
+            if (running && result.last_frame_at && frameN > 0 && result.elapsed_sec > 60) {
+                var nowSec         = Date.now() / 1000;
+                var staleSec       = nowSec - result.last_frame_at;
+                var avgSecPerFrame = result.elapsed_sec / frameN;
+                /* Порог: 3 средних времени кадра, минимум 60 сек */
+                var hungThreshold  = Math.max(avgSecPerFrame * 3, 60);
+
+                if (staleSec > hungThreshold) {
+                    var staleMin  = Math.floor(staleSec / 60);
+                    var staleSec2 = Math.floor(staleSec % 60);
+                    var hungMsg   = '⚠ Нет новых кадров уже ' + staleMin + 'м '
+                                  + (staleSec2 < 10 ? '0' : '') + staleSec2
+                                  + 'с. Возможно, эксперимент завис.';
+                    $hungAlert.text(hungMsg).show();
+                } else {
+                    $hungAlert.hide();
+                }
+            } else {
+                $hungAlert.hide();
+            }
 
             /* Запускаем/останавливаем поллинг кадров */
             if (running && frameN !== lastFrameNum) {

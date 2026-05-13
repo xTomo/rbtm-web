@@ -40,11 +40,11 @@
                                 <td>{{ info.data_angle_step }}&deg;</td>
                                 <td>{{ info.data_count_per_step }}</td>
                                 <td>{{ info.data_step_count }}</td>
-                                <td>{{ info.data_exposure|floatformat }} мс</td>
+                                <td>{{ info.data_exposure }} с</td>
                                 <td>{{ info.empty_count }}</td>
-                                <td>{{ info.empty_exposure|floatformat }} мс</td>
+                                <td>{{ info.empty_exposure }} с</td>
                                 <td>{{ info.dark_count }}</td>
-                                <td>{{ info.dark_exposure|floatformat }} мс</td>
+                                <td>{{ info.dark_exposure }} с</td>
                             </tr>
                             </tbody>
                         </table>
@@ -84,7 +84,7 @@
                                            href="#">{{ frame.num }}</a></td>
                                     <td>{{ frame.mode }}</td>
                                     <td>{{ frame.date_time }}</td>
-                                    <td>{{ frame.exposure }} мс</td>
+                                    <td>{{ frame.exposure }} с</td>
                                     <td>{% if frame.shutter_open %}Открыта{% else %}Закрыта{% endif %}</td>
                                     <td>{{ frame.angle_position|floatformat:2 }}&deg;</td>
                                     <td>{{ frame.current }} мА</td>

@@ -21,6 +21,18 @@ from robotom.utils import force_https
 storage_logger = logging.getLogger('storage_logger')
 
 
+def _ms_to_s(exposure_ms):
+    """Конвертирует экспозицию из миллисекунд в секунды, возвращает отформатированную строку."""
+    try:
+        exposure_s = float(exposure_ms) / 1000.0
+        if exposure_s == int(exposure_s):
+            return '{:g}'.format(exposure_s)
+        else:
+            return '{:.3g}'.format(exposure_s)
+    except (TypeError, ValueError):
+        return str(exposure_ms)
+
+
 def is_active(user):
     return user.is_active
 
@@ -39,9 +51,9 @@ class ExperimentRecord:
             # Продвинутый режим: плоская структура
             exposure_ms = ep.get('exposure', 0)
             self.dark_count = ep.get('series_length', '')
-            self.dark_exposure = exposure_ms
+            self.dark_exposure = _ms_to_s(exposure_ms)
             self.empty_count = ep.get('series_length', '')
-            self.empty_exposure = exposure_ms
+            self.empty_exposure = _ms_to_s(exposure_ms)
             self.data_angle_step = ep.get('data_angle_step', '')
             self.data_count_per_step = ep.get('data_count_per_step', 1)
             self.data_step_count = ep.get('data_total', '')
@@ -51,23 +63,15 @@ class ExperimentRecord:
             empty = ep.get('EMPTY', {})
             data = ep.get('DATA', {})
             self.dark_count = dark.get('count', '')
-            self.dark_exposure = dark.get('exposure', '')
+            self.dark_exposure = _ms_to_s(dark.get('exposure', 0))
             self.empty_count = empty.get('count', '')
-            self.empty_exposure = empty.get('exposure', '')
+            self.empty_exposure = _ms_to_s(empty.get('exposure', 0))
             self.data_angle_step = data.get('angle step', '')
             self.data_count_per_step = data.get('count per step', 1)
             self.data_step_count = data.get('step count', '')
             exposure_ms = data.get('exposure', 0)
 
-        try:
-            exposure_s = float(exposure_ms) / 1000.0
-            # Показываем целое число если дробная часть нулевая
-            if exposure_s == int(exposure_s):
-                self.data_exposure = '{:g}'.format(exposure_s)
-            else:
-                self.data_exposure = '{:.3g}'.format(exposure_s)
-        except (TypeError, ValueError):
-            self.data_exposure = exposure_ms
+        self.data_exposure = _ms_to_s(exposure_ms)
 
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.recon_url = settings.RECONSTRUCTION_URL.format(exp_id=self.experiment_id)
@@ -130,7 +134,7 @@ class FrameRecord:
                     if "model" in frame["frame"]["image_data"]["detector"]:
                         self.detector_model = frame["frame"]["image_data"]["detector"]["model"]
                 if "exposure" in frame["frame"]["image_data"]:
-                    self.exposure = frame["frame"]["image_data"]["exposure"]
+                    self.exposure = _ms_to_s(frame["frame"]["image_data"]["exposure"])
             if "shutter" in frame["frame"]:
                 if "open" in frame["frame"]["shutter"]:
                     self.shutter_open = frame["frame"]["shutter"]["open"]

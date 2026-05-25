@@ -4,7 +4,6 @@ import tempfile
 import time
 import requests
 import json
-import h5py
 
 from django.contrib import messages
 from django.core.files.storage import default_storage

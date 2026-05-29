@@ -223,6 +223,7 @@ def experiment_source_state(request):
             'on': bool(result.get('on', False)),
             'busy': bool(result.get('busy', False)),
             'mocked': bool(result.get('mocked', False)),
+            'warming_status': result.get('warming_status'),
         })
     except Exception as e:
         experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(e))

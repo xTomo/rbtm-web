@@ -32,6 +32,7 @@
                                         <img src="{% static 'storage/img/loading.gif' %}" height="16" alt="включается...">
                                         <small class="text-muted">включается...</small>
                                     </span>
+                                    <span id="source-warming-text" style="display:none; margin-left: 8px; color: #c09853; font-size: 13px;"></span>
                                 </div>
 
                                 <!-- Кнопки управления -->
@@ -378,7 +379,8 @@
         var btnOn = document.getElementById('btn-source-on');
         var btnOff = document.getElementById('btn-source-off');
 
-        function updateSourceBadge(on, busy, mocked) {
+        function updateSourceBadge(on, busy, mocked, warmingStatus) {
+            var warmingText = document.getElementById('source-warming-text');
             if (mocked) {
                 /* Источник замокан (mock=True в devices.cfg) — реальное устройство
                  * не подключено. Команды включения/выключения игнорируются.
@@ -386,31 +388,44 @@
                 badge.className = 'label label-default';
                 badge.textContent = 'Не управляется';
                 spinner.style.display = 'none';
+                if (warmingText) warmingText.style.display = 'none';
                 if (btnOn)  btnOn.disabled  = true;
                 if (btnOff) btnOff.disabled = true;
                 return;
             }
 
-            if (busy) {
+            var isWarming = warmingStatus && warmingStatus.in_progress;
+
+            if (busy || isWarming) {
                 badge.className = 'label label-warning';
-                badge.textContent = 'включается...';
+                badge.textContent = isWarming ? 'прогрев...' : 'включается...';
                 spinner.style.display = 'inline';
+                if (warmingText) {
+                    if (isWarming) {
+                        warmingText.textContent = 'Рентгеновский источник прогревается, подождите...';
+                        warmingText.style.display = 'inline';
+                    } else {
+                        warmingText.style.display = 'none';
+                    }
+                }
             } else if (on) {
                 badge.className = 'label label-success';
                 badge.textContent = 'ВКЛ';
                 spinner.style.display = 'none';
+                if (warmingText) warmingText.style.display = 'none';
             } else {
                 badge.className = 'label label-default';
                 badge.textContent = 'ВЫКЛ';
                 spinner.style.display = 'none';
+                if (warmingText) warmingText.style.display = 'none';
             }
-            // Блокируем кнопку "Включить" если уже включён или идёт включение
+            // Блокируем кнопку "Включить" если уже включён или идёт включение/прогрев
             if (btnOn && !btnOn.disabled) {
-                btnOn.disabled = on || busy;
+                btnOn.disabled = on || busy || isWarming;
             }
-            // Блокируем кнопку "Выключить" если уже выключен или идёт включение
+            // Блокируем кнопку "Выключить" если уже выключен или идёт включение/прогрев
             if (btnOff && !btnOff.disabled) {
-                btnOff.disabled = (!on) || busy;
+                btnOff.disabled = (!on) || busy || isWarming;
             }
         }
 
@@ -420,12 +435,14 @@
                 method: 'GET',
                 timeout: 5000,
                 success: function (data) {
-                    updateSourceBadge(!!data.on, !!data.busy, !!data.mocked);
+                    updateSourceBadge(!!data.on, !!data.busy, !!data.mocked, data.warming_status);
                 },
                 error: function () {
                     badge.className = 'label label-danger';
                     badge.textContent = 'нет связи';
                     spinner.style.display = 'none';
+                    var warmingText = document.getElementById('source-warming-text');
+                    if (warmingText) warmingText.style.display = 'none';
                 }
             });
         }

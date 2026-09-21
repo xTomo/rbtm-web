@@ -131,3 +131,24 @@ class TryRequestHelpersTest(TestCase):
         rendered = [str(m) for m in request._messages]
         self.assertTrue(any('HTTP 500' in m for m in rendered))
         self.assertFalse(any('отсутствует подключение к сети' in m for m in rendered))
+
+
+class ExperimentSourceStateTest(TestCase):
+    """Пункт 2: experiment_source_state должен превращать не-200 ответ drivers
+    в JSON {available: false, error} с кодом 502, а не в 200 {on: false}."""
+
+    def setUp(self):
+        self.u_exp = User.objects.create_user(username='exprm2', password='exprm2')
+        UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
+        self.c = Client()
+        self.c.login(username='exprm2', password='exprm2')
+
+    def test_503_becomes_502_json(self):
+        body = json.dumps({'success': False, 'error': 'Could not connect with tomograph'})
+        with mock.patch('experiment.views.requests.get', return_value=_fake_response(503, body)):
+            response = self.c.get('/experiment/source/state/')
+
+        self.assertEqual(response.status_code, 502)
+        data = json.loads(response.content)
+        self.assertFalse(data['available'])
+        self.assertIn('error', data)

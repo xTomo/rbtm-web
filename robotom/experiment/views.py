@@ -252,6 +252,11 @@ def experiment_source_state(request):
             settings.EXPERIMENT_SOURCE_GET_STATE.format(TOMO_NUM),
             timeout=settings.TIMEOUT_DEFAULT,
         )
+        if answer.status_code != 200:
+            msg = _format_backend_error(answer.status_code, answer.content)
+            experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(msg))
+            return JsonResponse({'available': False, 'error': msg}, status=502)
+
         data = json.loads(answer.content)
         result = data.get('result', {}) or {}
         return JsonResponse({
@@ -259,9 +264,9 @@ def experiment_source_state(request):
             'busy': bool(result.get('busy', False)),
             'mocked': bool(result.get('mocked', False)),
         })
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(e))
-        return JsonResponse({'on': False, 'busy': False, 'mocked': False, 'error': str(e)}, status=502)
+        return JsonResponse({'available': False, 'error': str(e)}, status=502)
 
 
 @update_state_before_run

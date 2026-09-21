@@ -46,7 +46,7 @@ def try_user_sending(request, err_text, address, user=None, user_info=None):
         if not user_info:
             user_info = json.dumps({'username': user.username, 'password': user.password, 'role': 'GST'})
         try:
-            answer = requests.post(address, user_info, timeout=1)
+            answer = requests.post(address, user_info, timeout=settings.TIMEOUT_DEFAULT)
             if answer.status_code != 200:
                 messages.warning(request, u'{}. Модуль "Хранилище" завершил работу с кодом ошибки {}'
                                  .format(err_text, answer.status_code))

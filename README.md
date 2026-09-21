@@ -64,7 +64,6 @@ rbtm-web/
     │   ├── models.py           # UserProfile, RoleRequest
     │   ├── views.py            # регистрация, вход, профиль, управление ролями
     │   ├── forms.py
-    │   ├── serializers.py      # DRF: UserSerializer, RoleRequestSerializer
     │   ├── admin.py
     │   ├── urls.py
     │   ├── migrations/

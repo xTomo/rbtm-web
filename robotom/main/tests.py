@@ -154,3 +154,19 @@ class ExperimentPermissionTest(TestCase):
         self.u_gst.delete()
         self.up_exp.delete()
         self.u_exp.delete()
+
+
+class RoleRequestCancelTest(TestCase):
+    """Пункт 12: POST 'cancel' на /role_request/ не должен падать с 500
+    (new_request не был определён в ветке cancel)."""
+
+    def setUp(self):
+        self.u_gst = User.objects.create_user(username='guest_cancel', password='guest_cancel')
+        self.up_gst = UserProfile.objects.create(user=self.u_gst, is_guest=True)
+        self.c = Client()
+        self.c.login(username='guest_cancel', password='guest_cancel')
+
+    def test_cancel_redirects_to_profile(self):
+        response = self.c.post('/role_request/', {'cancel': '1', 'role': 'RES', 'comment': ''})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response['Location'].endswith('/accounts/profile/'))

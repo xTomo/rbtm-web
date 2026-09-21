@@ -322,7 +322,7 @@ def role_request_view(request):
             role_form = UserRoleRequestForm(request.POST)
 
         if 'cancel' in request.POST:
-            pass
+            return redirect(reverse('main:profile'))
         elif 'submit' in request.POST:
             if role_form.is_valid():
                 new_request = role_form.save(commit=False)

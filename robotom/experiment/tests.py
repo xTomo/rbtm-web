@@ -220,3 +220,103 @@ class GetPreviewDataTest(TestCase):
             )
         # timeout = max(TIMEOUT_DEFAULT, 2*exposure_sec + 30) = max(120, 130) = 130
         self.assertEqual(mocked_post.call_args.kwargs['timeout'], 130)
+
+
+def _experiment_start_fake_get(*args, **kwargs):
+    # get_current_state опрашивает EXPERIMENT_GET_STATE после сохранения параметров
+    return _fake_response(200, json.dumps({'success': True, 'result': 'ready'}))
+
+
+class ExperimentInterfaceParamsTest(TestCase):
+    """Пункт 5: парсинг полей формы параметров эксперимента не должен приводить к 500,
+    и должен собирать данные с корректными типами для выбранного режима."""
+
+    def setUp(self):
+        self.u_exp = User.objects.create_user(username='exprm6', password='exprm6')
+        UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
+        self.c = Client()
+        self.c.login(username='exprm6', password='exprm6')
+
+    def test_empty_exposure_does_not_crash(self):
+        response = self.c.post('/experiment/interface/', {
+            'parameters': '1',
+            'mode': 'simple',
+            'name': 'sample',
+            'tags': '',
+            'de_quantity': '3',
+            'exposure_sec': '',
+            'data_shots_quantity': '10',
+            'data_angle': '1.0',
+            'data_same': '1',
+        })
+        self.assertEqual(response.status_code, 302)
+        response = self.c.get('/experiment/interface/')
+        rendered = [str(m) for m in response.context['messages']]
+        self.assertTrue(any(rendered), 'ожидалось сообщение об ошибке формы')
+
+    def test_missing_field_does_not_crash(self):
+        response = self.c.post('/experiment/interface/', {
+            'parameters': '1',
+            'mode': 'simple',
+            'name': 'sample',
+            'tags': '',
+            # de_quantity отсутствует
+            'exposure_sec': '1.5',
+            'data_shots_quantity': '10',
+            'data_angle': '1.0',
+            'data_same': '1',
+        })
+        self.assertEqual(response.status_code, 302)
+
+    def test_simple_mode_payload_types(self):
+        with mock.patch('experiment.views.requests.post') as mocked_post, \
+             mock.patch('experiment.views.requests.get', side_effect=_experiment_start_fake_get):
+            mocked_post.return_value = _fake_response(200, json.dumps({'success': True}))
+            self.c.post('/experiment/interface/', {
+                'parameters': '1',
+                'mode': 'simple',
+                'name': 'sample',
+                'tags': 'a, b',
+                'de_quantity': '3',
+                'exposure_sec': '1.5',
+                'data_shots_quantity': '10',
+                'data_angle': '0.5',
+                'data_same': '2',
+            })
+
+        sent_body = json.loads(mocked_post.call_args[0][1])
+        params = sent_body['experiment parameters']
+        self.assertFalse(params['advanced'])
+        self.assertIsInstance(params['DARK']['count'], int)
+        self.assertEqual(params['DARK']['count'], 3)
+        self.assertIsInstance(params['DARK']['exposure'], float)
+        self.assertEqual(params['DARK']['exposure'], 1500.0)
+        self.assertIsInstance(params['DATA']['angle step'], float)
+        self.assertEqual(params['DATA']['angle step'], 0.5)
+        self.assertIsInstance(params['DATA']['count per step'], int)
+        self.assertEqual(params['DATA']['count per step'], 2)
+
+    def test_advanced_mode_payload_types(self):
+        with mock.patch('experiment.views.requests.post') as mocked_post, \
+             mock.patch('experiment.views.requests.get', side_effect=_experiment_start_fake_get):
+            mocked_post.return_value = _fake_response(200, json.dumps({'success': True}))
+            self.c.post('/experiment/interface/', {
+                'parameters': '1',
+                'mode': 'advanced',
+                'name': 'sample',
+                'tags': '',
+                'exposure_sec': '2.0',
+                'series_length': '10',
+                'empty_period': '50',
+                'data_shots_quantity': '500',
+                'data_angle': '0.36',
+                'data_same': '1',
+            })
+
+        sent_body = json.loads(mocked_post.call_args[0][1])
+        params = sent_body['experiment parameters']
+        self.assertTrue(params['advanced'])
+        self.assertIsInstance(params['exposure'], float)
+        self.assertEqual(params['exposure'], 2000.0)
+        self.assertIsInstance(params['series_length'], int)
+        self.assertEqual(params['series_length'], 10)

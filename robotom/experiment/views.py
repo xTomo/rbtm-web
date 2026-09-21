@@ -478,64 +478,80 @@ def experiment_interface(request):
     if request.method == 'POST':
 
         if 'parameters' in request.POST:
-            exp_id = uuid.uuid4()
-            timestamp = time.time()
-            current_datetime = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-
             is_advanced = request.POST.get('mode') == 'advanced'
 
-            if is_advanced:
-                # Продвинутый режим: единая экспозиция, series_length, empty_period
-                exposure_ms = float(request.POST['exposure_sec']) * 1000.0
-                series_length = int(float(request.POST.get('series_length', 10)))
-                empty_period = int(float(request.POST.get('empty_period', 50)))
-                data_count_per_step = int(float(request.POST.get('data_same', 1)))
+            try:
+                exp_id = uuid.uuid4()
+                timestamp = time.time()
+                current_datetime = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                specimen = request.POST['name']
+                tags = request.POST['tags']
 
-                experiment_data = json.dumps({
-                    'exp_id': str(exp_id),
-                    'specimen': request.POST['name'],
-                    'tags': request.POST['tags'],
-                    'timestamp': timestamp,
-                    'datetime': current_datetime,
-                    'experiment parameters': {
-                        'advanced': True,
-                        'exposure': exposure_ms,
-                        'series_length': series_length,
-                        'data_total': int(float(request.POST['data_shots_quantity'])),
-                        'data_angle_step': float(request.POST['data_angle']),
-                        'data_count_per_step': data_count_per_step,
-                        'empty_period': empty_period,
-                    }
-                })
-            else:
-                # Простой режим: одинаковая экспозиция и кол-во для dark/empty
-                de_count = int(float(request.POST['de_quantity']))
-                exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                if is_advanced:
+                    # Продвинутый режим: единая экспозиция, series_length, empty_period.
+                    # В шаблоне поля обоих режимов используют одинаковые name, но
+                    # неактивный набор отключён (disabled) через JS и не попадает в POST,
+                    # поэтому request.POST[...] всегда берёт значение активного режима.
+                    exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                    series_length = int(float(request.POST.get('series_length', 10)))
+                    empty_period = int(float(request.POST.get('empty_period', 50)))
+                    data_count_per_step = int(float(request.POST.get('data_same', 1)))
+                    data_total = int(float(request.POST['data_shots_quantity']))
+                    data_angle_step = float(request.POST['data_angle'])
 
-                experiment_data = json.dumps({
-                    'exp_id': str(exp_id),
-                    'specimen': request.POST['name'],
-                    'tags': request.POST['tags'],
-                    'timestamp': timestamp,
-                    'datetime': current_datetime,
-                    'experiment parameters': {
-                        'advanced': False,
-                        'DARK': {
-                            'count': de_count,
+                    experiment_data = json.dumps({
+                        'exp_id': str(exp_id),
+                        'specimen': specimen,
+                        'tags': tags,
+                        'timestamp': timestamp,
+                        'datetime': current_datetime,
+                        'experiment parameters': {
+                            'advanced': True,
                             'exposure': exposure_ms,
-                        },
-                        'EMPTY': {
-                            'count': de_count,
-                            'exposure': exposure_ms,
-                        },
-                        'DATA': {
-                            'step count': int(float(request.POST['data_shots_quantity'])),
-                            'exposure': exposure_ms,
-                            'angle step': float(request.POST['data_angle']),
-                            'count per step': int(float(request.POST.get('data_same', 1))),
+                            'series_length': series_length,
+                            'data_total': data_total,
+                            'data_angle_step': data_angle_step,
+                            'data_count_per_step': data_count_per_step,
+                            'empty_period': empty_period,
                         }
-                    }
-                })
+                    })
+                else:
+                    # Простой режим: одинаковая экспозиция и кол-во для dark/empty
+                    de_count = int(float(request.POST['de_quantity']))
+                    exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                    data_step_count = int(float(request.POST['data_shots_quantity']))
+                    data_angle_step = float(request.POST['data_angle'])
+                    data_count_per_step = int(float(request.POST.get('data_same', 1)))
+
+                    experiment_data = json.dumps({
+                        'exp_id': str(exp_id),
+                        'specimen': specimen,
+                        'tags': tags,
+                        'timestamp': timestamp,
+                        'datetime': current_datetime,
+                        'experiment parameters': {
+                            'advanced': False,
+                            'DARK': {
+                                'count': de_count,
+                                'exposure': exposure_ms,
+                            },
+                            'EMPTY': {
+                                'count': de_count,
+                                'exposure': exposure_ms,
+                            },
+                            'DATA': {
+                                'step count': data_step_count,
+                                'exposure': exposure_ms,
+                                'angle step': data_angle_step,
+                                'count per step': data_count_per_step,
+                            }
+                        }
+                    })
+            except (ValueError, KeyError) as e:
+                # Некорректные/отсутствующие поля формы (например, exposure_sec='')
+                experiment_logger.error(u'Некорректные параметры эксперимента: {}'.format(e))
+                messages.error(request, u'Некорректно заполнена форма параметров эксперимента. Проверьте введённые значения.')
+                return redirect(reverse(source_page))
 
             result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), experiment_data, source_page)
             success_msg = u'Эксперимент успешно начался'

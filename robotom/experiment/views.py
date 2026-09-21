@@ -211,7 +211,7 @@ def get_current_state(request, tomo):
         else:
             response_dict = result['response_dict']
             tomo.state = response_dict['result']
-    except BaseException as e:
+    except Exception as e:
         tomo.state = 'unavailable'
     tomo.save()
 

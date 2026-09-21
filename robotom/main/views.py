@@ -56,7 +56,7 @@ def registration_view(request):
             try:
                 send_mail(email_subject, email_body, 'robotomproject@gmail.com',
                           [user.email], fail_silently=False)
-            except BaseException as e:
+            except Exception as e:
                 main_logger.error(traceback.format_exc())
                 main_logger.error(e)
                 messages.warning(request,
@@ -132,7 +132,7 @@ def profile_view(request):
             try:
                 send_mail(email_subject, email_body, 'robotomproject@gmail.com',
                           [user.email], fail_silently=False)
-            except BaseException:
+            except Exception:
                 messages.warning(request,
                                  'Произошла ошибка при отправке письма о подтверждении регистрации. Попробуйте \
                                  зарегистрироваться повторно, указав корректный email')
@@ -205,7 +205,7 @@ def mail_verdict(request, user, site, role, verdict):
 
     try:
         send_mail(subject, message, settings.EMAIL_HOST_USER, [user.email], fail_silently=False)
-    except BaseException as e:
+    except Exception as e:
         messages.warning(request,
                          u'При отправке письма по адресу \'{}\' произошла ошибка. Если адрес корректен, уточните \
                          причину возникновения ошибки в логах сервера'.format(user.email))
@@ -307,7 +307,7 @@ def role_request_view(request):
             try:
                 mail_role_request(request, new_request, request.get_host(),
                                   request.build_absolute_uri(reverse('main:manage_requests')))
-            except BaseException as e:
+            except Exception as e:
                 messages.warning(request,
                                  u'Произошла ошибка во время оповещения администратора о появлении новой заявки, из-за \
                                  чего её рассмотрение может задержаться. Чтобы избежать этого, Вы можете связаться с \

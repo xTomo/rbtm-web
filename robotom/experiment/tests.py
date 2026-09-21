@@ -320,3 +320,37 @@ class ExperimentInterfaceParamsTest(TestCase):
         self.assertEqual(params['exposure'], 2000.0)
         self.assertIsInstance(params['series_length'], int)
         self.assertEqual(params['series_length'], 10)
+
+
+class ExperimentStatusProxyTest(TestCase):
+    """Пункт 11: passthrough-проверка проксирования /experiment/status/ —
+    JSON с result из 10 полей (включая last_frame_at) отдаётся как есть."""
+
+    def setUp(self):
+        self.u_exp = User.objects.create_user(username='exprm7', password='exprm7')
+        UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
+        self.c = Client()
+        self.c.login(username='exprm7', password='exprm7')
+
+    def test_status_proxy_passthrough(self):
+        result = {
+            'running': True,
+            'exp_id': 'abc-123',
+            'frame_num': 5,
+            'total_frames': 10,
+            'progress_pct': 50,
+            'current_mode': 'data',
+            'current_angle': 12.5,
+            'elapsed_sec': 30,
+            'last_frame_at': 1700000000.0,
+            'timeline': [{'mode': 'data', 'count': 5}],
+        }
+        body = json.dumps({'success': True, 'result': result})
+        with mock.patch('experiment.views.requests.get', return_value=_fake_response(200, body)):
+            response = self.c.get('/experiment/status/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        data = json.loads(response.content)
+        self.assertEqual(len(result), 10)
+        self.assertIn('last_frame_at', data['result'])

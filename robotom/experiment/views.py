@@ -85,61 +85,96 @@ def info_once_only(request, msg):
         messages.info(request, msg)
 
 
+def _format_backend_error(status_code, content):
+    """Пытается извлечь текст ошибки из JSON-тела ответа drivers ({success, error, 'exception message'}).
+
+    Если тело не JSON (например, страница ошибки Werkzeug при HTTP 500),
+    возвращает общее сообщение о некорректном ответе, не пытаясь распарсить HTML как JSON.
+    """
+    try:
+        data = json.loads(content)
+    except (ValueError, TypeError):
+        return u'Модуль "Эксперимент" вернул некорректный ответ (HTTP {})'.format(status_code)
+
+    error = data.get('error') if isinstance(data, dict) else None
+    exc_msg = data.get('exception message') if isinstance(data, dict) else None
+    if error:
+        if exc_msg:
+            return u'Модуль "Эксперимент": {} ({})'.format(error, exc_msg)
+        return u'Модуль "Эксперимент": {}'.format(error)
+    return u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(status_code)
+
+
 def try_request_post(request, address, content, source_page, stream=False):
     result = {'response_dict': None, 'error': None}
     try:
         answer = requests.post(address, content, timeout=settings.TIMEOUT_DEFAULT, stream=stream)
-        result['response_dict'] = json.loads(answer.content)
-        if answer.status_code != 200:
-            messages.warning(request, u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            experiment_logger.error(u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            result['error'] = redirect(reverse(source_page))
     except Timeout as e:
         messages.warning(request, 'Нет ответа от модуля "Эксперимент".')
         experiment_logger.error(e)
         result['error'] = redirect(reverse(source_page))
-    except BaseException as e:
+        return result
+    except requests.RequestException as e:
         experiment_logger.error(e)
         messages.warning(request,
                          '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
                          Возможно, отсутствует подключение к сети.
                          Попробуйте снова через некоторое время или свяжитесь с администратором''')
         result['error'] = redirect(reverse(source_page))
+        return result
+
+    if answer.status_code != 200:
+        msg = _format_backend_error(answer.status_code, answer.content)
+        messages.warning(request, msg)
+        experiment_logger.error(msg)
+        result['error'] = redirect(reverse(source_page))
+        return result
+
+    try:
+        result['response_dict'] = json.loads(answer.content)
+    except ValueError as e:
+        experiment_logger.error(e)
+        msg = u'Модуль "Эксперимент" вернул некорректный ответ (HTTP {})'.format(answer.status_code)
+        messages.warning(request, msg)
+        result['error'] = redirect(reverse(source_page))
+
     return result
 
 
 def try_request_get(request, address, source_page=''):
     result = {'response_dict': None, 'error': None}
+
+    def _fail(msg):
+        messages.warning(request, msg)
+        if source_page:
+            result['error'] = redirect(reverse(source_page))
+        else:
+            result['error'] = msg
+
     try:
         answer = requests.get(address, timeout=settings.TIMEOUT_DEFAULT)
-        result['response_dict'] = json.loads(answer.content)
-        if answer.status_code != 200:
-            messages.warning(request, u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            experiment_logger.error(u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            if source_page:
-                result['error'] = redirect(reverse(source_page))
-            else:
-                result['error'] = u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code)
     except Timeout as e:
-        messages.warning(request, 'Нет ответа от модуля "Эксперимент"')
         experiment_logger.error(e)
-        if source_page:
-            result['error'] = redirect(reverse(source_page))
-        else:
-            result['error'] = 'Нет ответа от модуля "Эксперимент"'
-
-    except BaseException as e:
+        _fail('Нет ответа от модуля "Эксперимент"')
+        return result
+    except requests.RequestException as e:
         experiment_logger.error(e)
-        messages.warning(request,
-                         '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
-                         Возможно, отсутствует подключение к сети.
-                         Попробуйте снова через некоторое время или свяжитесь с администратором''')
-        if source_page:
-            result['error'] = redirect(reverse(source_page))
-        else:
-            result['error'] = '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
+        _fail('''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
                                 Возможно, отсутствует подключение к сети.
-                                Попробуйте снова через некоторое время или свяжитесь с администратором'''
+                                Попробуйте снова через некоторое время или свяжитесь с администратором''')
+        return result
+
+    if answer.status_code != 200:
+        msg = _format_backend_error(answer.status_code, answer.content)
+        experiment_logger.error(msg)
+        _fail(msg)
+        return result
+
+    try:
+        result['response_dict'] = json.loads(answer.content)
+    except ValueError as e:
+        experiment_logger.error(e)
+        _fail(u'Модуль "Эксперимент" вернул некорректный ответ (HTTP {})'.format(answer.status_code))
 
     return result
 

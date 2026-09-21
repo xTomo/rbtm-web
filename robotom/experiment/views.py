@@ -866,13 +866,21 @@ def get_preview_data(request):
 @user_passes_test(has_experiment_access)
 def experiment_tomograph(request, value_to_get):
 
-    experiment_url = remote_url_settings[value_to_get]
-    requests_response = requests.get(experiment_url, timeout=settings.TIMEOUT_DEFAULT)
+    if value_to_get not in remote_url_settings:
+        return HttpResponse(status=404)
 
+    experiment_url = remote_url_settings[value_to_get]
+    try:
+        requests_response = requests.get(experiment_url, timeout=settings.TIMEOUT_DEFAULT)
+    except requests.RequestException as e:
+        experiment_logger.error(u'Ошибка запроса к модулю "Эксперимент" ({}): {}'.format(value_to_get, e))
+        return JsonResponse({'success': False, 'error': str(e)}, status=502)
+
+    content_type = requests_response.headers.get('Content-Type', 'application/json')
     django_response = HttpResponse(
         content=requests_response.content,
         status=requests_response.status_code,
-        content_type=requests_response.headers['Content-Type']
+        content_type=content_type,
     )
 
     return django_response

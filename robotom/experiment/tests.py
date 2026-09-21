@@ -152,3 +152,36 @@ class ExperimentSourceStateTest(TestCase):
         data = json.loads(response.content)
         self.assertFalse(data['available'])
         self.assertIn('error', data)
+
+
+class ExperimentTomographTest(TestCase):
+    """Пункт 3: неизвестный ключ -> 404, requests.RequestException -> 502 JSON,
+    отсутствие Content-Type в ответе drivers -> application/json по умолчанию."""
+
+    def setUp(self):
+        self.u_exp = User.objects.create_user(username='exprm3', password='exprm3')
+        UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
+        self.c = Client()
+        self.c.login(username='exprm3', password='exprm3')
+
+    def test_unknown_key_returns_404(self):
+        response = self.c.get('/experiment/tomograph/not-a-real-key/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_connection_error_returns_502_json(self):
+        import requests as requests_lib
+        with mock.patch('experiment.views.requests.get',
+                        side_effect=requests_lib.exceptions.ConnectionError('refused')):
+            response = self.c.get('/experiment/tomograph/{}/'.format(experiment_views.GET_VOLT))
+
+        self.assertEqual(response.status_code, 502)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+
+    def test_missing_content_type_defaults_to_json(self):
+        with mock.patch('experiment.views.requests.get',
+                        return_value=_fake_response(200, '{"success": true}', headers={})):
+            response = self.c.get('/experiment/tomograph/{}/'.format(experiment_views.GET_VOLT))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')

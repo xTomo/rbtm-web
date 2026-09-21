@@ -354,3 +354,27 @@ class ExperimentStatusProxyTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(len(result), 10)
         self.assertIn('last_frame_at', data['result'])
+
+
+class AutocompleteTagsTest(TestCase):
+    """Пункт 8: get_autocomplete_data должен разбирать 'tags' как список,
+    а не только как строку (Storage API допускает оба варианта)."""
+
+    def setUp(self):
+        self.u_exp = User.objects.create_user(username='exprm8', password='exprm8')
+        UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
+        self.c = Client()
+        self.c.login(username='exprm8', password='exprm8')
+
+    def test_tags_list_is_parsed(self):
+        experiments = [{
+            'specimen': 'sample',
+            'tags': ['tag1, tag2', 'tag3'],
+            'experiment parameters': {'advanced': False, 'DARK': {}, 'EMPTY': {}, 'DATA': {}},
+        }]
+        with mock.patch('experiment.views.requests.post',
+                        return_value=_fake_response(200, json.dumps(experiments))):
+            response = self.c.get('/experiment/autocomplete/')
+
+        data = json.loads(response.content)
+        self.assertEqual(sorted(data['tags']), ['tag1', 'tag2', 'tag3'])

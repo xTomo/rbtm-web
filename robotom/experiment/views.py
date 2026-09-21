@@ -220,6 +220,21 @@ def is_ajax(request):
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
+def _split_tags(raw_tags):
+    """Разбивает теги эксперимента на список строк. Storage допускает как
+    строку "тег1, тег2", так и список строк (каждая из которых сама может
+    содержать запятые) — см. storage.views.ExperimentRecord."""
+    if not raw_tags:
+        return []
+    if isinstance(raw_tags, (list, tuple)):
+        parts = []
+        for item in raw_tags:
+            parts.extend(str(item).split(','))
+    else:
+        parts = str(raw_tags).split(',')
+    return [t.strip() for t in parts if t.strip()]
+
+
 def update_state_before_run(view):
     @wraps(view)
     def wrapped(request, *args, **kwargs):
@@ -716,14 +731,10 @@ def get_autocomplete_data(request):
                     if specimen not in seen_recent_specimens:
                         seen_recent_specimens.append(specimen)
 
-                raw_tags = exp.get('tags', '')
-                if raw_tags:
-                    for t in raw_tags.split(','):
-                        t = t.strip()
-                        if t:
-                            seen_tags.add(t)
-                            if t not in seen_recent_tags:
-                                seen_recent_tags.append(t)
+                for t in _split_tags(exp.get('tags', '')):
+                    seen_tags.add(t)
+                    if t not in seen_recent_tags:
+                        seen_recent_tags.append(t)
 
             specimens = sorted(seen_specimens)
             tags = sorted(seen_tags)

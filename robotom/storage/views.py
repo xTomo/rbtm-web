@@ -32,6 +32,28 @@ def _ms_to_s(exposure_ms):
         return str(exposure_ms)
 
 
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _dedup_and_sort_frames(frames_list):
+    """Сортирует кадры численно по номеру (а не лексикографически как строку)
+    и убирает дубли по номеру кадра — на случай задвоенных записей в Mongo."""
+    seen_nums = set()
+    unique_frames = []
+    for frame in frames_list:
+        num_key = _safe_int(frame.num)
+        if num_key in seen_nums:
+            continue
+        seen_nums.add(num_key)
+        unique_frames.append(frame)
+    unique_frames.sort(key=lambda f: _safe_int(f.num), reverse=True)
+    return unique_frames
+
+
 def is_active(user):
     return user.is_active
 
@@ -74,7 +96,7 @@ class ExperimentRecord:
 
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.recon_url = settings.RECONSTRUCTION_URL.format(exp_id=self.experiment_id)
-        raw_dt = record['datetime']
+        raw_dt = record.get('datetime', '')
         # Убираем секунды из отображения: "DD.MM.YYYY HH:MM:SS" → "DD.MM.YYYY HH:MM"
         try:
             from datetime import datetime as _dt
@@ -281,8 +303,7 @@ def storage_record_view(request, storage_record_id):
         if frames.status_code == 200:
             frames_info = json.loads(frames.content)
             storage_logger.debug(u'Страница записи: Список изображений: {}'.format(frames_info))
-            frames_list = [FrameRecord(frame) for frame in frames_info]
-            frames_list.sort(key=lambda k: k.num, reverse=True)
+            frames_list = _dedup_and_sort_frames([FrameRecord(frame) for frame in frames_info])
         else:
             storage_logger.error(
                 u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(frames.status_code))

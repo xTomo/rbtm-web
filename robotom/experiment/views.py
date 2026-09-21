@@ -46,11 +46,6 @@ _experiment_get_status_tpl = getattr(
     'EXPERIMENT_GET_STATUS',
     _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/experiment/status',
 )
-_experiment_get_last_frame_tpl = getattr(
-    settings,
-    'EXPERIMENT_GET_LAST_FRAME',
-    _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/experiment/last-frame',
-)
 
 remote_url_settings = {
         GET_VOLT: settings.EXPERIMENT_SOURCE_GET_VOLT.format(TOMO_NUM),
@@ -604,37 +599,6 @@ def experiment_status(request):
         )
     except Exception as e:
         experiment_logger.error(u'Ошибка получения статуса эксперимента: {}'.format(e))
-        return JsonResponse({'success': False, 'error': str(e)}, status=502)
-
-
-@login_required
-@user_passes_test(has_experiment_access)
-def experiment_last_frame(request):
-    """Прокси к Flask /experiment/last-frame — возвращает npz с последним кадром."""
-    try:
-        answer = requests.get(
-            _experiment_get_last_frame_tpl.format(TOMO_NUM),
-            timeout=max(settings.TIMEOUT_DEFAULT, 60),
-            stream=True,
-        )
-        if answer.status_code != 200:
-            return JsonResponse({'success': False, 'error': 'detector error {}'.format(answer.status_code)}, status=502)
-        raw = b''.join(answer.iter_content(1024 * 8))
-        # Декодируем npz и отдаём как base64 (аналогично get_preview_data)
-        npz = np.load(io.BytesIO(raw))
-        arr = npz['data'].astype(np.uint16)
-        arr_min = int(arr.min())
-        arr_max = int(arr.max())
-        pixels_b64 = base64.b64encode(arr.tobytes()).decode('ascii')
-        return JsonResponse({
-            'width': int(arr.shape[1]),
-            'height': int(arr.shape[0]),
-            'data_min': arr_min,
-            'data_max': arr_max,
-            'pixels_b64': pixels_b64,
-        })
-    except Exception as e:
-        experiment_logger.error(u'Ошибка получения последнего кадра: {}'.format(e))
         return JsonResponse({'success': False, 'error': str(e)}, status=502)
 
 

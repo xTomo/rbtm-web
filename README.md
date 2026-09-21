@@ -188,7 +188,6 @@ rbtm-web/
 | `/experiment/source/state/` | Состояние источника (JSON, AJAX-поллинг) | `experiment:source_state` |
 | `/experiment/interface/` | Запуск эксперимента | `experiment:index_interface` |
 | `/experiment/status/` | Прокси к статусу (JSON) | `experiment:status` |
-| `/experiment/last-frame/` | Прокси к последнему кадру (npz) | `experiment:last_frame` |
 | `/experiment/storage-preview/` | PNG превью из Storage для мониторинга | `experiment:storage_preview` |
 | `/storage/` | `storage` | `storage` |
 | `/admin/` | Django Admin | — |

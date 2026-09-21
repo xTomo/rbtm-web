@@ -35,11 +35,3 @@ function deleteExperiment(experiment_id) {
         });
     }
 }
-
-function redirectToHdf5Load(host) {
-
-    // TODO: this function seems unused
-    console.log('redirectToHdf5Load() function executed. Please remove todo in storage/static/storage/js/storage_index.js')
-    location.href = host;
-
-}

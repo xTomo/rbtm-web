@@ -44,40 +44,11 @@ class ExpPageTest(TestCase):
         self.c.login(username='exprm', password='exprm')
 
     def test_exp_available(self):
+        # '/experiment/' всегда редиректит на '/experiment/interface/' (см. experiment_view)
         response = self.c.get('/experiment/')
+        self.assertEqual(response.status_code, 302)
+        response = self.c.get('/experiment/interface/')
         self.assertEqual(response.status_code, 200)
-
-    '''def test_search_empty(self):
-        self.c.login(username='exprm', password='exprm')
-        response = self.c.post('/experiment/interface/',
-                                    {
-                                        'experiment id': '0536ba11-548a-4e98-92a7-61f126235332',
-                                        'specimen': 'test',
-                                        'tags': '',
-                                        'experiment parameters':
-                                            {
-                                                'advanced': False,
-                                                'DARK':
-                                                    {
-                                                        'count': 1,
-                                                        'exposure': 1000
-                                                    },
-                                                'EMPTY':
-                                                    {
-                                                        'count': 1,
-                                                        'exposure': 1000
-                                                    },
-                                                'DATA':
-                                                    {
-                                                        'step count': 1,
-                                                        'exposure': 1000,
-                                                        'angle step': 10,
-                                                        'count per step': 1
-                                                    }
-                                            }
-                                    })
-        self.assertEqual(response.status_code, 200)
-   '''
 
 
 class TryRequestHelpersTest(TestCase):

@@ -176,31 +176,6 @@ class FrameRecord:
                     self.voltage = frame["frame"]["X-ray source"]["voltage"]
 
 
-def make_search_query(search_str):
-    """Строит MongoDB-запрос для поиска по подстрокам в specimen и tags.
-    Слова разделяются пробелами; каждое слово должно встречаться
-    хотя бы в одном из полей (AND между словами, OR между полями).
-    """
-    if not search_str or not search_str.strip():
-        return json.dumps({})
-
-    terms = search_str.strip().split()
-    conditions = []
-    for term in terms:
-        conditions.append({'$or': [
-            {'specimen': {'$regex': term, '$options': 'i'}},
-            {'tags': {'$regex': term, '$options': 'i'}},
-        ]})
-
-    if len(conditions) == 1:
-        query = conditions[0]
-    else:
-        query = {'$and': conditions}
-
-    storage_logger.debug(u'Текст запроса к базе {}'.format(json.dumps(query)))
-    return json.dumps(query)
-
-
 @login_required
 @user_passes_test(is_active)
 def storage_view(request):

@@ -12,9 +12,7 @@
 | PostgreSQL | 16 |
 | psycopg2-binary | 2.9.9 |
 | pymemcache | 4.0.0 |
-| h5py | 3.11.0 |
 | numpy | 1.26.4 |
-| Pillow | 10.4.0 |
 | Bootstrap | 3 (django-bootstrap3 23.6) |
 
 ## Архитектура
@@ -206,7 +204,7 @@ rbtm-web/
 | `DEBUG` | `True` в dev, `False` в production |
 | `TOMO_NUM` | Номер томографа (суффикс в URL Experiment API, по умолчанию `1`) |
 | `ALLOWED_HOSTS` | Реальный домен / IP в production |
-| `DATABASES.HOST` | `localhost` в dev; в Docker `sed` заменяет на `database` |
+| `DATABASES.HOST` | `localhost` в dev; в production `settings.py` берёт хост из переменной окружения |
 | `STORAGE_HOST` | URL Storage API (default: `http://localhost:5006/`) |
 | `EXPERIMENT_HOST` | URL Experiment API (default: `http://localhost:5001/`) |
 | `TIMEOUT_DEFAULT` | Таймаут HTTP-запросов к внешним API, секунды (default: `120`) |
@@ -231,7 +229,8 @@ rbtm-web/
 ### `settings.py` — production
 
 Файл `robotom/robotom/settings.py` содержит production-настройки и **не хранится в git**.
-При сборке Docker-образа `Dockerfile` заменяет `'HOST': 'localhost'` → `'HOST': 'database'` через `sed`.
+`DATABASES.HOST` в нём читается из переменной окружения (а не захардкожен), поэтому
+Dockerfile больше не подменяет его через `sed` при сборке образа.
 
 Ключевые отличия от `dev_settings.py`:
 - `DEBUG = False`

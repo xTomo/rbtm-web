@@ -15,7 +15,6 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
         apache2 \
         apache2-dev \
         libpq-dev \
-        libhdf5-dev \
         git \
     && rm -rf /var/lib/apt/lists/*
 
@@ -36,8 +35,6 @@ COPY . /var/www/web/
 
 # setup apache
 RUN cp /var/www/web/000-default.conf /etc/apache2/sites-available/
-
-RUN sed -i "s/'HOST': 'localhost'/'HOST': 'database'/" robotom/robotom/settings.py
 
 RUN mkdir -p robotom/media && mkdir -p robotom/logs && \
     touch robotom/logs/main.log robotom/logs/experiment.log robotom/logs/storage.log && \

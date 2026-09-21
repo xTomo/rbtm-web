@@ -5,5 +5,3 @@ numpy==1.26.4
 psycopg2-binary==2.9.9
 pymemcache==4.0.0
 requests==2.32.3
-h5py==3.11.0
-Pillow==10.4.0

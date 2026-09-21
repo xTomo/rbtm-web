@@ -185,3 +185,38 @@ class ExperimentTomographTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/json')
+
+
+class GetPreviewDataTest(TestCase):
+    """Пункт 4: 409 от drivers должен пробрасываться как 409 с текстом error,
+    а не превращаться в 502 'detector error 409'; таймаут = max(TIMEOUT_DEFAULT, 2*exposure_sec+30)."""
+
+    def setUp(self):
+        self.u_exp = User.objects.create_user(username='exprm4', password='exprm4')
+        UserProfile.objects.create(user=self.u_exp, is_experimentator=True)
+        self.c = Client()
+        self.c.login(username='exprm4', password='exprm4')
+
+    def test_409_passthrough(self):
+        body = json.dumps({'success': False, 'error': 'On this tomograph experiment is running'})
+        with mock.patch('experiment.views.requests.post', return_value=_fake_response(409, body)):
+            response = self.c.post(
+                '/experiment/adjustment/preview-data/',
+                data=json.dumps({'exposure_sec': 1.0}),
+                content_type='application/json',
+            )
+
+        self.assertEqual(response.status_code, 409)
+        data = json.loads(response.content)
+        self.assertIn('On this tomograph experiment is running', data['error'])
+
+    def test_timeout_uses_double_exposure_plus_30(self):
+        body = json.dumps({'success': False, 'error': 'busy'})
+        with mock.patch('experiment.views.requests.post', return_value=_fake_response(409, body)) as mocked_post:
+            self.c.post(
+                '/experiment/adjustment/preview-data/',
+                data=json.dumps({'exposure_sec': 50.0}),
+                content_type='application/json',
+            )
+        # timeout = max(TIMEOUT_DEFAULT, 2*exposure_sec + 30) = max(120, 130) = 130
+        self.assertEqual(mocked_post.call_args.kwargs['timeout'], 130)

@@ -804,20 +804,32 @@ def get_preview_data(request):
 
     t0 = time.time()
     try:
+        # drivers ждут кадр 2*exposure_ms/1000 + 30 с; берём то же значение как таймаут запроса
         response = requests.post(
             settings.EXPERIMENT_DETECTOR_GET_FRAME_PREVIEW.format(TOMO_NUM),
             detector_payload,
             stream=True,
-            timeout=max(settings.TIMEOUT_DEFAULT, exposure_sec + 30),
+            timeout=max(settings.TIMEOUT_DEFAULT, 2 * exposure_sec + 30),
         )
+        raw = b''.join(response.iter_content(1024 * 8))
+
+        if response.status_code == 409:
+            # На этом томографе уже идёт эксперимент — пробрасываем ошибку как есть
+            err_msg = 'On this tomograph experiment is running'
+            try:
+                err_data = json.loads(raw)
+                err_msg = err_data.get('error', err_msg)
+            except ValueError:
+                pass
+            experiment_logger.error(u'Не удалось получить кадр: {}'.format(err_msg))
+            return JsonResponse({'error': err_msg}, status=409)
+
         if response.status_code != 200:
             experiment_logger.error(
                 u'Не удалось получить кадр, код: {}'.format(response.status_code)
             )
             return JsonResponse({'error': 'detector error {}'.format(response.status_code)}, status=502)
-
-        raw = b''.join(response.iter_content(1024 * 8))
-    except Exception as e:
+    except requests.RequestException as e:
         experiment_logger.error(u'Ошибка получения кадра: {}'.format(e))
         return JsonResponse({'error': str(e)}, status=502)
 

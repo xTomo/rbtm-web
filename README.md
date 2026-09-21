@@ -228,7 +228,6 @@ rbtm-web/
 Наследует все настройки из `dev_settings.py` через `from .dev_settings import *`,
 переопределяет только:
 - `DATABASES` → SQLite
-- `REQUEST_DEBUG = True`
 
 ### `settings.py` — production
 

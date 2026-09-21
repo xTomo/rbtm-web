@@ -1,10 +1,8 @@
-import json
 import logging
 import hashlib
 import datetime
 import random
 import traceback
-import requests
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -33,37 +31,6 @@ def confirm_view(request, activation_key):
     userprofile.user.save()
     messages.success(request, 'Ваш профиль был успешно подтверждён!')
     return redirect(reverse('main:role_request'))
-
-
-'''
-Making attempt to send user data to another module.
-If everything is OK, returns None, else returns redirect to error page
-'''
-
-
-def try_user_sending(request, err_text, address, user=None, user_info=None):
-    if not settings.REQUEST_DEBUG:
-        if not user_info:
-            user_info = json.dumps({'username': user.username, 'password': user.password, 'role': 'GST'})
-        try:
-            answer = requests.post(address, user_info, timeout=settings.TIMEOUT_DEFAULT)
-            if answer.status_code != 200:
-                messages.warning(request, u'{}. Модуль "Хранилище" завершил работу с кодом ошибки {}'
-                                 .format(err_text, answer.status_code))
-                main_logger.error(
-                    u'{}. Модуль "Хранилище" завершил работу с кодом ошибки {}'.format(err_text, answer.status_code))
-                return redirect(reverse('main:done'))
-        except requests.exceptions.Timeout as e:
-            messages.warning(request, 'Нет ответа от модуля "Хранилище". {}.'.format(err_text))
-            main_logger.error(e)
-            return redirect(reverse('main:done'))
-        except BaseException as e:
-            main_logger.error(e)
-            messages.warning(request,
-                             'Ошибка связи с модулем "Хранилище", невозможно сохранить данные. Возможно, отсутствует \
-                             подключение к сети. Попробуйте позже или свяжитесь с администратором')
-            return redirect(reverse('main:done'))
-    return None
 
 
 def registration_view(request):
@@ -272,14 +239,9 @@ def manage_requests_view(request):
         role_long = rolerequest.get_role_display()
         profile = rolerequest.user
         if 'accept' in request.POST:
-            user_info = json.dumps({'username': profile.user.username, 'password': profile.user.password,
-                                    'role': rolerequest.role})
-
-            attempt = try_user_sending(request, u'Невозможно сохранить изменения', settings.STORAGE_ALT_USER_HOST,
-                                       user_info=user_info)
-            if attempt:  # if something went wrong
-                return attempt
-
+            # STORAGE_ALT_USER_HOST (/storage/users/update) никогда не существовал как
+            # роут в rbtm-storage; вызов был мёртвым кодом (см. REQUEST_DEBUG=True
+            # во всех settings) — принимаем заявку напрямую, без обращения к storage.
             profile.is_guest = False  # if any role is accepted
             if rolerequest.role == 'RES':
                 profile.is_researcher = True

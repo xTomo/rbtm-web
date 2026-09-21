@@ -170,3 +170,35 @@ class RoleRequestCancelTest(TestCase):
         response = self.c.post('/role_request/', {'cancel': '1', 'role': 'RES', 'comment': ''})
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response['Location'].endswith('/accounts/profile/'))
+
+
+class AcceptRoleRequestTest(TestCase):
+    """Пункт 13: принятие заявки на роль сохраняет роль в UserProfile напрямую,
+    без обращения к несуществующему STORAGE_ALT_USER_HOST."""
+
+    def setUp(self):
+        from main.models import RoleRequest
+
+        self.u_adm = User.objects.create_user(username='admin_accept', password='admin_accept')
+        self.up_adm = UserProfile.objects.create(user=self.u_adm, is_admin=True)
+        self.u_adm.is_staff = True
+        self.u_adm.is_superuser = True
+        self.u_adm.save()
+
+        self.u_gst = User.objects.create_user(username='guest_accept', password='guest_accept',
+                                              email='guest_accept@mail.ru')
+        self.up_gst = UserProfile.objects.create(user=self.u_gst, is_guest=True)
+        self.role_request = RoleRequest.objects.create(user=self.up_gst, role='RES')
+
+        self.c = Client()
+        self.c.login(username='admin_accept', password='admin_accept')
+
+    def test_accept_saves_role_without_network_call(self):
+        response = self.c.post('/manage_requests/', {
+            'request_id': self.role_request.pk,
+            'accept': '1',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.up_gst.refresh_from_db()
+        self.assertTrue(self.up_gst.is_researcher)
+        self.assertFalse(self.up_gst.is_guest)

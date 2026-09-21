@@ -6,12 +6,11 @@ import os
 # Настройки для локальной разработки.
 # Для production создайте robotom/robotom/settings.py с реальными значениями.
 # Обязательные параметры:
-#   DEBUG, REQUEST_DEBUG, ALLOWED_HOSTS, SECRET_KEY, DATABASES,
+#   DEBUG, ALLOWED_HOSTS, SECRET_KEY, DATABASES,
 #   STORAGE_HOST, EXPERIMENT_HOST, RECONSTRUCTION_HOST,
 #   CSRF_TRUSTED_ORIGINS, EMAIL_*, CACHES, TOMO_NUM
 
 DEBUG = True
-REQUEST_DEBUG = True
 
 # Номер томографа (используется как суффикс в URL Experiment API)
 TOMO_NUM = 1
@@ -28,13 +27,9 @@ RECONSTRUCTION_URL = urljoin(RECONSTRUCTION_HOST, '/view/tomo_object/{exp_id}')
 # STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')
 STORAGE_FRAMES_INFO_HOST = urljoin(STORAGE_HOST, '/storage/frames_info/get')
-STORAGE_FRAMES_HOST = urljoin(STORAGE_HOST, '/storage/frames/get')
 STORAGE_EXPERIMENTS_GET_HOST = urljoin(STORAGE_HOST, '/storage/experiments/get')
-STORAGE_CREATE_USER_HOST = urljoin(STORAGE_HOST, '/storage/users/get')
-STORAGE_ALT_USER_HOST = urljoin(STORAGE_HOST, '/storage/users/update')
 STORAGE_EXPERIMENTS_HOST = urljoin(STORAGE_HOST, '/storage/experiments')
 STORAGE_HDF5_FILE = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}.h5')
-STORAGE_RECONSTRUCTION = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/3d/{rarefaction}/{level1}/{level2}')
 
 # EXPERIMENT routes
 # address templates, where {} is a placeholder for tomograph number

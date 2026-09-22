@@ -173,6 +173,13 @@ class RoleRequestCancelTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response['Location'].endswith('/accounts/profile/'))
 
+    def test_cancel_without_role_field_does_not_crash(self):
+        # 'cancel' должен обрабатываться раньше чтения request.POST['role'] —
+        # без него (например, форма отправлена без выбранной роли) раньше был KeyError -> 500.
+        response = self.c.post('/role_request/', {'cancel': '1'})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response['Location'].endswith('/accounts/profile/'))
+
 
 class AcceptRoleRequestTest(TestCase):
     """Пункт 13: принятие заявки на роль сохраняет роль в UserProfile напрямую,

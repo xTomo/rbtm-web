@@ -277,15 +277,16 @@ def role_request_view(request):
                       направлено Вам на указанный при регистрации ящик {}'.format(request.user.email))
 
     if request.method == 'POST' and request.user.is_active:
+        if 'cancel' in request.POST:
+            return redirect(reverse('main:profile'))
+
         if RoleRequest.objects.filter(user__user__pk=request.user.pk, role=request.POST[u'role']):
             role_request = RoleRequest.objects.get(user__user__pk=request.user.pk, role=request.POST[u'role'])
             role_form = UserRoleRequestForm(request.POST, instance=role_request)
         else:
             role_form = UserRoleRequestForm(request.POST)
 
-        if 'cancel' in request.POST:
-            return redirect(reverse('main:profile'))
-        elif 'submit' in request.POST:
+        if 'submit' in request.POST:
             if role_form.is_valid():
                 new_request = role_form.save(commit=False)
                 if not request.user.userprofile.has_role(new_request.role):

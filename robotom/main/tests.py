@@ -119,12 +119,14 @@ class ExperimentPermissionTest(TestCase):
         # logged as admin
         c.login(username='admin', password='admin')
         response = c.get('/experiment/')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/experiment/interface/')
 
         # logged as experimenter
         c.login(username='exprm', password='exprm')
         response = c.get('/experiment/')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/experiment/interface/')
 
         # logged as researcher
         c.login(username='resch', password='resch')

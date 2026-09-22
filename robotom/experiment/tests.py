@@ -47,7 +47,10 @@ class ExpPageTest(TestCase):
         # '/experiment/' всегда редиректит на '/experiment/interface/' (см. experiment_view)
         response = self.c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        response = self.c.get('/experiment/interface/')
+        # /experiment/interface/ обёрнут update_state_before_run, который ходит в
+        # get_current_state (EXPERIMENT_GET_STATE) — мокаем, чтобы тест не лез в сеть.
+        with mock.patch('experiment.views.requests.get', side_effect=_experiment_start_fake_get):
+            response = self.c.get('/experiment/interface/')
         self.assertEqual(response.status_code, 200)
 
 
@@ -233,7 +236,10 @@ class ExperimentInterfaceParamsTest(TestCase):
             'data_same': '1',
         })
         self.assertEqual(response.status_code, 302)
-        response = self.c.get('/experiment/interface/')
+        # experiment_interface вызывает get_current_state (EXPERIMENT_GET_STATE) на
+        # каждый GET — мокаем, чтобы тест не лез в сеть с таймаутом 120с.
+        with mock.patch('experiment.views.requests.get', side_effect=_experiment_start_fake_get):
+            response = self.c.get('/experiment/interface/')
         rendered = [str(m) for m in response.context['messages']]
         self.assertTrue(any(rendered), 'ожидалось сообщение об ошибке формы')
 
@@ -335,7 +341,7 @@ class ExperimentStatusProxyTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/json')
         data = json.loads(response.content)
-        self.assertEqual(len(result), 10)
+        self.assertEqual(data['result'], result)
         self.assertIn('last_frame_at', data['result'])
 
 

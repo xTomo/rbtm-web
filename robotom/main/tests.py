@@ -37,7 +37,7 @@ class LoginTest(TestCase):
                                 'email': 'mail@mail.ru', 'full_name': 'FIO', u'degree': '', u'title': u'',
                                 u'gender': 'N', u'address': '', u'work_place': '', u'phone_number': ''})
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/done/')
+        self.assertEqual(response['Location'], '/accounts/done/')
 
     def test_register_existing_user(self):
         response = self.c.post('/accounts/register/',
@@ -114,7 +114,7 @@ class ExperimentPermissionTest(TestCase):
         # not logged in
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
         # logged as admin
         c.login(username='admin', password='admin')
@@ -130,19 +130,19 @@ class ExperimentPermissionTest(TestCase):
         c.login(username='resch', password='resch')
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
         # logged as guest
         c.login(username='guest', password='guest')
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
         # logged as guest with wrong password
         c.login(username='guest', password='wrongpass')
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
     def tearDown(self):
 

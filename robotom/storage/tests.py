@@ -136,3 +136,18 @@ class FrameDedupSortTest(TestCase):
         nums = [int(f.num) for f in result]
         # численно убывающая сортировка, дубль по номеру 2 убран
         self.assertEqual(nums, [10, 2, 1])
+
+    def test_frames_without_number_are_not_deduplicated(self):
+        # У кадров без frame.number (например, неполные данные из Mongo) нет
+        # ключа для дедупликации по номеру — все они должны остаться, а не
+        # схлопнуться в один по общему значению по умолчанию ("0").
+        from storage.views import FrameRecord, _dedup_and_sort_frames
+        frames_raw = [
+            {'_id': {'$oid': '1'}, 'frame': {}},
+            {'_id': {'$oid': '2'}, 'frame': {}},
+            {'_id': {'$oid': '3'}, 'frame': {'number': '5'}},
+        ]
+        frames = [FrameRecord(f) for f in frames_raw]
+        result = _dedup_and_sort_frames(frames)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(sorted(f.id for f in result), ['1', '2', '3'])

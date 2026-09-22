@@ -41,14 +41,28 @@ def _safe_int(value, default=0):
 
 def _dedup_and_sort_frames(frames_list):
     """Сортирует кадры численно по номеру (а не лексикографически как строку)
-    и убирает дубли по номеру кадра — на случай задвоенных записей в Mongo."""
+    и убирает дубли документов Mongo.
+
+    Основной ключ дедупликации — frame.id (Mongo _id), он всегда уникален для
+    документа. Дополнительно схлопываем задвоенные документы одного и того же
+    кадра, которые возникают при ретраях drivers и отличаются _id, но несут
+    один и тот же распарсенный frame.number (все кадры в списке относятся к
+    одному эксперименту, так что пары (exp, number) тут эквивалентны просто
+    number). Кадры без frame.number (num_known=False) не дедуплицируются по
+    номеру — иначе они все схлопнулись бы в один по значению по умолчанию."""
+    seen_ids = set()
     seen_nums = set()
     unique_frames = []
     for frame in frames_list:
-        num_key = _safe_int(frame.num)
-        if num_key in seen_nums:
-            continue
-        seen_nums.add(num_key)
+        if frame.id:
+            if frame.id in seen_ids:
+                continue
+            seen_ids.add(frame.id)
+        if frame.num_known:
+            num_key = _safe_int(frame.num)
+            if num_key in seen_nums:
+                continue
+            seen_nums.add(num_key)
         unique_frames.append(frame)
     unique_frames.sort(key=lambda f: _safe_int(f.num), reverse=True)
     return unique_frames
@@ -123,6 +137,7 @@ class FrameRecord:
     def __init__(self, frame):
         self.id = ""
         self.num = "0"
+        self.num_known = False
         self.type = ""
         self.date_time = ""
         self.detector_model = ""
@@ -148,6 +163,7 @@ class FrameRecord:
                 self.mode = frame["frame"]["mode"]
             if "number" in frame['frame']:
                 self.num = frame["frame"]["number"]
+                self.num_known = True
             if "image_data" in frame["frame"]:
                 if "datetime" in frame["frame"]["image_data"]:
                     self.date_time = frame["frame"]["image_data"]["datetime"]

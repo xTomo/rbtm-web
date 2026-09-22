@@ -252,10 +252,13 @@ def experiment_view(request):
 def experiment_source_state(request):
     """Прокси к Flask /source/state — возвращает JSON состояния источника.
 
-    Response: {"on": bool, "busy": bool, "mocked": bool}
+    Успех (HTTP 200): {"available": true, "on": bool, "busy": bool, "mocked": bool}
       mocked=True означает, что источник работает в режиме заглушки
       (физически не подключён). В этом случае UI блокирует кнопки управления
       и показывает статус «Не управляется».
+
+    Ошибка (HTTP 502) — drivers недоступны, ответили не-200 или вернули
+    невалидный/не-объектный JSON: {"available": false, "error": "<текст>"}.
     """
     try:
         answer = requests.get(
@@ -274,6 +277,7 @@ def experiment_source_state(request):
             return JsonResponse({'available': False, 'error': msg}, status=502)
         result = data.get('result', {}) or {}
         return JsonResponse({
+            'available': True,
             'on': bool(result.get('on', False)),
             'busy': bool(result.get('busy', False)),
             'mocked': bool(result.get('mocked', False)),

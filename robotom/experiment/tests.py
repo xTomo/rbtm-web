@@ -139,6 +139,16 @@ class ExperimentSourceStateTest(TestCase):
         self.assertFalse(data['available'])
         self.assertIn('error', data)
 
+    def test_success_response_has_available_true(self):
+        body = json.dumps({'success': True, 'result': {'on': True, 'busy': False, 'mocked': False}})
+        with mock.patch('experiment.views.requests.get', return_value=_fake_response(200, body)):
+            response = self.c.get('/experiment/source/state/')
+
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['available'])
+        self.assertTrue(data['on'])
+
 
 class ExperimentTomographTest(TestCase):
     """Пункт 3: неизвестный ключ -> 404, requests.RequestException -> 502 JSON,

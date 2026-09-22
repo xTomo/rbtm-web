@@ -268,6 +268,10 @@ def experiment_source_state(request):
             return JsonResponse({'available': False, 'error': msg}, status=502)
 
         data = json.loads(answer.content)
+        if not isinstance(data, dict):
+            msg = u'Некорректный ответ drivers (ожидался JSON-объект, получено {})'.format(type(data).__name__)
+            experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(msg))
+            return JsonResponse({'available': False, 'error': msg}, status=502)
         result = data.get('result', {}) or {}
         return JsonResponse({
             'on': bool(result.get('on', False)),

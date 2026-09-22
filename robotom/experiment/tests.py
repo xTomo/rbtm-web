@@ -124,6 +124,18 @@ class ExperimentSourceStateTest(TestCase):
         self.assertFalse(data['available'])
         self.assertIn('error', data)
 
+    def test_200_non_dict_json_becomes_502(self):
+        # drivers вернули 200 с валидным JSON, но не объектом (например, список) —
+        # data.get('result', ...) упал бы с AttributeError вместо понятной ошибки.
+        body = json.dumps(['not', 'a', 'dict'])
+        with mock.patch('experiment.views.requests.get', return_value=_fake_response(200, body)):
+            response = self.c.get('/experiment/source/state/')
+
+        self.assertEqual(response.status_code, 502)
+        data = json.loads(response.content)
+        self.assertFalse(data['available'])
+        self.assertIn('error', data)
+
 
 class ExperimentTomographTest(TestCase):
     """Пункт 3: неизвестный ключ -> 404, requests.RequestException -> 502 JSON,

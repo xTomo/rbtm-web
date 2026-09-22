@@ -205,19 +205,28 @@ rbtm-web/
 | `ALLOWED_HOSTS` | Реальный домен / IP в production |
 | `DATABASES.HOST` | `localhost` в dev; в production `settings.py` берёт хост из переменной окружения |
 | `STORAGE_HOST` | URL Storage API (default: `http://localhost:5006/`) |
+| `STORAGE_PUBLIC_HOST` | Публичный (доступный из браузера) адрес Storage; пусто → относительная ссылка через rbtm-proxy (default: `''`) |
 | `EXPERIMENT_HOST` | URL Experiment API (default: `http://localhost:5001/`) |
 | `TIMEOUT_DEFAULT` | Таймаут HTTP-запросов к внешним API, секунды (default: `120`) |
 | `EMAIL_*` | Настройки SMTP для отправки писем активации |
 | `CACHES` | `PyMemcacheCache` — в dev отключён (DummyCache) |
 
-**`STORAGE_HDF5_FILE` и `STORAGE_FRAMES_PNG`:** ссылки на `.h5`-файл эксперимента и на PNG
-кадра отдаёт **nginx внутри контейнера rbtm-storage** (порт 5006), а не Flask-приложение —
-выделенных Flask-роутов для этих файлов нет. Изнутри Docker-сети `STORAGE_HOST` указывает
-прямо на этот порт, поэтому в dev-окружении ссылки работают напрямую. Снаружи (в браузере
-пользователя) этот порт не проброшен — доступ идёт только через **rbtm-proxy**, который
-делает rewrite на `:5006`. Поэтому оба параметра всегда собираются через
-`urljoin(STORAGE_HOST, ...)`, как и остальные `STORAGE_*`-адреса, а не как отдельный
-захардкоженный путь.
+**`STORAGE_HDF5_FILE` и `STORAGE_FRAMES_PNG`:** это два разных случая, хотя оба указывают
+на nginx внутри контейнера rbtm-storage (порт 5006), а не на Flask-приложение —
+выделенных Flask-роутов для этих файлов нет.
+
+- `STORAGE_FRAMES_PNG` скачивает сам Django (`requests.get` на сервере) и лишь потом отдаёт
+  PNG браузеру, поэтому внутренний адрес докер-сети `STORAGE_HOST` тут годится — ссылка
+  всегда собирается через `urljoin(STORAGE_HOST, ...)`, как и остальные `STORAGE_*`-адреса.
+- `STORAGE_HDF5_FILE`, наоборот, отдаётся в шаблоне как прямая ссылка `<a href>` — по ней
+  переходит браузер пользователя. В production `STORAGE_HOST` указывает на внутренний адрес
+  докер-сети (`http://rbtmstorage_server_1:5006/`), недоступный снаружи, поэтому собирать
+  эту ссылку через `urljoin(STORAGE_HOST, ...)` нельзя. Вместо этого используется
+  `STORAGE_PUBLIC_HOST.rstrip('/') + '/storage/experiments/{exp_id}.h5'`: при пустом
+  `STORAGE_PUBLIC_HOST` (по умолчанию) получается относительный путь
+  `/storage/experiments/{exp_id}.h5`, который снаружи обслуживает **rbtm-proxy**
+  (`proxy_nginx.conf`: `location ~ ^/storage/experiments/(?<exp>[-\w]+).h5$`, rewrite на
+  `:5006`); при заданном `STORAGE_PUBLIC_HOST` получается абсолютный публичный адрес.
 
 ### `bamboo_settings.py` — для CI
 

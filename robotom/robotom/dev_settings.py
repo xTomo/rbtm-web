@@ -21,6 +21,16 @@ STORAGE_HOST = 'http://localhost:5006/'
 EXPERIMENT_HOST = 'http://localhost:5001/'
 RECONSTRUCTION_HOST = 'http://10.0.7.153:5550/'
 
+# Публичный (доступный из браузера пользователя) адрес Storage — используется
+# только для ссылок, которые отдаются в HTML и открываются напрямую браузером
+# (например, ссылка на .h5-файл эксперимента). STORAGE_HOST, в отличие от него,
+# может указывать на внутренний адрес докер-сети (например,
+# http://rbtmstorage_server_1:5006/ в production), недоступный снаружи.
+# Пусто (по умолчанию) — ссылка собирается относительной и идёт через
+# rbtm-proxy (см. proxy_nginx.conf); непусто — используется как абсолютный
+# публичный адрес storage.
+STORAGE_PUBLIC_HOST = os.environ.get('STORAGE_PUBLIC_HOST', '')
+
 # RECONSTRUCTION routes
 RECONSTRUCTION_URL = urljoin(RECONSTRUCTION_HOST, '/view/tomo_object/{exp_id}')
 
@@ -29,7 +39,7 @@ STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames
 STORAGE_FRAMES_INFO_HOST = urljoin(STORAGE_HOST, '/storage/frames_info/get')
 STORAGE_EXPERIMENTS_GET_HOST = urljoin(STORAGE_HOST, '/storage/experiments/get')
 STORAGE_EXPERIMENTS_HOST = urljoin(STORAGE_HOST, '/storage/experiments')
-STORAGE_HDF5_FILE = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}.h5')
+STORAGE_HDF5_FILE = STORAGE_PUBLIC_HOST.rstrip('/') + '/storage/experiments/{exp_id}.h5'
 
 # EXPERIMENT routes
 # address templates, where {} is a placeholder for tomograph number

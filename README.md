@@ -252,6 +252,14 @@ Dockerfile больше не подменяет его через `sed` при �
 > ```
 > (автоматически наследуется из `dev_settings.py`, но в production файле должна быть явно)
 
+> **При слиянии этой ветки в `settings.py` дополнительно проверить:**
+> - `DATABASES.HOST` читается из переменной окружения, а не захардкожен (sed, подменявший
+>   его в Dockerfile при сборке образа, удалён — см. выше).
+> - `STORAGE_HDF5_FILE` собирается через `STORAGE_PUBLIC_HOST`, а не
+>   `urljoin(STORAGE_HOST, ...)` (см. раздел про `STORAGE_HDF5_FILE` выше).
+> - В файле не осталось удалённых из `dev_settings.py` настроек: `STORAGE_*_USER_HOST`,
+>   `STORAGE_FRAMES_HOST`, `REQUEST_DEBUG`.
+
 ## Запуск
 
 ### Docker (рекомендуется)

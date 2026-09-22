@@ -921,6 +921,10 @@
             $.getJSON(STATUS_URL, function(data) {
                 if (data.success !== false) {
                     updateStatusUI(data);
+                } else {
+                    /* HTTP 200, но drivers сообщили об ошибке в теле ({success:false, error}) */
+                    $('#exp-status-badge').html('<span class="label label-danger">Ошибка</span>');
+                    $('#exp-api-error-alert').text('Ошибка: ' + (data.error || 'неизвестная ошибка')).show();
                 }
             }).fail(function() {
                 $('#exp-status-badge').html('<span class="label label-warning">Нет связи</span>');

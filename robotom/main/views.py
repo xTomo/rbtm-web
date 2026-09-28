@@ -1,10 +1,8 @@
-import json
 import logging
 import hashlib
 import datetime
 import random
 import traceback
-import requests
 
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -35,37 +33,6 @@ def confirm_view(request, activation_key):
     return redirect(reverse('main:role_request'))
 
 
-'''
-Making attempt to send user data to another module.
-If everything is OK, returns None, else returns redirect to error page
-'''
-
-
-def try_user_sending(request, err_text, address, user=None, user_info=None):
-    if not settings.REQUEST_DEBUG:
-        if not user_info:
-            user_info = json.dumps({'username': user.username, 'password': user.password, 'role': 'GST'})
-        try:
-            answer = requests.post(address, user_info, timeout=1)
-            if answer.status_code != 200:
-                messages.warning(request, u'{}. Модуль "Хранилище" завершил работу с кодом ошибки {}'
-                                 .format(err_text, answer.status_code))
-                main_logger.error(
-                    u'{}. Модуль "Хранилище" завершил работу с кодом ошибки {}'.format(err_text, answer.status_code))
-                return redirect(reverse('main:done'))
-        except requests.exceptions.Timeout as e:
-            messages.warning(request, 'Нет ответа от модуля "Хранилище". {}.'.format(err_text))
-            main_logger.error(e)
-            return redirect(reverse('main:done'))
-        except BaseException as e:
-            main_logger.error(e)
-            messages.warning(request,
-                             'Ошибка связи с модулем "Хранилище", невозможно сохранить данные. Возможно, отсутствует \
-                             подключение к сети. Попробуйте позже или свяжитесь с администратором')
-            return redirect(reverse('main:done'))
-    return None
-
-
 def registration_view(request):
     if request.method == 'POST':
         user_form = UserRegistrationForm(request.POST)
@@ -89,7 +56,7 @@ def registration_view(request):
             try:
                 send_mail(email_subject, email_body, 'robotomproject@gmail.com',
                           [user.email], fail_silently=False)
-            except BaseException as e:
+            except Exception as e:
                 main_logger.error(traceback.format_exc())
                 main_logger.error(e)
                 messages.warning(request,
@@ -165,7 +132,7 @@ def profile_view(request):
             try:
                 send_mail(email_subject, email_body, 'robotomproject@gmail.com',
                           [user.email], fail_silently=False)
-            except BaseException:
+            except Exception:
                 messages.warning(request,
                                  'Произошла ошибка при отправке письма о подтверждении регистрации. Попробуйте \
                                  зарегистрироваться повторно, указав корректный email')
@@ -238,7 +205,7 @@ def mail_verdict(request, user, site, role, verdict):
 
     try:
         send_mail(subject, message, settings.EMAIL_HOST_USER, [user.email], fail_silently=False)
-    except BaseException as e:
+    except Exception as e:
         messages.warning(request,
                          u'При отправке письма по адресу \'{}\' произошла ошибка. Если адрес корректен, уточните \
                          причину возникновения ошибки в логах сервера'.format(user.email))
@@ -272,14 +239,9 @@ def manage_requests_view(request):
         role_long = rolerequest.get_role_display()
         profile = rolerequest.user
         if 'accept' in request.POST:
-            user_info = json.dumps({'username': profile.user.username, 'password': profile.user.password,
-                                    'role': rolerequest.role})
-
-            attempt = try_user_sending(request, u'Невозможно сохранить изменения', settings.STORAGE_ALT_USER_HOST,
-                                       user_info=user_info)
-            if attempt:  # if something went wrong
-                return attempt
-
+            # STORAGE_ALT_USER_HOST (/storage/users/update) никогда не существовал как
+            # роут в rbtm-storage; вызов был мёртвым кодом (см. REQUEST_DEBUG=True
+            # во всех settings) — принимаем заявку напрямую, без обращения к storage.
             profile.is_guest = False  # if any role is accepted
             if rolerequest.role == 'RES':
                 profile.is_researcher = True
@@ -315,15 +277,16 @@ def role_request_view(request):
                       направлено Вам на указанный при регистрации ящик {}'.format(request.user.email))
 
     if request.method == 'POST' and request.user.is_active:
+        if 'cancel' in request.POST:
+            return redirect(reverse('main:profile'))
+
         if RoleRequest.objects.filter(user__user__pk=request.user.pk, role=request.POST[u'role']):
             role_request = RoleRequest.objects.get(user__user__pk=request.user.pk, role=request.POST[u'role'])
             role_form = UserRoleRequestForm(request.POST, instance=role_request)
         else:
             role_form = UserRoleRequestForm(request.POST)
 
-        if 'cancel' in request.POST:
-            pass
-        elif 'submit' in request.POST:
+        if 'submit' in request.POST:
             if role_form.is_valid():
                 new_request = role_form.save(commit=False)
                 if not request.user.userprofile.has_role(new_request.role):
@@ -345,7 +308,7 @@ def role_request_view(request):
             try:
                 mail_role_request(request, new_request, request.get_host(),
                                   request.build_absolute_uri(reverse('main:manage_requests')))
-            except BaseException as e:
+            except Exception as e:
                 messages.warning(request,
                                  u'Произошла ошибка во время оповещения администратора о появлении новой заявки, из-за \
                                  чего её рассмотрение может задержаться. Чтобы избежать этого, Вы можете связаться с \

@@ -7,5 +7,3 @@ DATABASES = {
         'NAME': 'robotom_users',
     },
 }
-
-REQUEST_DEBUG = True

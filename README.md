@@ -12,9 +12,7 @@
 | PostgreSQL | 16 |
 | psycopg2-binary | 2.9.9 |
 | pymemcache | 4.0.0 |
-| h5py | 3.11.0 |
 | numpy | 1.26.4 |
-| Pillow | 10.4.0 |
 | Bootstrap | 3 (django-bootstrap3 23.6) |
 
 ## Архитектура
@@ -64,7 +62,6 @@ rbtm-web/
     │   ├── models.py           # UserProfile, RoleRequest
     │   ├── views.py            # регистрация, вход, профиль, управление ролями
     │   ├── forms.py
-    │   ├── serializers.py      # DRF: UserSerializer, RoleRequestSerializer
     │   ├── admin.py
     │   ├── urls.py
     │   ├── migrations/
@@ -191,7 +188,6 @@ rbtm-web/
 | `/experiment/source/state/` | Состояние источника (JSON, AJAX-поллинг) | `experiment:source_state` |
 | `/experiment/interface/` | Запуск эксперимента | `experiment:index_interface` |
 | `/experiment/status/` | Прокси к статусу (JSON) | `experiment:status` |
-| `/experiment/last-frame/` | Прокси к последнему кадру (npz) | `experiment:last_frame` |
 | `/experiment/storage-preview/` | PNG превью из Storage для мониторинга | `experiment:storage_preview` |
 | `/storage/` | `storage` | `storage` |
 | `/admin/` | Django Admin | — |
@@ -207,24 +203,42 @@ rbtm-web/
 | `DEBUG` | `True` в dev, `False` в production |
 | `TOMO_NUM` | Номер томографа (суффикс в URL Experiment API, по умолчанию `1`) |
 | `ALLOWED_HOSTS` | Реальный домен / IP в production |
-| `DATABASES.HOST` | `localhost` в dev; в Docker `sed` заменяет на `database` |
+| `DATABASES.HOST` | `localhost` в dev; в production `settings.py` берёт хост из переменной окружения |
 | `STORAGE_HOST` | URL Storage API (default: `http://localhost:5006/`) |
+| `STORAGE_PUBLIC_HOST` | Публичный (доступный из браузера) адрес Storage; пусто → относительная ссылка через rbtm-proxy (default: `''`) |
 | `EXPERIMENT_HOST` | URL Experiment API (default: `http://localhost:5001/`) |
 | `TIMEOUT_DEFAULT` | Таймаут HTTP-запросов к внешним API, секунды (default: `120`) |
 | `EMAIL_*` | Настройки SMTP для отправки писем активации |
 | `CACHES` | `PyMemcacheCache` — в dev отключён (DummyCache) |
+
+**`STORAGE_HDF5_FILE` и `STORAGE_FRAMES_PNG`:** это два разных случая, хотя оба указывают
+на nginx внутри контейнера rbtm-storage (порт 5006), а не на Flask-приложение —
+выделенных Flask-роутов для этих файлов нет.
+
+- `STORAGE_FRAMES_PNG` скачивает сам Django (`requests.get` на сервере) и лишь потом отдаёт
+  PNG браузеру, поэтому внутренний адрес докер-сети `STORAGE_HOST` тут годится — ссылка
+  всегда собирается через `urljoin(STORAGE_HOST, ...)`, как и остальные `STORAGE_*`-адреса.
+- `STORAGE_HDF5_FILE`, наоборот, отдаётся в шаблоне как прямая ссылка `<a href>` — по ней
+  переходит браузер пользователя. В production `STORAGE_HOST` указывает на внутренний адрес
+  докер-сети (`http://rbtmstorage_server_1:5006/`), недоступный снаружи, поэтому собирать
+  эту ссылку через `urljoin(STORAGE_HOST, ...)` нельзя. Вместо этого используется
+  `STORAGE_PUBLIC_HOST.rstrip('/') + '/storage/experiments/{exp_id}.h5'`: при пустом
+  `STORAGE_PUBLIC_HOST` (по умолчанию) получается относительный путь
+  `/storage/experiments/{exp_id}.h5`, который снаружи обслуживает **rbtm-proxy**
+  (`proxy_nginx.conf`: `location ~ ^/storage/experiments/(?<exp>[-\w]+).h5$`, rewrite на
+  `:5006`); при заданном `STORAGE_PUBLIC_HOST` получается абсолютный публичный адрес.
 
 ### `bamboo_settings.py` — для CI
 
 Наследует все настройки из `dev_settings.py` через `from .dev_settings import *`,
 переопределяет только:
 - `DATABASES` → SQLite
-- `REQUEST_DEBUG = True`
 
 ### `settings.py` — production
 
 Файл `robotom/robotom/settings.py` содержит production-настройки и **не хранится в git**.
-При сборке Docker-образа `Dockerfile` заменяет `'HOST': 'localhost'` → `'HOST': 'database'` через `sed`.
+`DATABASES.HOST` в нём читается из переменной окружения (а не захардкожен), поэтому
+Dockerfile больше не подменяет его через `sed` при сборке образа.
 
 Ключевые отличия от `dev_settings.py`:
 - `DEBUG = False`
@@ -237,6 +251,14 @@ rbtm-web/
 > EXPERIMENT_SOURCE_GET_STATE = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/state')
 > ```
 > (автоматически наследуется из `dev_settings.py`, но в production файле должна быть явно)
+
+> **При слиянии этой ветки в `settings.py` дополнительно проверить:**
+> - `DATABASES.HOST` читается из переменной окружения, а не захардкожен (sed, подменявший
+>   его в Dockerfile при сборке образа, удалён — см. выше).
+> - `STORAGE_HDF5_FILE` собирается через `STORAGE_PUBLIC_HOST`, а не
+>   `urljoin(STORAGE_HOST, ...)` (см. раздел про `STORAGE_HDF5_FILE` выше).
+> - В файле не осталось удалённых из `dev_settings.py` настроек: `STORAGE_*_USER_HOST`,
+>   `STORAGE_FRAMES_HOST`, `REQUEST_DEBUG`.
 
 ## Запуск
 

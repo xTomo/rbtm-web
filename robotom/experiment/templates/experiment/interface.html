@@ -227,6 +227,9 @@
                 {# Предупреждение о зависании — показывается если нет новых кадров сверх порога #}
                 <div id="exp-hung-alert" class="alert alert-warning" style="display:none; margin-bottom:8px;"></div>
 
+                {# Ошибка, сообщённая drivers в поле result.error статуса эксперимента #}
+                <div id="exp-api-error-alert" class="alert alert-danger" style="display:none; margin-bottom:8px;"></div>
+
                 {# Прогресс-бар #}
                 <div id="exp-progress-wrap">
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px">
@@ -271,9 +274,6 @@
             </div>
         </div>
     </div>
-
-    {% load static %}
-    <script type="text/javascript" src="{% static 'experiment/js/ntsaveforms.js' %}"></script>
 
     <script>
     $(function () {
@@ -602,10 +602,24 @@
         /* ================================================================== */
         var STATUS_URL          = "{% url 'experiment:status' %}";
         var STORAGE_PREVIEW_URL = "{% url 'experiment:storage_preview' %}";
-        var statusTimer    = null;
+        var STATUS_POLL_FAST_MS = 2000;   // пока эксперимент идёт (или ещё не решено)
+        var STATUS_POLL_SLOW_MS = 10000;  // после завершения — редко, но не насовсем
+        var statusTimer         = null;
+        var statusPollIntervalMs = null;
         var frameTimer     = null;
         var lastFrameNum   = -1;
         var currentExpId   = '';
+
+        /* Меняет частоту поллинга статуса, не останавливая его насовсем —
+         * после завершения эксперимента страница продолжает редко опрашивать
+         * статус (10с), чтобы заметить, например, запуск нового эксперимента
+         * из другой вкладки/пользователем. */
+        function setStatusPollInterval(ms) {
+            if (statusPollIntervalMs === ms && statusTimer) return;
+            statusPollIntervalMs = ms;
+            if (statusTimer) { clearInterval(statusTimer); }
+            statusTimer = setInterval(pollStatus, ms);
+        }
 
         var MODE_COLORS = {
             'dark':       '#555555',
@@ -630,10 +644,19 @@
 
             if (!totalFrames || !timeline || !timeline.length) return;
 
+            /* Накапливаем дробные пиксели через границы сегментов (largest-remainder
+             * по сути), чтобы сумма ширин сегментов не превышала ширину canvas —
+             * иначе при округлении каждого сегмента вверх суммарная ширина могла
+             * "вылезать" за W (особенно при большом числе мелких сегментов). */
             var x = 0;
+            var cumFrames = 0;
             for (var i = 0; i < timeline.length; i++) {
-                var seg    = timeline[i];
-                var segW   = Math.max(1, Math.round(seg.count / totalFrames * W));
+                var seg = timeline[i];
+                cumFrames += seg.count;
+                var xEnd = Math.round(cumFrames / totalFrames * W);
+                xEnd = Math.min(xEnd, W);
+                var segW = Math.max(1, xEnd - x);
+                if (x + segW > W) segW = Math.max(0, W - x);
                 ctx.fillStyle = MODE_COLORS[seg.mode] || '#aaa';
                 ctx.fillRect(x, 0, segW, H);
                 x += segW;
@@ -666,6 +689,12 @@
         /* ================================================================== */
         /* РАСЧЁТ ОЖИДАЕМОЙ ДЛИТЕЛЬНОСТИ (форма планирования)                 */
         /* ================================================================== */
+        /* Время на один поворот образца перед съёмкой очередной угловой
+         * позиции. Используется и в простом, и в продвинутом режиме. */
+        var ROTATION_SEC = 2;
+        /* Время на одно движение горизонтального двигателя (например,
+         * убрать/вернуть образец для съёмки EMPTY). */
+        var HORIZ_MOVE_SEC = 10;
         /*
          * ПРОСТОЙ РЕЖИМ (Experiment):
          *   de_quantity   — число DARK кадров = число EMPTY кадров
@@ -677,9 +706,14 @@
          *                + shots × data_same         (DATA)
          *
          *   overhead на кадр = 0.5 с (детектор сохраняет/передаёт кадр)
-         *   горизонтальный двигатель: 2 движения (move_away + move_back для EMPTY) × 10 с = 20 с
+         *   горизонтальный двигатель: move_away + move_back для EMPTY (2) +
+         *     move_back перед началом DATA (1) = (1 + 0) × 2 + 1 = 3 движения
+         *     (в простом режиме периодических вставок empty нет, num_inserts = 0)
+         *   поворот образца: по одному на каждую из shots угловых позиций
          *
-         *   duration_sec = total_frames × (exposure_sec + 0.5) + 20
+         *   duration_sec = total_frames × (exposure_sec + 0.5)
+         *                + 3 × HORIZ_MOVE_SEC
+         *                + shots × ROTATION_SEC
          *
          * ПРОДВИНУТЫЙ РЕЖИМ (AdvancedExperiment):
          *   series_length  — длина серии dark/empty кадров
@@ -699,10 +733,14 @@
          *   горизонтальный двигатель:
          *     каждая empty-серия: move_away + move_back = 2 движения
          *     таких серий: 1 (начальная) + num_inserts (периодические)
-         *     итого: (1 + num_inserts) × 2 × 10 с
+         *     плюс move_back перед началом DATA (1)
+         *     итого: (1 + num_inserts) × 2 + 1 движений × HORIZ_MOVE_SEC
+         *   поворот образца: по одному на каждую из data_total угловых позиций
+         *     (DATA CHECK снимается на том же угле, без дополнительного поворота)
          *
          *   duration_sec = total_frames × (exposure_sec + 0.5)
-         *                + (1 + num_inserts) × 2 × 10
+         *                + ((1 + num_inserts) × 2 + 1) × HORIZ_MOVE_SEC
+         *                + data_total × ROTATION_SEC
          */
         function calcDuration() {
             var spanS = document.getElementById('duration-estimate-s');
@@ -721,21 +759,24 @@
                 }
 
                 /* total_frames = DARK + EMPTY + DATA */
-                var frames   = deQty * 2 + shots * same;
-                /* +0.5 с overhead на кадр; +20 с горизонтальный двигатель (move_away + move_back) */
-                var durSec   = frames * (expSec + 0.5) + 20;
+                var frames     = deQty * 2 + shots * same;
+                /* num_inserts = 0 в простом режиме: (1+0)×2+1 = 3 движения двигателя */
+                var horizMoves = (1 + 0) * 2 + 1;
+                var durSec     = frames * (expSec + 0.5)
+                               + horizMoves * HORIZ_MOVE_SEC
+                               + shots * ROTATION_SEC;
                 if (spanS) spanS.textContent = '⏱ ~' + formatDuration(durSec) + '  ·  завершение ~' + formatEndTime(durSec);
                 if (spanA) spanA.textContent = '';
 
             } else {
                 /* --- Продвинутый режим --- */
-                var expMs        = parseFloat($('#exposure_sec_a').val());    // экспозиция, с
+                var expSec       = parseFloat($('#exposure_sec_a').val());    // экспозиция, с
                 var seriesLen    = parseFloat($('#series_length_a').val());   // длина серии dark/empty
                 var dataTotal    = parseFloat($('#data_shots_quantity_a').val()); // число угловых позиций
                 var perStep      = parseFloat($('#data_same_a').val()) || 1;  // кадров на позицию
                 var emptyPeriod  = parseFloat($('#empty_period_a').val());    // периодичность empty
 
-                if (isNaN(expMs) || isNaN(seriesLen) || isNaN(dataTotal) || isNaN(emptyPeriod)) {
+                if (isNaN(expSec) || isNaN(seriesLen) || isNaN(dataTotal) || isNaN(emptyPeriod)) {
                     if (spanA) spanA.textContent = '';
                     return;
                 }
@@ -749,9 +790,12 @@
                                + numInserts * seriesLen
                                + numInserts * perStep;
 
-                /* Движений горизонтального двигателя: (1 начальная + num_inserts) × 2 (туда+обратно) */
-                var horizMoves = (1 + numInserts) * 2;
-                var durSec     = frames * (expMs + 0.5) + horizMoves * 10;
+                /* Движений горизонтального двигателя: (1 начальная + num_inserts) × 2 (туда+обратно)
+                 * + 1 move_back перед началом DATA */
+                var horizMoves = (1 + numInserts) * 2 + 1;
+                var durSec     = frames * (expSec + 0.5)
+                               + horizMoves * HORIZ_MOVE_SEC
+                               + dataTotal * ROTATION_SEC;
 
                 if (spanA) spanA.textContent = '⏱ ~' + formatDuration(durSec) + '  ·  завершение ~' + formatEndTime(durSec);
                 if (spanS) spanS.textContent = '';
@@ -765,20 +809,33 @@
             /* Сохраняем exp_id для превью */
             if (result.exp_id) { currentExpId = result.exp_id; }
 
-            /* Бейдж статуса + кнопка завершения */
+            /* Бейдж статуса + кнопка завершения.
+             * "Завершён" vs "Не запущен" различаем по непустому exp_id (эксперимент
+             * когда-либо запускался), а не по frame_num > 0 — кадров могло не быть
+             * снято ни одного (например, эксперимент остановили на dark-серии). */
             var $badge    = $('#exp-status-badge');
             var $stopBtn  = $('input[name="turn_down"]');
             if (running) {
                 $badge.html('<span class="label label-success">Идёт</span>');
                 $stopBtn.prop('disabled', false);
-            } else if (result.frame_num > 0) {
+                setStatusPollInterval(STATUS_POLL_FAST_MS);
+            } else if (result.exp_id) {
                 $badge.html('<span class="label label-default">Завершён</span>');
                 $stopBtn.prop('disabled', true);
-                /* Останавливаем поллинг статуса после завершения */
-                if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+                /* Не останавливаем поллинг насовсем — переходим на редкий (10с) */
+                setStatusPollInterval(STATUS_POLL_SLOW_MS);
             } else {
                 $badge.html('<span class="label label-default">Не запущен</span>');
                 $stopBtn.prop('disabled', true);
+                setStatusPollInterval(STATUS_POLL_SLOW_MS);
+            }
+
+            /* Ошибка, сообщённая drivers в статусе эксперимента */
+            var $apiErrorAlert = $('#exp-api-error-alert');
+            if (result.error) {
+                $apiErrorAlert.text('Ошибка: ' + result.error).show();
+            } else {
+                $apiErrorAlert.hide();
             }
 
             /* Прогресс */
@@ -864,6 +921,10 @@
             $.getJSON(STATUS_URL, function(data) {
                 if (data.success !== false) {
                     updateStatusUI(data);
+                } else {
+                    /* HTTP 200, но drivers сообщили об ошибке в теле ({success:false, error}) */
+                    $('#exp-status-badge').html('<span class="label label-danger">Ошибка</span>');
+                    $('#exp-api-error-alert').text('Ошибка: ' + (data.error || 'неизвестная ошибка')).show();
                 }
             }).fail(function() {
                 $('#exp-status-badge').html('<span class="label label-warning">Нет связи</span>');
@@ -895,7 +956,7 @@
 
         /* Запускаем поллинг статуса каждые 2 секунды */
         pollStatus();
-        statusTimer = setInterval(pollStatus, 2000);
+        setStatusPollInterval(STATUS_POLL_FAST_MS);
 
         /* Кнопка "Обновить кадр" */
         $('#refresh-frame-btn').on('click', fetchLastFrame);

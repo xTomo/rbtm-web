@@ -32,6 +32,42 @@ def _ms_to_s(exposure_ms):
         return str(exposure_ms)
 
 
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _dedup_and_sort_frames(frames_list):
+    """Сортирует кадры численно по номеру (а не лексикографически как строку)
+    и убирает дубли документов Mongo.
+
+    Основной ключ дедупликации — frame.id (Mongo _id), он всегда уникален для
+    документа. Дополнительно схлопываем задвоенные документы одного и того же
+    кадра, которые возникают при ретраях drivers и отличаются _id, но несут
+    один и тот же распарсенный frame.number (все кадры в списке относятся к
+    одному эксперименту, так что пары (exp, number) тут эквивалентны просто
+    number). Кадры без frame.number (num_known=False) не дедуплицируются по
+    номеру — иначе они все схлопнулись бы в один по значению по умолчанию."""
+    seen_ids = set()
+    seen_nums = set()
+    unique_frames = []
+    for frame in frames_list:
+        if frame.id:
+            if frame.id in seen_ids:
+                continue
+            seen_ids.add(frame.id)
+        if frame.num_known:
+            num_key = _safe_int(frame.num)
+            if num_key in seen_nums:
+                continue
+            seen_nums.add(num_key)
+        unique_frames.append(frame)
+    unique_frames.sort(key=lambda f: _safe_int(f.num), reverse=True)
+    return unique_frames
+
+
 def is_active(user):
     return user.is_active
 
@@ -74,7 +110,7 @@ class ExperimentRecord:
 
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.recon_url = settings.RECONSTRUCTION_URL.format(exp_id=self.experiment_id)
-        raw_dt = record['datetime']
+        raw_dt = record.get('datetime', '')
         # Убираем секунды из отображения: "DD.MM.YYYY HH:MM:SS" → "DD.MM.YYYY HH:MM"
         try:
             from datetime import datetime as _dt
@@ -101,6 +137,7 @@ class FrameRecord:
     def __init__(self, frame):
         self.id = ""
         self.num = "0"
+        self.num_known = False
         self.type = ""
         self.date_time = ""
         self.detector_model = ""
@@ -126,6 +163,7 @@ class FrameRecord:
                 self.mode = frame["frame"]["mode"]
             if "number" in frame['frame']:
                 self.num = frame["frame"]["number"]
+                self.num_known = True
             if "image_data" in frame["frame"]:
                 if "datetime" in frame["frame"]["image_data"]:
                     self.date_time = frame["frame"]["image_data"]["datetime"]
@@ -152,31 +190,6 @@ class FrameRecord:
                     self.current = frame["frame"]["X-ray source"]["current"]
                 if "voltage" in frame["frame"]["X-ray source"]:
                     self.voltage = frame["frame"]["X-ray source"]["voltage"]
-
-
-def make_search_query(search_str):
-    """Строит MongoDB-запрос для поиска по подстрокам в specimen и tags.
-    Слова разделяются пробелами; каждое слово должно встречаться
-    хотя бы в одном из полей (AND между словами, OR между полями).
-    """
-    if not search_str or not search_str.strip():
-        return json.dumps({})
-
-    terms = search_str.strip().split()
-    conditions = []
-    for term in terms:
-        conditions.append({'$or': [
-            {'specimen': {'$regex': term, '$options': 'i'}},
-            {'tags': {'$regex': term, '$options': 'i'}},
-        ]})
-
-    if len(conditions) == 1:
-        query = conditions[0]
-    else:
-        query = {'$and': conditions}
-
-    storage_logger.debug(u'Текст запроса к базе {}'.format(json.dumps(query)))
-    return json.dumps(query)
 
 
 @login_required
@@ -229,7 +242,7 @@ def storage_view(request):
     except Timeout as e:
         storage_logger.error(u'Не удается найти эксперименты. Ошибка: {}'.format(str(e)))
         messages.error(request, u'Не удается найти эксперименты. Сервер хранилища не отвечает. Попробуйте позже.')
-    except BaseException as e:
+    except Exception as e:
         storage_logger.error(u'Не удается найти эксперименты. Ошибка: {}'.format(str(e)))
         messages.error(request,
                        u'Не удается найти эксперименты. Сервер хранилища не отвечает. Попробуйте позже.')
@@ -268,7 +281,7 @@ def storage_record_view(request, storage_record_id):
         storage_logger.error(u'Не удается получить эксперимент. Ошибка: {}'.format(str(e)))
         messages.error(request, u'Не удается получить эксперимент. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
-    except BaseException as e:
+    except Exception as e:
         storage_logger.error(u'Не удается получить эксперимент. Ошибка: {}'.format(str(e)))
         messages.error(request, u'Не удается получить эксперимент. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
@@ -281,8 +294,7 @@ def storage_record_view(request, storage_record_id):
         if frames.status_code == 200:
             frames_info = json.loads(frames.content)
             storage_logger.debug(u'Страница записи: Список изображений: {}'.format(frames_info))
-            frames_list = [FrameRecord(frame) for frame in frames_info]
-            frames_list.sort(key=lambda k: k.num, reverse=True)
+            frames_list = _dedup_and_sort_frames([FrameRecord(frame) for frame in frames_info])
         else:
             storage_logger.error(
                 u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(frames.status_code))
@@ -293,7 +305,7 @@ def storage_record_view(request, storage_record_id):
         messages.error(request,
                        u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
         to_show = False
-    except BaseException as e:
+    except Exception as e:
         storage_logger.error(u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(e))
         messages.error(request,
                        u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
@@ -334,7 +346,7 @@ def frames_downloading(request, storage_record_id):
                        u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
         return HttpResponseBadRequest(u"Не удалось получить список изображений. Истекло время ожидания ответа",
                                       content_type='text/plain')
-    except BaseException as e:
+    except Exception as e:
         storage_logger.error(
             u'Получение изображений: Не удается получить список изображений. Ошибка: {}'.format(e))
         messages.error(request,
@@ -379,7 +391,7 @@ def frames_downloading(request, storage_record_id):
                     storage_logger.error(
                         u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
                     break
-                except BaseException as e:
+                except Exception as e:
                     storage_logger.error(
                         u'Получение изображений: Не удается получить изображение {}. Ошибка: {}'.format(frame.num, str(e)))
                     break
@@ -422,7 +434,7 @@ def delete_experiment(request, experiment_id):
         return HttpResponseBadRequest(
             u'Не удается удалить эксперимент. Истекло время ожидания ответа',
             content_type='text/plain')
-    except BaseException as e:
+    except Exception as e:
         storage_logger.error(
             u'Удаление эксперимента: Не удается удалить эксперимент. Ошибка: {}'.format(str(e)))
         return HttpResponseBadRequest(

@@ -46,11 +46,6 @@ _experiment_get_status_tpl = getattr(
     'EXPERIMENT_GET_STATUS',
     _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/experiment/status',
 )
-_experiment_get_last_frame_tpl = getattr(
-    settings,
-    'EXPERIMENT_GET_LAST_FRAME',
-    _EXPERIMENT_HOST.rstrip('/') + '/tomograph/{}/experiment/last-frame',
-)
 
 remote_url_settings = {
         GET_VOLT: settings.EXPERIMENT_SOURCE_GET_VOLT.format(TOMO_NUM),
@@ -85,61 +80,96 @@ def info_once_only(request, msg):
         messages.info(request, msg)
 
 
+def _format_backend_error(status_code, content):
+    """Пытается извлечь текст ошибки из JSON-тела ответа drivers ({success, error, 'exception message'}).
+
+    Если тело не JSON (например, страница ошибки Werkzeug при HTTP 500),
+    возвращает общее сообщение о некорректном ответе, не пытаясь распарсить HTML как JSON.
+    """
+    try:
+        data = json.loads(content)
+    except (ValueError, TypeError):
+        return u'Модуль "Эксперимент" вернул некорректный ответ (HTTP {})'.format(status_code)
+
+    error = data.get('error') if isinstance(data, dict) else None
+    exc_msg = data.get('exception message') if isinstance(data, dict) else None
+    if error:
+        if exc_msg:
+            return u'Модуль "Эксперимент": {} ({})'.format(error, exc_msg)
+        return u'Модуль "Эксперимент": {}'.format(error)
+    return u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(status_code)
+
+
 def try_request_post(request, address, content, source_page, stream=False):
     result = {'response_dict': None, 'error': None}
     try:
         answer = requests.post(address, content, timeout=settings.TIMEOUT_DEFAULT, stream=stream)
-        result['response_dict'] = json.loads(answer.content)
-        if answer.status_code != 200:
-            messages.warning(request, u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            experiment_logger.error(u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            result['error'] = redirect(reverse(source_page))
     except Timeout as e:
         messages.warning(request, 'Нет ответа от модуля "Эксперимент".')
         experiment_logger.error(e)
         result['error'] = redirect(reverse(source_page))
-    except BaseException as e:
+        return result
+    except requests.RequestException as e:
         experiment_logger.error(e)
         messages.warning(request,
                          '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
                          Возможно, отсутствует подключение к сети.
                          Попробуйте снова через некоторое время или свяжитесь с администратором''')
         result['error'] = redirect(reverse(source_page))
+        return result
+
+    if answer.status_code != 200:
+        msg = _format_backend_error(answer.status_code, answer.content)
+        messages.warning(request, msg)
+        experiment_logger.error(msg)
+        result['error'] = redirect(reverse(source_page))
+        return result
+
+    try:
+        result['response_dict'] = json.loads(answer.content)
+    except ValueError as e:
+        experiment_logger.error(e)
+        msg = u'Модуль "Эксперимент" вернул некорректный ответ (HTTP {})'.format(answer.status_code)
+        messages.warning(request, msg)
+        result['error'] = redirect(reverse(source_page))
+
     return result
 
 
 def try_request_get(request, address, source_page=''):
     result = {'response_dict': None, 'error': None}
+
+    def _fail(msg):
+        messages.warning(request, msg)
+        if source_page:
+            result['error'] = redirect(reverse(source_page))
+        else:
+            result['error'] = msg
+
     try:
         answer = requests.get(address, timeout=settings.TIMEOUT_DEFAULT)
-        result['response_dict'] = json.loads(answer.content)
-        if answer.status_code != 200:
-            messages.warning(request, u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            experiment_logger.error(u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code))
-            if source_page:
-                result['error'] = redirect(reverse(source_page))
-            else:
-                result['error'] = u'Модуль "Эксперимент" завершил работу с кодом ошибки {}'.format(answer.status_code)
     except Timeout as e:
-        messages.warning(request, 'Нет ответа от модуля "Эксперимент"')
         experiment_logger.error(e)
-        if source_page:
-            result['error'] = redirect(reverse(source_page))
-        else:
-            result['error'] = 'Нет ответа от модуля "Эксперимент"'
-
-    except BaseException as e:
+        _fail('Нет ответа от модуля "Эксперимент"')
+        return result
+    except requests.RequestException as e:
         experiment_logger.error(e)
-        messages.warning(request,
-                         '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
-                         Возможно, отсутствует подключение к сети.
-                         Попробуйте снова через некоторое время или свяжитесь с администратором''')
-        if source_page:
-            result['error'] = redirect(reverse(source_page))
-        else:
-            result['error'] = '''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
+        _fail('''Ошибка связи с модулем "Эксперимент", невозможно сохранить данные.
                                 Возможно, отсутствует подключение к сети.
-                                Попробуйте снова через некоторое время или свяжитесь с администратором'''
+                                Попробуйте снова через некоторое время или свяжитесь с администратором''')
+        return result
+
+    if answer.status_code != 200:
+        msg = _format_backend_error(answer.status_code, answer.content)
+        experiment_logger.error(msg)
+        _fail(msg)
+        return result
+
+    try:
+        result['response_dict'] = json.loads(answer.content)
+    except ValueError as e:
+        experiment_logger.error(e)
+        _fail(u'Модуль "Эксперимент" вернул некорректный ответ (HTTP {})'.format(answer.status_code))
 
     return result
 
@@ -176,13 +206,28 @@ def get_current_state(request, tomo):
         else:
             response_dict = result['response_dict']
             tomo.state = response_dict['result']
-    except BaseException as e:
+    except Exception as e:
         tomo.state = 'unavailable'
     tomo.save()
 
 
 def is_ajax(request):
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+
+def _split_tags(raw_tags):
+    """Разбивает теги эксперимента на список строк. Storage допускает как
+    строку "тег1, тег2", так и список строк (каждая из которых сама может
+    содержать запятые) — см. storage.views.ExperimentRecord."""
+    if not raw_tags:
+        return []
+    if isinstance(raw_tags, (list, tuple)):
+        parts = []
+        for item in raw_tags:
+            parts.extend(str(item).split(','))
+    else:
+        parts = str(raw_tags).split(',')
+    return [t.strip() for t in parts if t.strip()]
 
 
 def update_state_before_run(view):
@@ -207,27 +252,40 @@ def experiment_view(request):
 def experiment_source_state(request):
     """Прокси к Flask /source/state — возвращает JSON состояния источника.
 
-    Response: {"on": bool, "busy": bool, "mocked": bool}
+    Успех (HTTP 200): {"available": true, "on": bool, "busy": bool, "mocked": bool}
       mocked=True означает, что источник работает в режиме заглушки
       (физически не подключён). В этом случае UI блокирует кнопки управления
       и показывает статус «Не управляется».
+
+    Ошибка (HTTP 502) — drivers недоступны, ответили не-200 или вернули
+    невалидный/не-объектный JSON: {"available": false, "error": "<текст>"}.
     """
     try:
         answer = requests.get(
             settings.EXPERIMENT_SOURCE_GET_STATE.format(TOMO_NUM),
             timeout=settings.TIMEOUT_DEFAULT,
         )
+        if answer.status_code != 200:
+            msg = _format_backend_error(answer.status_code, answer.content)
+            experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(msg))
+            return JsonResponse({'available': False, 'error': msg}, status=502)
+
         data = json.loads(answer.content)
+        if not isinstance(data, dict):
+            msg = u'Некорректный ответ drivers (ожидался JSON-объект, получено {})'.format(type(data).__name__)
+            experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(msg))
+            return JsonResponse({'available': False, 'error': msg}, status=502)
         result = data.get('result', {}) or {}
         return JsonResponse({
+            'available': True,
             'on': bool(result.get('on', False)),
             'busy': bool(result.get('busy', False)),
             'mocked': bool(result.get('mocked', False)),
             'warming_status': result.get('warming_status'),
         })
-    except Exception as e:
+    except (requests.RequestException, ValueError) as e:
         experiment_logger.error(u'Ошибка получения состояния источника: {}'.format(e))
-        return JsonResponse({'on': False, 'busy': False, 'mocked': False, 'error': str(e)}, status=502)
+        return JsonResponse({'available': False, 'error': str(e)}, status=502)
 
 
 @update_state_before_run
@@ -439,64 +497,80 @@ def experiment_interface(request):
     if request.method == 'POST':
 
         if 'parameters' in request.POST:
-            exp_id = uuid.uuid4()
-            timestamp = time.time()
-            current_datetime = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-
             is_advanced = request.POST.get('mode') == 'advanced'
 
-            if is_advanced:
-                # Продвинутый режим: единая экспозиция, series_length, empty_period
-                exposure_ms = float(request.POST['exposure_sec']) * 1000.0
-                series_length = int(float(request.POST.get('series_length', 10)))
-                empty_period = int(float(request.POST.get('empty_period', 50)))
-                data_count_per_step = int(float(request.POST.get('data_same', 1)))
+            try:
+                exp_id = uuid.uuid4()
+                timestamp = time.time()
+                current_datetime = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                specimen = request.POST['name']
+                tags = request.POST['tags']
 
-                experiment_data = json.dumps({
-                    'exp_id': str(exp_id),
-                    'specimen': request.POST['name'],
-                    'tags': request.POST['tags'],
-                    'timestamp': timestamp,
-                    'datetime': current_datetime,
-                    'experiment parameters': {
-                        'advanced': True,
-                        'exposure': exposure_ms,
-                        'series_length': series_length,
-                        'data_total': int(float(request.POST['data_shots_quantity'])),
-                        'data_angle_step': float(request.POST['data_angle']),
-                        'data_count_per_step': data_count_per_step,
-                        'empty_period': empty_period,
-                    }
-                })
-            else:
-                # Простой режим: одинаковая экспозиция и кол-во для dark/empty
-                de_count = int(float(request.POST['de_quantity']))
-                exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                if is_advanced:
+                    # Продвинутый режим: единая экспозиция, series_length, empty_period.
+                    # В шаблоне поля обоих режимов используют одинаковые name, но
+                    # неактивный набор отключён (disabled) через JS и не попадает в POST,
+                    # поэтому request.POST[...] всегда берёт значение активного режима.
+                    exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                    series_length = int(float(request.POST.get('series_length', 10)))
+                    empty_period = int(float(request.POST.get('empty_period', 50)))
+                    data_count_per_step = int(float(request.POST.get('data_same', 1)))
+                    data_total = int(float(request.POST['data_shots_quantity']))
+                    data_angle_step = float(request.POST['data_angle'])
 
-                experiment_data = json.dumps({
-                    'exp_id': str(exp_id),
-                    'specimen': request.POST['name'],
-                    'tags': request.POST['tags'],
-                    'timestamp': timestamp,
-                    'datetime': current_datetime,
-                    'experiment parameters': {
-                        'advanced': False,
-                        'DARK': {
-                            'count': de_count,
+                    experiment_data = json.dumps({
+                        'exp_id': str(exp_id),
+                        'specimen': specimen,
+                        'tags': tags,
+                        'timestamp': timestamp,
+                        'datetime': current_datetime,
+                        'experiment parameters': {
+                            'advanced': True,
                             'exposure': exposure_ms,
-                        },
-                        'EMPTY': {
-                            'count': de_count,
-                            'exposure': exposure_ms,
-                        },
-                        'DATA': {
-                            'step count': int(float(request.POST['data_shots_quantity'])),
-                            'exposure': exposure_ms,
-                            'angle step': float(request.POST['data_angle']),
-                            'count per step': int(float(request.POST.get('data_same', 1))),
+                            'series_length': series_length,
+                            'data_total': data_total,
+                            'data_angle_step': data_angle_step,
+                            'data_count_per_step': data_count_per_step,
+                            'empty_period': empty_period,
                         }
-                    }
-                })
+                    })
+                else:
+                    # Простой режим: одинаковая экспозиция и кол-во для dark/empty
+                    de_count = int(float(request.POST['de_quantity']))
+                    exposure_ms = float(request.POST['exposure_sec']) * 1000.0
+                    data_step_count = int(float(request.POST['data_shots_quantity']))
+                    data_angle_step = float(request.POST['data_angle'])
+                    data_count_per_step = int(float(request.POST.get('data_same', 1)))
+
+                    experiment_data = json.dumps({
+                        'exp_id': str(exp_id),
+                        'specimen': specimen,
+                        'tags': tags,
+                        'timestamp': timestamp,
+                        'datetime': current_datetime,
+                        'experiment parameters': {
+                            'advanced': False,
+                            'DARK': {
+                                'count': de_count,
+                                'exposure': exposure_ms,
+                            },
+                            'EMPTY': {
+                                'count': de_count,
+                                'exposure': exposure_ms,
+                            },
+                            'DATA': {
+                                'step count': data_step_count,
+                                'exposure': exposure_ms,
+                                'angle step': data_angle_step,
+                                'count per step': data_count_per_step,
+                            }
+                        }
+                    })
+            except (ValueError, KeyError) as e:
+                # Некорректные/отсутствующие поля формы (например, exposure_sec='')
+                experiment_logger.error(u'Некорректные параметры эксперимента: {}'.format(e))
+                messages.error(request, u'Некорректно заполнена форма параметров эксперимента. Проверьте введённые значения.')
+                return redirect(reverse(source_page))
 
             result = try_request_post(request, settings.EXPERIMENT_START.format(TOMO_NUM), experiment_data, source_page)
             success_msg = u'Эксперимент успешно начался'
@@ -534,37 +608,6 @@ def experiment_status(request):
         )
     except Exception as e:
         experiment_logger.error(u'Ошибка получения статуса эксперимента: {}'.format(e))
-        return JsonResponse({'success': False, 'error': str(e)}, status=502)
-
-
-@login_required
-@user_passes_test(has_experiment_access)
-def experiment_last_frame(request):
-    """Прокси к Flask /experiment/last-frame — возвращает npz с последним кадром."""
-    try:
-        answer = requests.get(
-            _experiment_get_last_frame_tpl.format(TOMO_NUM),
-            timeout=max(settings.TIMEOUT_DEFAULT, 60),
-            stream=True,
-        )
-        if answer.status_code != 200:
-            return JsonResponse({'success': False, 'error': 'detector error {}'.format(answer.status_code)}, status=502)
-        raw = b''.join(answer.iter_content(1024 * 8))
-        # Декодируем npz и отдаём как base64 (аналогично get_preview_data)
-        npz = np.load(io.BytesIO(raw))
-        arr = npz['data'].astype(np.uint16)
-        arr_min = int(arr.min())
-        arr_max = int(arr.max())
-        pixels_b64 = base64.b64encode(arr.tobytes()).decode('ascii')
-        return JsonResponse({
-            'width': int(arr.shape[1]),
-            'height': int(arr.shape[0]),
-            'data_min': arr_min,
-            'data_max': arr_max,
-            'pixels_b64': pixels_b64,
-        })
-    except Exception as e:
-        experiment_logger.error(u'Ошибка получения последнего кадра: {}'.format(e))
         return JsonResponse({'success': False, 'error': str(e)}, status=502)
 
 
@@ -661,14 +704,10 @@ def get_autocomplete_data(request):
                     if specimen not in seen_recent_specimens:
                         seen_recent_specimens.append(specimen)
 
-                raw_tags = exp.get('tags', '')
-                if raw_tags:
-                    for t in raw_tags.split(','):
-                        t = t.strip()
-                        if t:
-                            seen_tags.add(t)
-                            if t not in seen_recent_tags:
-                                seen_recent_tags.append(t)
+                for t in _split_tags(exp.get('tags', '')):
+                    seen_tags.add(t)
+                    if t not in seen_recent_tags:
+                        seen_recent_tags.append(t)
 
             specimens = sorted(seen_specimens)
             tags = sorted(seen_tags)
@@ -765,20 +804,32 @@ def get_preview_data(request):
 
     t0 = time.time()
     try:
+        # drivers ждут кадр 2*exposure_ms/1000 + 30 с; берём то же значение как таймаут запроса
         response = requests.post(
             settings.EXPERIMENT_DETECTOR_GET_FRAME_PREVIEW.format(TOMO_NUM),
             detector_payload,
             stream=True,
-            timeout=max(settings.TIMEOUT_DEFAULT, exposure_sec + 30),
+            timeout=max(settings.TIMEOUT_DEFAULT, 2 * exposure_sec + 30),
         )
+        raw = b''.join(response.iter_content(1024 * 8))
+
+        if response.status_code == 409:
+            # На этом томографе уже идёт эксперимент — пробрасываем ошибку как есть
+            err_msg = 'On this tomograph experiment is running'
+            try:
+                err_data = json.loads(raw)
+                err_msg = err_data.get('error', err_msg)
+            except ValueError:
+                pass
+            experiment_logger.error(u'Не удалось получить кадр: {}'.format(err_msg))
+            return JsonResponse({'error': err_msg}, status=409)
+
         if response.status_code != 200:
             experiment_logger.error(
                 u'Не удалось получить кадр, код: {}'.format(response.status_code)
             )
             return JsonResponse({'error': 'detector error {}'.format(response.status_code)}, status=502)
-
-        raw = b''.join(response.iter_content(1024 * 8))
-    except Exception as e:
+    except requests.RequestException as e:
         experiment_logger.error(u'Ошибка получения кадра: {}'.format(e))
         return JsonResponse({'error': str(e)}, status=502)
 
@@ -827,13 +878,21 @@ def get_preview_data(request):
 @user_passes_test(has_experiment_access)
 def experiment_tomograph(request, value_to_get):
 
-    experiment_url = remote_url_settings[value_to_get]
-    requests_response = requests.get(experiment_url, timeout=settings.TIMEOUT_DEFAULT)
+    if value_to_get not in remote_url_settings:
+        return HttpResponse(status=404)
 
+    experiment_url = remote_url_settings[value_to_get]
+    try:
+        requests_response = requests.get(experiment_url, timeout=settings.TIMEOUT_DEFAULT)
+    except requests.RequestException as e:
+        experiment_logger.error(u'Ошибка запроса к модулю "Эксперимент" ({}): {}'.format(value_to_get, e))
+        return JsonResponse({'success': False, 'error': str(e)}, status=502)
+
+    content_type = requests_response.headers.get('Content-Type', 'application/json')
     django_response = HttpResponse(
         content=requests_response.content,
         status=requests_response.status_code,
-        content_type=requests_response.headers['Content-Type']
+        content_type=content_type,
     )
 
     return django_response

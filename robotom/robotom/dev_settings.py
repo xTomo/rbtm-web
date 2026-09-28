@@ -6,12 +6,11 @@ import os
 # Настройки для локальной разработки.
 # Для production создайте robotom/robotom/settings.py с реальными значениями.
 # Обязательные параметры:
-#   DEBUG, REQUEST_DEBUG, ALLOWED_HOSTS, SECRET_KEY, DATABASES,
+#   DEBUG, ALLOWED_HOSTS, SECRET_KEY, DATABASES,
 #   STORAGE_HOST, EXPERIMENT_HOST, RECONSTRUCTION_HOST,
 #   CSRF_TRUSTED_ORIGINS, EMAIL_*, CACHES, TOMO_NUM
 
 DEBUG = True
-REQUEST_DEBUG = True
 
 # Номер томографа (используется как суффикс в URL Experiment API)
 TOMO_NUM = 1
@@ -22,19 +21,25 @@ STORAGE_HOST = 'http://localhost:5006/'
 EXPERIMENT_HOST = 'http://localhost:5001/'
 RECONSTRUCTION_HOST = 'http://10.0.7.153:5550/'
 
+# Публичный (доступный из браузера пользователя) адрес Storage — используется
+# только для ссылок, которые отдаются в HTML и открываются напрямую браузером
+# (например, ссылка на .h5-файл эксперимента). STORAGE_HOST, в отличие от него,
+# может указывать на внутренний адрес докер-сети (например,
+# http://rbtmstorage_server_1:5006/ в production), недоступный снаружи.
+# Пусто (по умолчанию) — ссылка собирается относительной и идёт через
+# rbtm-proxy (см. proxy_nginx.conf); непусто — используется как абсолютный
+# публичный адрес storage.
+STORAGE_PUBLIC_HOST = os.environ.get('STORAGE_PUBLIC_HOST', '')
+
 # RECONSTRUCTION routes
 RECONSTRUCTION_URL = urljoin(RECONSTRUCTION_HOST, '/view/tomo_object/{exp_id}')
 
 # STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')
 STORAGE_FRAMES_INFO_HOST = urljoin(STORAGE_HOST, '/storage/frames_info/get')
-STORAGE_FRAMES_HOST = urljoin(STORAGE_HOST, '/storage/frames/get')
 STORAGE_EXPERIMENTS_GET_HOST = urljoin(STORAGE_HOST, '/storage/experiments/get')
-STORAGE_CREATE_USER_HOST = urljoin(STORAGE_HOST, '/storage/users/get')
-STORAGE_ALT_USER_HOST = urljoin(STORAGE_HOST, '/storage/users/update')
 STORAGE_EXPERIMENTS_HOST = urljoin(STORAGE_HOST, '/storage/experiments')
-STORAGE_HDF5_FILE = '/storage/experiments/{exp_id}.h5'
-STORAGE_RECONSTRUCTION = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/3d/{rarefaction}/{level1}/{level2}')
+STORAGE_HDF5_FILE = STORAGE_PUBLIC_HOST.rstrip('/') + '/storage/experiments/{exp_id}.h5'
 
 # EXPERIMENT routes
 # address templates, where {} is a placeholder for tomograph number
@@ -56,7 +61,6 @@ EXPERIMENT_DETECTOR_GET_MODEL = urljoin(EXPERIMENT_HOST, '/tomograph/{}/detector
 EXPERIMENT_START = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/start')
 EXPERIMENT_STOP = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/stop')
 EXPERIMENT_GET_STATUS = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/status')
-EXPERIMENT_GET_LAST_FRAME = urljoin(EXPERIMENT_HOST, '/tomograph/{}/experiment/last-frame')
 
 EXPERIMENT_MOTOR_GET_HORIZ = urljoin(EXPERIMENT_HOST, '/tomograph/{}/motor/get-horizontal-position')
 EXPERIMENT_MOTOR_GET_VERT = urljoin(EXPERIMENT_HOST, '/tomograph/{}/motor/get-vertical-position')

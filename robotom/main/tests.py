@@ -37,7 +37,7 @@ class LoginTest(TestCase):
                                 'email': 'mail@mail.ru', 'full_name': 'FIO', u'degree': '', u'title': u'',
                                 u'gender': 'N', u'address': '', u'work_place': '', u'phone_number': ''})
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/done/')
+        self.assertEqual(response['Location'], '/accounts/done/')
 
     def test_register_existing_user(self):
         response = self.c.post('/accounts/register/',
@@ -114,35 +114,37 @@ class ExperimentPermissionTest(TestCase):
         # not logged in
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
         # logged as admin
         c.login(username='admin', password='admin')
         response = c.get('/experiment/')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/experiment/interface/')
 
         # logged as experimenter
         c.login(username='exprm', password='exprm')
         response = c.get('/experiment/')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/experiment/interface/')
 
         # logged as researcher
         c.login(username='resch', password='resch')
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
         # logged as guest
         c.login(username='guest', password='guest')
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
         # logged as guest with wrong password
         c.login(username='guest', password='wrongpass')
         response = c.get('/experiment/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://testserver/accounts/login/?next=/experiment/')
+        self.assertEqual(response['Location'], '/accounts/login/?next=/experiment/')
 
     def tearDown(self):
 
@@ -154,3 +156,58 @@ class ExperimentPermissionTest(TestCase):
         self.u_gst.delete()
         self.up_exp.delete()
         self.u_exp.delete()
+
+
+class RoleRequestCancelTest(TestCase):
+    """Пункт 12: POST 'cancel' на /role_request/ не должен падать с 500
+    (new_request не был определён в ветке cancel)."""
+
+    def setUp(self):
+        self.u_gst = User.objects.create_user(username='guest_cancel', password='guest_cancel')
+        self.up_gst = UserProfile.objects.create(user=self.u_gst, is_guest=True)
+        self.c = Client()
+        self.c.login(username='guest_cancel', password='guest_cancel')
+
+    def test_cancel_redirects_to_profile(self):
+        response = self.c.post('/role_request/', {'cancel': '1', 'role': 'RES', 'comment': ''})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response['Location'].endswith('/accounts/profile/'))
+
+    def test_cancel_without_role_field_does_not_crash(self):
+        # 'cancel' должен обрабатываться раньше чтения request.POST['role'] —
+        # без него (например, форма отправлена без выбранной роли) раньше был KeyError -> 500.
+        response = self.c.post('/role_request/', {'cancel': '1'})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response['Location'].endswith('/accounts/profile/'))
+
+
+class AcceptRoleRequestTest(TestCase):
+    """Пункт 13: принятие заявки на роль сохраняет роль в UserProfile напрямую,
+    без обращения к несуществующему STORAGE_ALT_USER_HOST."""
+
+    def setUp(self):
+        from main.models import RoleRequest
+
+        self.u_adm = User.objects.create_user(username='admin_accept', password='admin_accept')
+        self.up_adm = UserProfile.objects.create(user=self.u_adm, is_admin=True)
+        self.u_adm.is_staff = True
+        self.u_adm.is_superuser = True
+        self.u_adm.save()
+
+        self.u_gst = User.objects.create_user(username='guest_accept', password='guest_accept',
+                                              email='guest_accept@mail.ru')
+        self.up_gst = UserProfile.objects.create(user=self.u_gst, is_guest=True)
+        self.role_request = RoleRequest.objects.create(user=self.up_gst, role='RES')
+
+        self.c = Client()
+        self.c.login(username='admin_accept', password='admin_accept')
+
+    def test_accept_saves_role_without_network_call(self):
+        response = self.c.post('/manage_requests/', {
+            'request_id': self.role_request.pk,
+            'accept': '1',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.up_gst.refresh_from_db()
+        self.assertTrue(self.up_gst.is_researcher)
+        self.assertFalse(self.up_gst.is_guest)

@@ -23,7 +23,7 @@
         this.id = app.config.exp_id;
         this.e = {
             info: ui.$('res-info'), view: ui.$('res-view'), axes: ui.$('res-axes'), slider: ui.$('res-slider'),
-            index: ui.$('res-index'), n: ui.$('res-n'), show: ui.$('res-show')
+            index: ui.$('res-index'), n: ui.$('res-n'), show: ui.$('res-show'), sub: ui.$('res-sub')
         };
         this.axis = 'z';
         this.index = {z: null, y: null, x: null};
@@ -142,7 +142,7 @@
             var names = PLANE[axis];
             app.viewer.show('result', img, {
                 kind: 'result', unit: '1/мм',
-                label: 'Результат (копия ×' + bin + '): срез ' + axis + ' = ' + (m.i !== undefined ? m.i : i) + ' из ' +
+                label: 'Готовый объём (копия ×' + bin + '): срез ' + axis + ' = ' + (m.i !== undefined ? m.i : i) + ' из ' +
                     (m.n || self.n[axis]) + (ds > 1 ? ' · уменьшен ×' + ds : ''),
                 coords: function (ix, iy) {
                     var cx = ix * ds, cy = iy * ds;
@@ -183,6 +183,13 @@
             dl.appendChild(ui.el('dd', null, [v]));
         };
         if (vol.shape) row('Объём', vol.shape.join(' × ') + ' (' + (vol.dtype || 'float32') + ', ' + (vol.units || '1/мм') + ')');
+        // копии с биннингом (среднее по кубу b×b×b; по умолчанию одна — ×4, как у ноутбука)
+        var copies = (r.binned || []).filter(function (b) {
+            return b && b.factor && b.shape;
+        }).map(function (b) {
+            return '×' + b.factor + ': ' + b.shape.join(' × ');
+        });
+        if (copies.length) row('Биннинг', copies.join('; '));
         if (core.isNum(vol.voxel_mm)) row('Воксель', core.fmtNum(vol.voxel_mm * 1000, 3) + ' мкм');
         row('Создан', core.fmtDate(r.created));
         var t = r.timings || {};
@@ -258,6 +265,11 @@
 
     StepResult.prototype._renderControls = function () {
         var e = this.e, axis = this.axis, n = this.n[axis] || 0;
+        if (e.sub) {
+            var sh = this.n;
+            ui.text(e.sub, this.binning ? 'Срезы копии ×' + this.binning + ' (' + sh.z + ' × ' + sh.y + ' × ' + sh.x + '):' :
+                'Срезы копии с биннингом:');
+        }
         if (e.axes) {
             ui.qsa('[data-axis]', e.axes).forEach(function (b) {
                 var on = b.getAttribute('data-axis') === axis;

@@ -6,10 +6,225 @@
   can_run (ADM/EXP: загрузка, запуск, отмена), user, specimen (или null), storage_url (страница записи
   хранилища), legacy_url (старая страница реконструкции), csrf_token;
 - asset_version — добавляется к URL статики (?v=...): Apache кэширует JS на год.
+
+Разметка шагов и просмотрщика — здесь, поведение — static/reconstruction/js/*.js (window.Studio, без сборки;
+порядок подключения важен: core → api → ui → viewer → overlay → thumbstrip → steps → session → jobs → step_* → studio).
 {% endcomment %}
 {% block content %}
 {{ studio_config|json_script:"studio-config" }}
-<div id="studio" class="container-fluid">
-    <h4>Студия реконструкции {{ exp_id }}</h4>
+<link rel="stylesheet" href="{% static 'reconstruction/css/studio.css' %}?v={{ asset_version }}">
+
+<div id="studio" class="container-fluid st-studio">
+    <div class="st-head">
+        <h4 class="st-title">Студия реконструкции: <span id="st-title">{{ exp_id }}</span> <small id="st-expid"></small></h4>
+        <div class="st-links">
+            <a id="st-storage-link" class="hidden" href="#">Запись хранилища</a><span id="st-sep" class="hidden"> · </span><a
+                id="st-legacy-link" class="hidden" href="#">Старая страница реконструкции</a>
+        </div>
+        <span id="st-readonly" class="label label-default hidden"
+              title="Загрузка области и запуск реконструкции доступны экспериментатору и администратору">только просмотр</span>
+    </div>
+
+    <div class="row st-row">
+        <!-- шаги -->
+        <div class="col-md-3 st-left">
+            <div class="st-steps">
+
+                <div class="panel panel-default st-step" id="step-fov">
+                    <div class="panel-heading" title="Свернуть / развернуть">
+                        <span><span class="st-num">1</span> Поле зрения</span>
+                        <span class="st-status st-s-none">—</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="fov-info" class="st-note text-muted">Сведения о скане…</div>
+                        <div class="st-sub">Рамка в пикселях полного кадра, [x0, x1) × [y0, y1):</div>
+                        <div class="st-grid">
+                            <label for="fov-x0">x0</label>
+                            <input id="fov-x0" type="number" class="form-control input-sm" step="1" min="0">
+                            <label for="fov-x1">x1</label>
+                            <input id="fov-x1" type="number" class="form-control input-sm" step="1" min="0">
+                            <label for="fov-y0">y0</label>
+                            <input id="fov-y0" type="number" class="form-control input-sm" step="1" min="0">
+                            <label for="fov-y1">y1</label>
+                            <input id="fov-y1" type="number" class="form-control input-sm" step="1" min="0">
+                        </div>
+                        <div class="st-grid-row">
+                            <label for="fov-row">Строка превью</label>
+                            <input id="fov-row" type="number" class="form-control input-sm" step="1">
+                        </div>
+                        <div id="fov-size" class="st-note"></div>
+                        <div id="fov-outside" class="st-note hidden"></div>
+
+                        <div class="st-grid-row st-ps">
+                            <label for="fov-ps">Размер пикселя, мм</label>
+                            <input id="fov-ps" type="text" inputmode="decimal" class="form-control input-sm"
+                                   title="Размер пикселя детектора, мм; правка попадёт в рецепт">
+                        </div>
+                        <div id="fov-ps-src" class="st-note text-muted"></div>
+                        <div id="fov-ps-warn" class="st-note alert alert-warning hidden"></div>
+
+                        <div class="st-btns">
+                            <button id="fov-sino" type="button" class="btn btn-default btn-sm"
+                                    title="Синограмма строки превью по 90 углам (≈ 8 с); рамка — столбцы x0…x1">Синограмма строки</button>
+                            <button id="fov-reset" type="button" class="btn btn-link btn-sm"
+                                    title="Вернуть рамку, предложенную по огибающей">Предложенная рамка</button>
+                        </div>
+                        <div class="st-btns">
+                            <button id="fov-load" type="button" class="btn btn-primary btn-sm"
+                                    title="Прочитать кадры области со всех углов (20–30 с) для шагов 2–4">Загрузить область</button>
+                            <button id="fov-cancel" type="button" class="btn btn-default btn-sm hidden">Отменить</button>
+                        </div>
+                        <div id="fov-progress" class="progress st-progress hidden"></div>
+                        <div id="fov-dirty" class="st-note alert alert-warning hidden"></div>
+                        <div id="fov-load-msg" class="st-note hidden"></div>
+                    </div>
+                </div>
+
+                <div class="panel panel-default st-step" id="step-axis">
+                    <div class="panel-heading" title="Свернуть / развернуть">
+                        <span><span class="st-num">2</span> Ось вращения</span>
+                        <span class="st-status st-s-none">—</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="axis-pair-warn" class="st-note alert alert-warning hidden"></div>
+                        <div id="axis-info"></div>
+                        <div class="st-grid-row">
+                            <label for="axis-row">Строка превью</label>
+                            <input id="axis-row" type="number" class="form-control input-sm" step="1">
+                        </div>
+                        <div class="st-btns">
+                            <button id="axis-slice" type="button" class="btn btn-default btn-sm"
+                                    title="Срез строки превью при найденной оси">Срез</button>
+                            <button id="axis-diff" type="button" class="btn btn-default btn-sm"
+                                    title="Кадр 0° минус отражённый кадр 180°: при верной оси контуры гасятся">0° − 180°</button>
+                            <button id="axis-ok" type="button" class="btn btn-success btn-sm"
+                                    title="Отметить: срез резкий, ось верна">Ось верна</button>
+                            <button id="axis-auto" type="button" class="btn btn-link btn-sm">Найти заново</button>
+                        </div>
+                        <div id="axis-slice-info" class="st-note text-muted"></div>
+                    </div>
+                </div>
+
+                <div class="panel panel-default st-step" id="step-rings">
+                    <div class="panel-heading" title="Свернуть / развернуть">
+                        <span><span class="st-num">3</span> Артефакты</span>
+                        <span class="st-status st-s-none">—</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="st-sub">Подавление колец:</div>
+                        <div class="btn-group btn-group-sm st-seg" id="rings-group" role="group" aria-label="Подавление колец">
+                            <button type="button" class="btn btn-default" data-rings="off">Выкл</button>
+                            <button type="button" class="btn btn-default" data-rings="weak">Слабо</button>
+                            <button type="button" class="btn btn-default" data-rings="medium">Средне</button>
+                            <button type="button" class="btn btn-default" data-rings="strong">Сильно</button>
+                        </div>
+                        <div id="rings-note" class="st-note text-muted"></div>
+                    </div>
+                </div>
+
+                <div class="panel panel-default st-step" id="step-run">
+                    <div class="panel-heading" title="Свернуть / развернуть">
+                        <span><span class="st-num">4</span> Реконструкция</span>
+                        <span class="st-status st-s-none">—</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="st-sub">Срезы — строки детектора [z0, z1):</div>
+                        <div class="st-grid">
+                            <label for="run-z0">z0</label>
+                            <input id="run-z0" type="number" class="form-control input-sm" step="1">
+                            <label for="run-z1">z1</label>
+                            <input id="run-z1" type="number" class="form-control input-sm" step="1">
+                        </div>
+                        <div id="run-nz" class="st-note text-muted"></div>
+                        <div class="st-sub">Углы:</div>
+                        <div class="btn-group btn-group-sm st-seg" id="run-angles" role="group" aria-label="Углы">
+                            <button type="button" class="btn btn-default" data-angles="first_180"
+                                    title="Кадры первых 180°">Первые 180°</button>
+                            <button type="button" class="btn btn-default" data-angles="full_halves"
+                                    title="Все полные полуобороты с усреднением: меньше шума, нужна точная ось">Все полуобороты</button>
+                        </div>
+                        <div id="run-estimate" class="st-estimate"></div>
+                        <div class="st-btns">
+                            <button id="run-btn" type="button" class="btn btn-primary btn-sm">Запустить</button>
+                        </div>
+                        <div id="run-hint" class="st-note text-muted hidden"></div>
+                        <div id="run-job" class="st-run-job hidden"></div>
+                    </div>
+                </div>
+
+                <div class="panel panel-default st-step" id="step-result">
+                    <div class="panel-heading" title="Свернуть / развернуть">
+                        <span><span class="st-num">5</span> Результат</span>
+                        <span class="st-status st-s-none">—</span>
+                    </div>
+                    <div class="panel-body">
+                        <div id="res-info"></div>
+                        <div id="res-view" class="st-res-view hidden">
+                            <div class="st-sub">Срезы копии с биннингом:</div>
+                            <div class="st-res-ctl">
+                                <div class="btn-group btn-group-xs" id="res-axes" role="group" aria-label="Ось сечения">
+                                    <button type="button" class="btn btn-default" data-axis="z">z</button>
+                                    <button type="button" class="btn btn-default" data-axis="y">y</button>
+                                    <button type="button" class="btn btn-default" data-axis="x">x</button>
+                                </div>
+                                <input id="res-index" type="number" class="form-control input-sm st-res-index" step="1">
+                                <span id="res-n" class="text-muted"></span>
+                                <button id="res-show" type="button" class="btn btn-default btn-xs">Показать</button>
+                            </div>
+                            <input id="res-slider" type="range" class="st-res-slider" min="0" max="0" step="1">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- просмотрщик -->
+        <div class="col-md-9 st-right">
+            <div class="st-toolbar">
+                <div class="btn-group btn-group-xs" id="sv-tabs" role="group" aria-label="Вид">
+                    <button type="button" class="btn btn-default" data-view="envelope">Огибающая</button>
+                    <button type="button" class="btn btn-default" data-view="sample">Угол</button>
+                    <button type="button" class="btn btn-default" data-view="sinogram">Синограмма</button>
+                    <button type="button" class="btn btn-default" data-view="slice">Срез</button>
+                    <button type="button" class="btn btn-default" data-view="diff">0° − 180°</button>
+                    <button type="button" class="btn btn-default" data-view="result">Результат</button>
+                </div>
+                <div class="btn-group btn-group-xs" role="group" aria-label="Масштаб">
+                    <button id="sv-fit" type="button" class="btn btn-default" title="Вписать (двойной щелчок)">Вписать</button>
+                    <button id="sv-one" type="button" class="btn btn-default" title="Пиксель изображения = пиксель экрана">1:1</button>
+                </div>
+                <span id="sv-readout" class="st-readout"></span>
+            </div>
+            <div id="sv-stage" class="sv-stage"></div>
+            <div id="sv-hist"></div>
+
+            <div class="st-thumbs-wrap">
+                <div class="st-sub">Углы выборки обзора: щелчок — кадр угла; красная рамка — объект выходит за рамку на этом угле</div>
+                <div id="st-thumbs" class="st-thumbs"></div>
+            </div>
+
+            <div class="panel panel-default st-job-panel">
+                <div class="panel-heading">Задача реконструкции</div>
+                <div class="panel-body" id="job-panel"></div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script src="{% static 'reconstruction/js/core.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/api.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/ui.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/viewer.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/overlay.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/thumbstrip.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/steps.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/session.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/jobs.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/step_fov.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/step_axis.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/step_rings.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/step_run.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/step_result.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/studio.js' %}?v={{ asset_version }}"></script>
 {% endblock content %}

@@ -1,0 +1,338 @@
+// node --test robotom/reconstruction/jstests/
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {load} = require('./load');
+
+const S = load('core.js');
+const core = S.core;
+
+function headers(h) {
+    return (name) => (Object.prototype.hasOwnProperty.call(h, name) ? h[name] : null);
+}
+
+function u16buf(values) {
+    const a = new Uint16Array(values);
+    return a.buffer;
+}
+
+// --- декодирование --------------------------------------------------------------------------------------------
+
+test('decodeBinary: uint16 (h, w) с квантованием и X-Meta', () => {
+    const buf = u16buf([0, 1, 2, 65535, 10, 20]);
+    const img = core.decodeBinary(buf, headers({
+        'X-Shape': '2,3', 'X-Dtype': 'uint16', 'X-Scale': '0.5', 'X-Offset': '-1.0',
+        'X-Meta': '{"row":7,"downsample":2}'
+    }));
+    assert.equal(img.w, 3);
+    assert.equal(img.h, 2);
+    assert.equal(img.k, 1);
+    assert.equal(img.dtype, 'uint16');
+    assert.ok(img.quantized);
+    assert.deepEqual(img.meta, {row: 7, downsample: 2});
+    assert.equal(core.valueAt(img, 0, 0), -1);
+    assert.equal(core.valueAt(img, 2, 0), 0);            // код 2 · 0,5 − 1
+    assert.equal(core.valueAt(img, 0, 1), 65535 * 0.5 - 1);
+    assert.ok(Number.isNaN(core.valueAt(img, 3, 0)));
+    assert.ok(Number.isNaN(core.valueAt(img, 0, -1)));
+});
+
+test('decodeBinary: python repr чисел (экспонента), стопка (k, h, w) и кадр', () => {
+    const vals = [];
+    for (let i = 0; i < 2 * 2 * 3; i++) vals.push(i);
+    const img = core.decodeBinary(u16buf(vals), headers({
+        'X-Shape': '2,2,3', 'X-Dtype': 'uint16', 'X-Scale': '1.52587890625e-05', 'X-Offset': '0.0'
+    }));
+    assert.equal(img.k, 2);
+    assert.equal(img.h, 2);
+    assert.equal(img.w, 3);
+    assert.equal(img.scale, 1.52587890625e-05);
+    const f1 = core.frameOf(img, 1);
+    assert.equal(f1.data.length, 6);
+    assert.equal(f1.data[0], 6);
+    assert.equal(f1.index, 1);
+    assert.equal(core.frameOf(img, 99).index, 1);        // вне диапазона — последний кадр
+});
+
+test('decodeBinary: float32 без X-Scale, uint8, meta битый — пустой', () => {
+    const f = new Float32Array([1.5, -2.25, NaN, 4]);
+    const img = core.decodeBinary(f.buffer, headers({'X-Shape': '2,2', 'X-Dtype': 'float32', 'X-Meta': '{oops'}));
+    assert.equal(img.quantized, false);
+    assert.deepEqual(img.meta, {});
+    assert.equal(core.valueAt(img, 1, 0), -2.25);
+    const b = core.decodeBinary(new Uint8Array([1, 2, 3]).buffer, headers({'X-Shape': '3', 'X-Dtype': 'uint8'}));
+    assert.equal(b.w, 3);
+    assert.equal(b.h, 1);
+    assert.equal(core.valueAt(b, 2, 0), 3);
+});
+
+test('decodeBinary: невыровненный вид буфера копируется', () => {
+    const raw = new Uint8Array(1 + 4);
+    new Uint8Array(new Uint16Array([513, 7]).buffer).forEach((v, i) => { raw[1 + i] = v; });
+    const view = raw.subarray(1);                           // byteOffset = 1
+    const img = core.decodeBinary(view, headers({'X-Shape': '1,2', 'X-Dtype': 'uint16'}));
+    assert.deepEqual(Array.from(img.data), [513, 7]);
+});
+
+test('decodeBinary: ошибки формата', () => {
+    const buf = u16buf([1, 2, 3, 4]);
+    assert.throws(() => core.decodeBinary(buf, headers({'X-Dtype': 'uint16'})), /X-Shape/);
+    assert.throws(() => core.decodeBinary(buf, headers({'X-Shape': '2,2', 'X-Dtype': 'int64'})), /X-Dtype/);
+    assert.throws(() => core.decodeBinary(buf, headers({'X-Shape': '3,2', 'X-Dtype': 'uint16'})), /не совпадает/);
+    assert.throws(() => core.decodeBinary(buf, headers({'X-Shape': '2,x', 'X-Dtype': 'uint16'})), /X-Shape/);
+    assert.throws(() => core.decodeBinary(buf, headers({'X-Shape': '1,1,1,4', 'X-Dtype': 'uint16'})), /размерность/);
+    assert.throws(() => core.decodeBinary(buf, headers({
+        'X-Shape': '2,2', 'X-Dtype': 'uint16', 'X-Scale': 'nan', 'X-Offset': '0'
+    })), /X-Scale/);
+});
+
+// --- гистограмма, окно, LUT -----------------------------------------------------------------------------------
+
+function codesImage(codes, scale, offset) {
+    return {w: codes.length, h: 1, k: 1, dtype: 'uint16', data: new Uint16Array(codes), scale: scale, offset: offset,
+        quantized: true, meta: {}};
+}
+
+test('histogram/percentile: коды 0..99, scale 1 — медиана 49,5; physical через scale/offset', () => {
+    const codes = [];
+    for (let i = 0; i < 100; i++) codes.push(i);
+    const h = core.histogram(codesImage(codes, 1, 0));
+    assert.equal(h.total, 100);
+    assert.ok(Math.abs(core.percentile(h, 50) - 49.5) < 1e-9);
+    assert.deepEqual(core.dataRange(h), [-0.5, 99.5]);
+    const h2 = core.histogram(codesImage(codes, 0.01, 2));
+    assert.ok(Math.abs(core.percentile(h2, 50) - (2 + 0.495)) < 1e-9);
+    const w = core.autoWindow(h2);
+    assert.ok(w[0] < w[1]);
+    assert.ok(w[0] >= 2 - 0.005 && w[1] <= 2 + 0.995);
+});
+
+test('autoWindow: постоянное изображение — окно не вырождено', () => {
+    const h = core.histogram(codesImage([5, 5, 5, 5], 0.1, 0));
+    const w = core.autoWindow(h);
+    assert.ok(w[1] > w[0]);
+});
+
+test('histogram float32: NaN пропускаются, binHistogram сохраняет сумму', () => {
+    const data = new Float32Array([0, 1, 2, 3, NaN, 4, Infinity]);
+    const img = {w: 7, h: 1, k: 1, dtype: 'float32', data: data, scale: 1, offset: 0, meta: {}};
+    const h = core.histogram(img);
+    assert.equal(h.total, 5);
+    const r = core.dataRange(h);
+    assert.ok(r[0] <= 0 && r[1] >= 4);
+    const bins = core.binHistogram(h, 10, r[0], r[1]);
+    assert.equal(Array.from(bins).reduce((a, b) => a + b, 0), 5);
+});
+
+test('buildLut: монотонна, обрезает за окном, 0 и 255 на краях', () => {
+    const img = codesImage([0], 1 / 65535, 0);            // значения 0..1
+    const lut = core.buildLut(img, 0.25, 0.75);
+    assert.equal(lut.length, 65536);
+    assert.equal(lut[0], 0);
+    assert.equal(lut[Math.round(0.25 * 65535)], 0);
+    assert.equal(lut[Math.round(0.5 * 65535)], 128);
+    assert.equal(lut[Math.round(0.75 * 65535)], 255);
+    assert.equal(lut[65535], 255);
+    for (let c = 1; c < 65536; c += 97) assert.ok(lut[c] >= lut[c - 1]);
+    const same = core.buildLut(img, 0.1, 0.2, lut);
+    assert.equal(same, lut);                              // массив переиспользуется
+});
+
+test('toRGBA: uint16 через LUT и float32 напрямую, альфа 255', () => {
+    const img = codesImage([0, 32768, 65535], 1, 0);
+    const out = core.toRGBA(img, 0, 65535);
+    assert.equal(out.length, 12);
+    assert.deepEqual(Array.from(out.slice(0, 4)), [0, 0, 0, 255]);
+    assert.deepEqual(Array.from(out.slice(8, 12)), [255, 255, 255, 255]);
+    const f = {w: 3, h: 1, dtype: 'float32', data: new Float32Array([-1, 0.5, NaN]), scale: 1, offset: 0};
+    const o2 = core.toRGBA(f, 0, 1);
+    assert.equal(o2[0], 0);
+    assert.equal(o2[4], 128);
+    assert.equal(o2[8], 0);
+    assert.equal(o2[11], 255);
+});
+
+test('downsampleMean: среднее по блокам в физических значениях', () => {
+    const img = {w: 4, h: 2, k: 1, dtype: 'uint16', data: new Uint16Array([0, 2, 4, 6, 2, 4, 6, 8]), scale: 0.5,
+        offset: 1, meta: {}};
+    const s = core.downsampleMean(img, 2);
+    assert.equal(s.w, 2);
+    assert.equal(s.h, 1);
+    assert.equal(s.dtype, 'float32');
+    assert.equal(s.data[0], 2 * 0.5 + 1);                // среднее кодов 0,2,2,4 = 2
+    assert.equal(s.data[1], 6 * 0.5 + 1);
+});
+
+// --- преобразования -------------------------------------------------------------------------------------------
+
+test('fitTransform: вписывает и центрирует; aspect растягивает по вертикали', () => {
+    const xf = core.fitTransform(1000, 500, 1, 516, 516, 8);
+    assert.ok(Math.abs(xf.sx - 0.5) < 1e-12);
+    assert.equal(xf.sy, xf.sx);
+    assert.ok(Math.abs(xf.tx - 8) < 1e-9);
+    assert.ok(Math.abs(xf.ty - (516 - 250) / 2) < 1e-9);
+    const xa = core.fitTransform(5000, 90, 25, 1016, 1016, 8);
+    assert.ok(Math.abs(xa.sy / xa.sx - 25) < 1e-9);
+    assert.ok(90 * xa.sy <= 1000 + 1e-9 && 5000 * xa.sx <= 1000 + 1e-9);
+});
+
+test('zoomAt: точка под курсором неподвижна, масштаб ограничен', () => {
+    const xf = {sx: 2, sy: 2, tx: 10, ty: 20};
+    const p = core.toImage(xf, 110, 70);
+    const z = core.zoomAt(xf, 1.5, 110, 70, 0.1, 10);
+    const p2 = core.toImage(z, 110, 70);
+    assert.ok(Math.abs(p.x - p2.x) < 1e-9 && Math.abs(p.y - p2.y) < 1e-9);
+    assert.equal(z.sx, 3);
+    assert.equal(core.zoomAt(xf, 100, 0, 0, 0.1, 10).sx, 10);
+    const one = core.oneToOne({sx: 0.25, sy: 1, tx: 0, ty: 0}, 50, 50);
+    assert.equal(one.sx, 1);
+    assert.equal(one.sy, 4);                             // вытянутость сохраняется
+    const s = core.toScreen(xf, p.x, p.y);
+    assert.ok(Math.abs(s.x - 110) < 1e-9 && Math.abs(s.y - 70) < 1e-9);
+});
+
+// --- рамка ----------------------------------------------------------------------------------------------------
+
+const B = {x0: 0, y0: 0, x1: 100, y1: 50};
+
+test('dragRect: перенос в границах, размер сохраняется', () => {
+    const r = {x0: 10, x1: 30, y0: 5, y1: 15};
+    assert.deepEqual(core.dragRect(r, 'move', 5, 5, B, 4, 4), {x0: 15, x1: 35, y0: 10, y1: 20});
+    assert.deepEqual(core.dragRect(r, 'move', 500, -500, B, 4, 4), {x0: 80, x1: 100, y0: 0, y1: 10});
+});
+
+test('dragRect: края и углы с наименьшим размером и границами', () => {
+    const r = {x0: 10, x1: 30, y0: 5, y1: 15};
+    assert.deepEqual(core.dragRect(r, 'e', 100, 0, B, 4, 4), {x0: 10, x1: 100, y0: 5, y1: 15});
+    assert.deepEqual(core.dragRect(r, 'w', 100, 0, B, 4, 4), {x0: 26, x1: 30, y0: 5, y1: 15});
+    assert.deepEqual(core.dragRect(r, 'nw', -50, -50, B, 4, 4), {x0: 0, x1: 30, y0: 0, y1: 15});
+    assert.deepEqual(core.dragRect(r, 'se', -100, -100, B, 4, 4), {x0: 10, x1: 14, y0: 5, y1: 9});
+    assert.deepEqual(core.dragRect(r, 'n', 3, 2, B, 4, 4), {x0: 10, x1: 30, y0: 7, y1: 15});
+    // axes 'x': вертикаль не меняется ни у ручек, ни у переноса
+    assert.deepEqual(core.dragRect(r, 'ne', 5, 5, B, 4, 4, 'x'), {x0: 10, x1: 35, y0: 5, y1: 15});
+    assert.deepEqual(core.dragRect(r, 'move', 5, 5, B, 4, 4, 'x'), {x0: 15, x1: 35, y0: 5, y1: 15});
+});
+
+test('clampRoi/clampRow/sameRoi/cropBytes/clampSlices', () => {
+    const W = 5056, H = 2968;
+    assert.deepEqual(core.clampRoi({x0: -5.4, x1: 6000, y0: 10.6, y1: 2000.2}, W, H), {x0: 0, x1: 5056, y0: 11, y1: 2000});
+    assert.deepEqual(core.clampRoi({x0: 300, x1: 100, y0: 5, y1: 5}, W, H), {x0: 100, x1: 300, y0: 5, y1: 21});
+    assert.deepEqual(core.clampRoi({x0: 5050, x1: 5060, y0: 0, y1: 100}, W, H), {x0: 5040, x1: 5056, y0: 0, y1: 100});
+    const roi = {x0: 0, x1: 10, y0: 100, y1: 200};
+    assert.equal(core.clampRow(50, roi), 100);
+    assert.equal(core.clampRow(250, roi), 199);
+    assert.equal(core.clampRow(150.4, roi), 150);
+    assert.equal(core.clampRow(NaN, roi), 150);
+    assert.ok(core.sameRoi(roi, {x0: 0, x1: 10, y0: 100, y1: 200, preview_row: 3}));
+    assert.ok(!core.sameRoi(roi, null));
+    assert.equal(core.cropBytes(452, {x0: 0, x1: 3000, y0: 0, y1: 1500}), 452 * 1500 * 3000 * 2);
+    assert.deepEqual(core.clampSlices(50, 150, roi), [100, 150]);
+    assert.deepEqual(core.clampSlices(180, 120, roi), [120, 180]);
+    assert.deepEqual(core.clampSlices(199, 199, roi), [199, 200]);
+    assert.deepEqual(core.clampSlices(NaN, NaN, roi), [100, 200]);
+});
+
+test('roiToImage/roiFromImage: туда и обратно без потерь, в том числе не кратное bin', () => {
+    const W = 5056, H = 2968;
+    const roi = {x0: 1001, x1: 4003, y0: 7, y1: 2961};
+    const back = core.roiFromImage(core.roiToImage(roi, 4), 4, W, H);
+    assert.deepEqual(back, roi);
+});
+
+// --- форматирование -------------------------------------------------------------------------------------------
+
+function norm(s) {
+    return s.replace(/ | /g, ' ');
+}
+
+test('форматирование по-русски', () => {
+    assert.equal(core.fmtNum(2528.4567, 2), '2528,46');
+    assert.equal(core.fmtNum(null), '—');
+    assert.equal(core.fmtFixed(0.5, 3), '0,500');
+    assert.equal(norm(core.fmtBytes(0)), '0 байт');
+    assert.equal(norm(core.fmtBytes(1536)), '1,5 КБ');
+    assert.equal(norm(core.fmtBytes(13.25 * 1024 ** 3)), '13,3 ГБ');
+    assert.equal(core.fmtDuration(45), '45 с');
+    assert.equal(core.fmtDuration(200), '3 мин 20 с');
+    assert.equal(core.fmtDuration(180), '3 мин');
+    assert.equal(core.fmtDuration(3900), '1 ч 05 мин');
+    assert.equal(core.fmtDuration(-1), '—');
+    assert.equal(core.fmtValue(0.012345), '0,01235');
+    assert.equal(core.fmtValue(1234.5), '1235');
+    assert.match(core.fmtValue(1e-5), /^1,000e-5$/);
+    assert.equal(core.fmtAngles([0, 22.5, 45]), '0°, 22,5°, 45°');
+    assert.match(core.fmtAngles([1, 2, 3], 2), /всего 3/);
+});
+
+test('parseNum: запятая, пробелы, мусор', () => {
+    assert.equal(core.parseNum('0,00425'), 0.00425);
+    assert.equal(core.parseNum(' 1 234 '), 1234);
+    assert.equal(core.parseNum('-3.5e2'), -350);
+    assert.equal(core.parseNum(7), 7);
+    assert.ok(Number.isNaN(core.parseNum('')));
+    assert.ok(Number.isNaN(core.parseNum('abc')));
+    assert.ok(Number.isNaN(core.parseNum('1,2,3')));
+    assert.ok(Number.isNaN(core.parseNum(null)));
+});
+
+test('sampleName: как sample_name сервиса', () => {
+    assert.equal(core.sampleName('Образец 1/2: "a"', 'e1'), 'Образец 1_2_ _a_');
+    assert.equal(core.sampleName('  ..hidden ', 'e1'), 'hidden');
+    assert.equal(core.sampleName('', 'e1'), 'e1');
+    assert.equal(core.sampleName(null, 'e1'), 'e1');
+    assert.equal(core.sampleName('x'.repeat(150), 'e1').length, 100);
+});
+
+test('escapeHtml', () => {
+    assert.equal(core.escapeHtml('<a href="x">\'&'), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;');
+});
+
+// --- прочее ---------------------------------------------------------------------------------------------------
+
+test('nextSeq: растёт и не меньше Date.now()', () => {
+    const a = core.nextSeq(0);
+    assert.ok(a >= Date.now() - 5);
+    const b = core.nextSeq(a);
+    assert.ok(b > a);
+    assert.equal(core.nextSeq(Number.MAX_SAFE_INTEGER - 10), Number.MAX_SAFE_INTEGER - 9);
+});
+
+test('Emitter: ошибка обработчика не мешает остальным; off', () => {
+    const e = new core.Emitter();
+    const got = [];
+    const orig = console.error;
+    console.error = () => {};
+    try {
+        e.on('x', () => { throw new Error('boom'); });
+        const h = (v) => got.push(v);
+        e.on('x', h);
+        e.emit('x', 1);
+        e.off('x', h);
+        e.emit('x', 2);
+    } finally {
+        console.error = orig;
+    }
+    assert.deepEqual(got, [1]);
+});
+
+test('debounce: вызывается один раз с последними аргументами; cancel, flush', (t) => {
+    t.mock.timers.enable({apis: ['setTimeout']});
+    const calls = [];
+    const d = core.debounce((v) => calls.push(v), 100);
+    d(1);
+    d(2);
+    t.mock.timers.tick(99);
+    assert.deepEqual(calls, []);
+    d(3);
+    t.mock.timers.tick(100);
+    assert.deepEqual(calls, [3]);
+    d(4);
+    d.cancel();
+    t.mock.timers.tick(200);
+    assert.deepEqual(calls, [3]);
+    d(5);
+    assert.ok(d.pending());
+    d.flush();
+    assert.deepEqual(calls, [3, 5]);
+    assert.ok(!d.pending());
+});

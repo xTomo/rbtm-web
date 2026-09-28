@@ -178,7 +178,8 @@
                     <div class="panel-body">
                         <div id="res-info"></div>
                         <div id="res-view" class="st-res-view hidden">
-                            <div class="st-sub">Срезы копии с биннингом:</div>
+                            <div id="res-sub" class="st-sub"
+                                 title="Копия объёма, уменьшенная в b раз по каждой оси (среднее по кубу b×b×b)">Срезы копии с биннингом:</div>
                             <div class="st-res-ctl">
                                 <div class="btn-group btn-group-xs" id="res-axes" role="group" aria-label="Ось сечения">
                                     <button type="button" class="btn btn-default" data-axis="z">z</button>
@@ -201,12 +202,18 @@
         <div class="col-md-9 st-right">
             <div class="st-toolbar">
                 <div class="btn-group btn-group-xs" id="sv-tabs" role="group" aria-label="Вид">
-                    <button type="button" class="btn btn-default" data-view="envelope">Огибающая</button>
-                    <button type="button" class="btn btn-default" data-view="sample">Угол</button>
-                    <button type="button" class="btn btn-default" data-view="sinogram">Синограмма</button>
-                    <button type="button" class="btn btn-default" data-view="slice">Срез</button>
-                    <button type="button" class="btn btn-default" data-view="diff">0° − 180°</button>
-                    <button type="button" class="btn btn-default" data-view="result">Результат</button>
+                    <button type="button" class="btn btn-default" data-view="envelope"
+                            title="Огибающая max(−ln T) по углам выборки обзора: где объект на детекторе; на ней задаётся рамка">Огибающая</button>
+                    <button type="button" class="btn btn-default" data-view="sample"
+                            title="Кадр одного угла выборки (щелчок по миниатюре под просмотрщиком)">Угол</button>
+                    <button type="button" class="btn btn-default" data-view="sinogram"
+                            title="Синограмма строки превью по 90 углам">Синограмма</button>
+                    <button type="button" class="btn btn-default" data-view="slice"
+                            title="Превью: срез строки превью по загруженной области при текущей оси и кольцах (не готовый объём)">Срез</button>
+                    <button type="button" class="btn btn-default" data-view="diff"
+                            title="Кадр 0° минус отражённый кадр 180°: при верной оси контуры гасятся">0° − 180°</button>
+                    <button type="button" class="btn btn-default" data-view="result"
+                            title="Срез готового объёма последнего запуска (копия ×4). Есть после реконструкции; ось и номер среза — в шаге 5">Готовый объём</button>
                 </div>
                 <div class="btn-group btn-group-xs" role="group" aria-label="Масштаб">
                     <button id="sv-fit" type="button" class="btn btn-default" title="Вписать (двойной щелчок)">Вписать</button>

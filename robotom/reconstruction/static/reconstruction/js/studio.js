@@ -23,7 +23,7 @@
 
     var VIEW_TITLES = {
         envelope: 'Огибающая', sample: 'Угол', sinogram: 'Синограмма', slice: 'Срез', diff: '0° − 180°',
-        result: 'Результат'
+        result: 'Готовый объём'
     };
 
     function initialState(config) {

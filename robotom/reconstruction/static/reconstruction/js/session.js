@@ -3,7 +3,8 @@
  * Открытие (POST sessions) при занятой другим пользователем сессии — 409 busy: диалог перехвата (force: true).
  * Загрузка области (POST sessions/<sid>/load) → опрос GET sessions/<sid> раз в секунду до ready/error/open,
  * отмена (POST .../load/cancel); пока сессия есть — POST .../ping раз в минуту. Идентификатор сессии хранится в
- * localStorage по exp_id: после перезагрузки страницы загруженная область подхватывается без повторной загрузки.
+ * localStorage по exp_id: после перезагрузки страницы загруженная область подхватывается без повторной загрузки;
+ * без него (другой браузер, хранилище недоступно) — своя открытая сессия по этому скану находится через /health.
  * Потеря сессии (410 taken_over, 404 not_found, 403 forbidden) — событие 'lost'.
  *
  * События: 'state' (session json) — новое состояние; 'lost' (ошибка) — сессии больше нет. */
@@ -59,22 +60,42 @@
         else this._stopPing();
     };
 
-    /** Подхватить сессию, сохранённую при прошлом открытии страницы (если она ещё жива). */
+    /** Подхватить сессию, сохранённую при прошлом открытии страницы (если она ещё жива); без сохранённой — сессию
+     *  этого пользователя по этому скану, открытую в другой вкладке или браузере (_adopt). */
     SessionCtl.prototype.restore = function () {
         var self = this;
+        if (!this.app.config.can_run) return Promise.resolve(null);
         var sid = storageGet(this.key);
-        if (!sid || !this.app.config.can_run || !/^[0-9a-f]{32}$/.test(sid)) return Promise.resolve(null);
-        return this.api.getJSON('sessions/' + sid, null, {quiet: true}).then(function (s) {
-            if (!s || s.exp_id !== self.expId || s.state === 'closed') {
-                storageSet(self.key, null);
+        var byId = !sid || !/^[0-9a-f]{32}$/.test(sid) ? Promise.resolve(null) :
+            this.api.getJSON('sessions/' + sid, null, {quiet: true}).then(function (s) {
+                return s && s.exp_id === self.expId && s.state !== 'closed' ? s : null;
+            }, function () {
                 return null;
-            }
-            self._setSid(sid);
+            });
+        return byId.then(function (s) {
+            if (s) return s;
+            storageSet(self.key, null);
+            return self._adopt();
+        }).then(function (s) {
+            if (!s) return null;
+            self._setSid(s.id);
             self._apply(s);
             if (s.state === 'loading') self._startPoll();
             return s;
+        });
+    };
+
+    /** Открытая сессия этого пользователя по этому скану по /health: POST sessions вернёт её же (без перехвата).
+     *  Чужую или по другому скану не трогаем — её перехват только по кнопке загрузки, с диалогом. */
+    SessionCtl.prototype._adopt = function () {
+        var self = this, user = this.app.config.user;
+        return this.api.getJSON('health', null, {quiet: true}).then(function (h) {
+            var cur = h && h.session;
+            if (!cur || !cur.active || cur.owner !== user || cur.exp_id !== self.expId) return null;
+            return self.api.postJSON('sessions', {exp_id: self.expId}, {quiet: true});
+        }).then(function (s) {
+            return s && s.id && s.exp_id === self.expId && s.state !== 'closed' ? s : null;
         }, function () {
-            storageSet(self.key, null);
             return null;
         });
     };

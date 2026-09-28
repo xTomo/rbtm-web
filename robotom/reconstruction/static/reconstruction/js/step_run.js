@@ -1,7 +1,7 @@
 /* Студия реконструкции — шаг 4 «Реконструкция».
  *
  * Диапазон срезов [z0, z1) (строки детектора, по умолчанию y0..y1 загруженной рамки), режим углов (first_180 /
- * full_halves); POST sessions/<sid>/recipe {rings, angles, slices, pixel_size_mm?} → POST sessions/<sid>/estimate
+ * full_halves); POST sessions/<sid>/recipe {rings, angles, slices, pixel_size_mm?, center/tilt/row — ручная ось} → POST sessions/<sid>/estimate
  * {recipe} → размер объёма, копия ×4, оценка времени. «Запустить» → рецепт заново → POST jobs {recipe, name};
  * дальше задачу ведёт панель задачи (jobs.js). */
 (function (root) {
@@ -105,6 +105,13 @@
         var body = {rings: st.rings, angles: st.angles};
         if (st.slices) body.slices = [st.slices[0], st.slices[1]];
         if (st.pixelUser) body.pixel_size_mm = st.pixelUser;
+        // ручная ось — явно: в сессию она уходит с задержкой (StepAxis._persist), запуск может её опередить
+        var ax = st.axisInfo && st.axisInfo.axis;
+        if (ax && ax.method === 'manual') {
+            body.center = ax.center_x;
+            body.tilt = ax.tilt_deg;
+            body.row = ax.y_ref;
+        }
         return body;
     };
 

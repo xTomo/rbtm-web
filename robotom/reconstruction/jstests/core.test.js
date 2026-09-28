@@ -336,3 +336,34 @@ test('debounce: вызывается один раз с последними а�
     assert.deepEqual(calls, [3, 5]);
     assert.ok(!d.pending());
 });
+
+// --- ось вращения ---------------------------------------------------------------------------------------------
+
+test('centerAt: как Axis.center_at движка', () => {
+    const ax = {center_x: 100, y_ref: 50, tilt_deg: 45, method: 'auto'};
+    assert.ok(Math.abs(core.centerAt(ax, 60) - 110) < 1e-9);
+    assert.ok(Math.abs(core.centerAt(ax, 50) - 100) < 1e-9);
+    assert.equal(core.centerAt({center_x: 7, y_ref: 0, tilt_deg: 0}, 1000), 7);
+});
+
+test('nudgeAxis: центр на строке превью и наклон вокруг неё', () => {
+    const ax = {center_x: 2268.31, y_ref: 1799.5, tilt_deg: -1.206, method: 'auto'};
+    const c0 = core.centerAt(ax, 2269);
+    const a1 = core.nudgeAxis(ax, 2269, 'center', 0.25);
+    assert.equal(a1.method, 'manual');
+    assert.equal(a1.y_ref, 2269);
+    assert.ok(Math.abs(a1.center_x - (c0 + 0.25)) < 1e-3);
+    assert.equal(a1.tilt_deg, -1.206);
+    const a2 = core.nudgeAxis(a1, 2269, 'tilt', 0.01);
+    assert.ok(Math.abs(a2.tilt_deg - -1.196) < 1e-9);
+    assert.ok(Math.abs(core.centerAt(a2, 2269) - a1.center_x) < 1e-9);   // центр на строке превью не сдвинулся
+    // сдвиг на другой строке — та же прямая оси
+    const a3 = core.nudgeAxis(a2, 1600, 'center', 0);
+    assert.ok(Math.abs(core.centerAt(a3, 2269) - core.centerAt(a2, 2269)) < 2e-3);
+});
+
+test('inputNum: точка для поля type=number', () => {
+    assert.equal(core.inputNum(2268.3149, 2), '2268.31');
+    assert.equal(core.inputNum(-1.2, 3), '-1.2');
+    assert.equal(core.inputNum(NaN, 2), '');
+});

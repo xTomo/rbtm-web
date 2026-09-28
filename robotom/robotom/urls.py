@@ -9,6 +9,8 @@ urlpatterns = [
     re_path('', include('main.urls', namespace='main')),
     re_path(r'^experiment/', include('experiment.urls', namespace='experiment')),
     re_path(r'^storage/', include('storage.urls', namespace='storage')),
+    # Студия реконструкции. Не /reconstruct*: этот префикс Apache проксирует на старую страницу (000-default.conf)
+    re_path(r'^studio/', include('reconstruction.urls', namespace='reconstruction')),
 
     re_path(r'^admin/', admin.site.urls),
 

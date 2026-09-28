@@ -8,7 +8,8 @@ import os
 # Обязательные параметры:
 #   DEBUG, ALLOWED_HOSTS, SECRET_KEY, DATABASES,
 #   STORAGE_HOST, EXPERIMENT_HOST, RECONSTRUCTION_HOST,
-#   CSRF_TRUSTED_ORIGINS, EMAIL_*, CACHES, TOMO_NUM
+#   CSRF_TRUSTED_ORIGINS, EMAIL_*, CACHES, TOMO_NUM,
+#   RECON_SERVICE_URL, RECON_TOKEN (студия реконструкции, см. docs/STUDIO-DEPLOY.md)
 
 DEBUG = True
 
@@ -33,6 +34,12 @@ STORAGE_PUBLIC_HOST = os.environ.get('STORAGE_PUBLIC_HOST', '')
 
 # RECONSTRUCTION routes
 RECONSTRUCTION_URL = urljoin(RECONSTRUCTION_HOST, '/view/tomo_object/{exp_id}')
+
+# Студия реконструкции (приложение reconstruction): recon-service из rbtm-recon (reconservice, порт 5560)
+# и общий с ним секрет — тот же RECON_TOKEN, что в web/.env rbtm-recon. В production оба приходят из
+# окружения контейнера (docker-compose.yml, .env); пустой токен — прокси студии отвечает 503.
+RECON_SERVICE_URL = os.environ.get('RECON_SERVICE_URL', 'http://localhost:5560/')
+RECON_TOKEN = os.environ.get('RECON_TOKEN', '')
 
 # STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')
@@ -167,6 +174,7 @@ INSTALLED_APPS = (
     'main',
     'experiment',
     'storage',
+    'reconstruction',
 )
 
 SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'

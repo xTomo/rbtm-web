@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load static %}
+{% comment %}
+Студия реконструкции. Контракт с views.studio_view:
+- studio_config (json_script id="studio-config"): exp_id, api_base (префикс прокси, со слешем в конце),
+  can_run (ADM/EXP: загрузка, запуск, отмена), user, specimen (или null), storage_url (страница записи
+  хранилища), legacy_url (старая страница реконструкции), csrf_token;
+- asset_version — добавляется к URL статики (?v=...): Apache кэширует JS на год.
+{% endcomment %}
+{% block content %}
+{{ studio_config|json_script:"studio-config" }}
+<div id="studio" class="container-fluid">
+    <h4>Студия реконструкции {{ exp_id }}</h4>
+</div>
+{% endblock content %}

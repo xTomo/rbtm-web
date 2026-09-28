@@ -1,7 +1,8 @@
 /* Студия реконструкции — шаг 4 «Реконструкция».
  *
  * Диапазон срезов [z0, z1) (строки детектора, по умолчанию y0..y1 загруженной рамки), режим углов (first_180 /
- * full_halves); POST sessions/<sid>/recipe {rings, angles, slices, pixel_size_mm?, center/tilt/row — ручная ось} → POST sessions/<sid>/estimate
+ * full_halves), копии с биннингом (×2/×4/×8, хотя бы одна — по ней шаг 5 показывает срезы; по умолчанию ×4);
+ * POST sessions/<sid>/recipe {rings, angles, slices, binning, pixel_size_mm?, center/tilt/row — ручная ось} → POST sessions/<sid>/estimate
  * {recipe} → размер объёма, копия ×4, оценка времени. «Запустить» → рецепт заново → POST jobs {recipe, name};
  * дальше задачу ведёт панель задачи (jobs.js). */
 (function (root) {
@@ -19,6 +20,7 @@
         this.api = app.api;
         this.e = {
             z0: ui.$('run-z0'), z1: ui.$('run-z1'), nz: ui.$('run-nz'), angles: ui.$('run-angles'),
+            binning: ui.$('run-binning'),
             est: ui.$('run-estimate'), btn: ui.$('run-btn'), hint: ui.$('run-hint')
         };
         this.estCh = this.api.channel({
@@ -80,11 +82,38 @@
                 });
             });
         }
+        if (e.binning) {
+            ui.qsa('[data-binning]', e.binning).forEach(function (b) {
+                b.addEventListener('click', function () {
+                    self._toggleBinning(parseInt(b.getAttribute('data-binning'), 10));
+                });
+            });
+        }
         if (e.btn) {
             e.btn.addEventListener('click', function () {
                 self.run();
             });
         }
+    };
+
+    /** Включить/выключить копию ×f; последнюю не выключаем — шагу 5 нужна копия для срезов. */
+    StepRun.prototype._toggleBinning = function (f) {
+        var cur = (this.st.binning || []).slice(), i = cur.indexOf(f);
+        if (i >= 0) {
+            if (cur.length === 1) {
+                ui.toast('Нужна хотя бы одна копия с биннингом: по ней шаг 5 показывает срезы.', 'info', 4000);
+                return;
+            }
+            cur.splice(i, 1);
+        } else {
+            cur.push(f);
+        }
+        this.st.binning = cur.sort(function (a, b) {
+            return a - b;
+        });
+        this.app.set({runEdited: true});
+        this.render();
+        this.app.bus.emit('recipe-params');
     };
 
     StepRun.prototype._onSlicesInput = function () {
@@ -104,6 +133,7 @@
         var st = this.st;
         var body = {rings: st.rings, angles: st.angles};
         if (st.slices) body.slices = [st.slices[0], st.slices[1]];
+        if (st.binning && st.binning.length) body.binning = st.binning.slice();
         if (st.pixelUser) body.pixel_size_mm = st.pixelUser;
         // ручная ось — явно: в сессию она уходит с задержкой (StepAxis._persist), запуск может её опередить
         var ax = st.axisInfo && st.axisInfo.axis;
@@ -199,6 +229,16 @@
                 b.classList.toggle('btn-default', !on);
             });
         }
+        if (e.binning) {
+            var sel = st.binning || [];
+            ui.qsa('[data-binning]', e.binning).forEach(function (b) {
+                var on = sel.indexOf(parseInt(b.getAttribute('data-binning'), 10)) >= 0;
+                b.classList.toggle('active', on);
+                b.classList.toggle('btn-primary', on);
+                b.classList.toggle('btn-default', !on);
+                b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+        }
         this._renderEstimate();
         this._renderButtons();
     };
@@ -227,7 +267,8 @@
         Object.keys(binned).sort(function (a, b) {
             return Number(a) - Number(b);
         }).forEach(function (b) {
-            row('Копия ×' + b, core.fmtBytes(binned[b]));
+            row('Копия ×' + b, binned[b] > 0 ? core.fmtBytes(binned[b]) : 'не создаётся: меньше ' + b + ' срезов',
+                binned[b] > 0 ? null : 'text-warning');
         });
         if (est.n_angles_used) row('Углов', est.n_angles_used + ' из ' + (est.n_data_frames || '?') + ' data-кадров');
         var t = est.time;

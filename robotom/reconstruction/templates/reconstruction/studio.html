@@ -161,6 +161,17 @@
                             <button type="button" class="btn btn-default" data-angles="full_halves"
                                     title="Все полные полуобороты с усреднением: меньше шума, нужна точная ось">Все полуобороты</button>
                         </div>
+                        <div class="st-sub">Копии с биннингом:</div>
+                        <div class="btn-group btn-group-sm st-seg" id="run-binning" role="group" aria-label="Копии с биннингом">
+                            <button type="button" class="btn btn-default" data-binning="2"
+                                    title="Копия, уменьшенная в 2 раза по каждой оси (объём в 8 раз меньше полного)">×2</button>
+                            <button type="button" class="btn btn-default" data-binning="4"
+                                    title="Копия, уменьшенная в 4 раза по каждой оси (объём в 64 раза меньше полного), как у ноутбука">×4</button>
+                            <button type="button" class="btn btn-default" data-binning="8"
+                                    title="Копия, уменьшенная в 8 раз по каждой оси (объём в 512 раз меньше полного)">×8</button>
+                        </div>
+                        <div class="st-note text-muted">Можно выбрать несколько. Полный объём пишется всегда; копия ×b —
+                            среднее по кубу b×b×b. Шаг 5 показывает срезы копии с наибольшим биннингом.</div>
                         <div id="run-estimate" class="st-estimate"></div>
                         <div class="st-btns">
                             <button id="run-btn" type="button" class="btn btn-primary btn-sm">Запустить</button>

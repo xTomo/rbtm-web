@@ -36,7 +36,7 @@
             info: null, ov: null, bin: 1, frame: null, roi: null, row: null, roiSuggested: null, rowSuggested: null,
             loadedRoi: null, loadProgress: null, loadStage: null, sampleAngles: [], thumbsStack: null, sampleK: -1,
             outsideIdx: [], outsideAngles: [], pixelSize: null, pixelUser: null,
-            axisInfo: null, sliceMeta: null, rings: 'medium', angles: 'first_180', slices: null, estimate: null,
+            axisInfo: null, sliceMeta: null, rings: 'medium', angles: 'first_180', slices: null, binning: [4], estimate: null,
             resultDoc: null
         };
     }

@@ -1,9 +1,11 @@
 /* Студия реконструкции — шаг 2 «Ось вращения» (после загрузки области).
  *
- * POST sessions/<sid>/axis/auto → центр (столбец детектора на строке y_ref), наклон, углы пары 0°/180°
- * (только показ; уточнение сеткой центров — этап 4). Превью среза GET sessions/<sid>/slice?row&rings&angles&seq —
- * канал «последний выигрывает» с задержкой 250 мс; строка превью — в пределах загруженной рамки.
- * Вспомогательный вид «0° − 180°» — GET sessions/<sid>/axis/diff?row&seq. */
+ * POST sessions/<sid>/axis/auto → центр (столбец детектора на строке y_ref), наклон, углы пары 0°/180°.
+ * Ручная правка: центр на строке превью и наклон (поля, кнопки шага, стрелки на срезе) → ось 'manual';
+ * она сохраняется в сессии через POST sessions/<sid>/axis/set (с задержкой, её же берёт рецепт), сброс — авто-ось.
+ * Превью среза GET sessions/<sid>/slice?row&center&tilt&rings&angles&seq — канал «последний выигрывает» с задержкой
+ * 250 мс (смена только центра считается на сервисе быстрым путём, ~0,2 с); строка превью — в пределах рамки.
+ * Вспомогательный вид «0° − 180°» — GET sessions/<sid>/axis/diff?row&center&tilt&seq. Сетка центров — этап 4. */
 (function (root) {
     'use strict';
     var S = root.Studio = root.Studio || {};
@@ -13,6 +15,9 @@
         strong: 'кольца: сильно'};
     var ANGLES_TEXT = {first_180: 'первые 180°', full_halves: 'все полуобороты'};
     var PREVIEW_EXPECT = ['not_found', 'taken_over', 'forbidden', 'not_ready'];
+    var PERSIST_MS = 400;           // ручная ось → сессия, после паузы в правке
+    var KEY_STEPS = {ArrowLeft: ['center', -0.25, -1], ArrowRight: ['center', 0.25, 1],
+        ArrowDown: ['tilt', -0.01, -0.1], ArrowUp: ['tilt', 0.01, 0.1]};
 
     function StepAxis(app) {
         var self = this;
@@ -22,8 +27,10 @@
         this.e = {
             info: ui.$('axis-info'), row: ui.$('axis-row'), slice: ui.$('axis-slice'), diff: ui.$('axis-diff'),
             ok: ui.$('axis-ok'), auto: ui.$('axis-auto'), sliceInfo: ui.$('axis-slice-info'),
-            pairWarn: ui.$('axis-pair-warn')
+            pairWarn: ui.$('axis-pair-warn'), center: ui.$('axis-center'), tilt: ui.$('axis-tilt'),
+            nudge: Array.prototype.slice.call(document.querySelectorAll('#step-axis [data-nudge]'))
         };
+        this._persistTimer = null;
         this.sliceCh = this.api.channel({
             delay: 250,
             onBusy: function (b) {
@@ -45,7 +52,8 @@
             if (s && s.axis) {
                 // сессия уже знает ось (страницу открыли заново) — не пересчитывать
                 self.st.axisInfo = {axis: s.axis};
-                app.set({axis: 'auto'});
+                if (s.axis.method !== 'manual') self.st.autoAxis = s.axis;
+                app.set({axis: s.axis.method === 'manual' ? 'checked' : 'auto'});
                 self.render();
                 self.refreshSlice(true, true);
             } else {
@@ -89,6 +97,20 @@
                 app.setRow(v, 'axis');
             });
         }
+        [['center', e.center], ['tilt', e.tilt]].forEach(function (p) {
+            if (!p[1]) return;
+            p[1].addEventListener('change', function () {
+                self._fromInputs(p[0]);
+            });
+        });
+        e.nudge.forEach(function (b) {
+            b.addEventListener('click', function () {
+                self.nudge(b.dataset.nudge, parseFloat(b.dataset.step));
+            });
+        });
+        document.addEventListener('keydown', function (ev) {
+            self._onKey(ev);
+        });
         if (e.slice) {
             e.slice.addEventListener('click', function () {
                 if (app.viewer.has('slice')) app.showView('slice');
@@ -117,7 +139,9 @@
     StepAxis.prototype.reset = function () {
         this.sliceCh.cancel();
         this.diffCh.cancel();
+        this._cancelPersist();
         this.st.axisInfo = null;
+        this.st.autoAxis = null;
         this.st.sliceMeta = null;
         this.app.set({axis: 'none'});
         var cur = this.app.viewer.current();
@@ -131,6 +155,7 @@
         var self = this, app = this.app;
         if (!app.ready()) return;
         var sid = app.sid();
+        this._cancelPersist();
         app.set({axis: 'running'});
         this.render();
         app.viewer.setBusy('axis', true, 'Авто-ось…');
@@ -139,6 +164,7 @@
                 app.viewer.setBusy('axis', false);
                 if (sid !== app.sid()) return;
                 self.st.axisInfo = res;
+                self.st.autoAxis = res.axis;
                 app.set({axis: 'auto'});
                 self.render();
                 self.refreshSlice(true, true);
@@ -158,8 +184,8 @@
         if (!app.ready() || st.axis === 'running') return;
         var sid = app.sid(), row = st.row, rings = st.rings, angles = st.angles;
         this.sliceCh.run(function (signal, seq) {
-            return self.api.getBinary('sessions/' + sid + '/slice', {row: row, rings: rings, angles: angles, seq: seq},
-                {signal: signal, expect: PREVIEW_EXPECT, what: 'Срез'});
+            return self.api.getBinary('sessions/' + sid + '/slice', self._axisParams(row,
+                {row: row, rings: rings, angles: angles, seq: seq}), {signal: signal, expect: PREVIEW_EXPECT, what: 'Срез'});
         }, now).then(function (img) {
             if (S.api.isStale(img) || sid !== app.sid()) return;
             st.sliceMeta = img.meta;
@@ -187,7 +213,7 @@
         if (!app.ready()) return;
         var sid = app.sid(), row = st.row;
         this.diffCh.run(function (signal, seq) {
-            return self.api.getBinary('sessions/' + sid + '/axis/diff', {row: row, seq: seq},
+            return self.api.getBinary('sessions/' + sid + '/axis/diff', self._axisParams(row, {row: row, seq: seq}),
                 {signal: signal, expect: PREVIEW_EXPECT, what: '0° − 180°'});
         }).then(function (img) {
             if (S.api.isStale(img) || sid !== app.sid()) return;
@@ -206,6 +232,90 @@
         }, function (err) {
             app.previewError(err, '0° − 180°');
         });
+    };
+
+    // --- ручная ось ------------------------------------------------------------------------------------------
+
+    /** center/tilt текущей оси для запроса превью (центр — на строке row); без оси — как есть (ось сессии). */
+    StepAxis.prototype._axisParams = function (row, params) {
+        var a = this.st.axisInfo && this.st.axisInfo.axis;
+        if (a) {
+            params.center = Math.round(core.centerAt(a, row) * 10000) / 10000;
+            params.tilt = a.tilt_deg;
+        }
+        return params;
+    };
+
+    StepAxis.prototype._canEdit = function () {
+        return this.app.ready() && this.st.axis !== 'running' && !!(this.st.axisInfo && this.st.axisInfo.axis);
+    };
+
+    /** Сдвиг центра (px, на строке превью) или наклона (°, вокруг строки превью). */
+    StepAxis.prototype.nudge = function (kind, step) {
+        if (!this._canEdit() || !core.isNum(step)) return;
+        this.setManual(core.nudgeAxis(this.st.axisInfo.axis, this.st.row, kind, step));
+    };
+
+    /** Значение из поля: центр — на строке превью; наклон — вокруг неё (центр на строке превью не меняется). */
+    StepAxis.prototype._fromInputs = function (kind) {
+        if (!this._canEdit()) return;
+        var a = this.st.axisInfo.axis, row = this.st.row;
+        var c = kind === 'center' ? core.parseNum(this.e.center.value) : core.centerAt(a, row);
+        var t = kind === 'tilt' ? core.parseNum(this.e.tilt.value) : a.tilt_deg;
+        if (!core.isNum(c) || !core.isNum(t)) {
+            this.render();                  // мусор в поле — вернуть прежнее значение
+            return;
+        }
+        this.setManual(core.manualAxis(c, row, core.clamp(t, -45, 45)));
+    };
+
+    StepAxis.prototype.setManual = function (axis) {
+        var st = this.st, app = this.app;
+        st.axisInfo = {axis: axis, pair: st.axisInfo && st.axisInfo.pair};
+        app.set({axis: 'checked'});
+        this.render();
+        if (app.viewer.current() === 'diff') this.diff();
+        else this.refreshSlice(true);
+        this._schedulePersist();
+    };
+
+    StepAxis.prototype._schedulePersist = function () {
+        var self = this;
+        this._cancelPersist();
+        this._persistTimer = setTimeout(function () {
+            self._persistTimer = null;
+            self._persist();
+        }, PERSIST_MS);
+    };
+
+    StepAxis.prototype._cancelPersist = function () {
+        if (this._persistTimer) clearTimeout(this._persistTimer);
+        this._persistTimer = null;
+    };
+
+    /** Ручная ось → ось сессии (рецепт, восстановление страницы). Ось в браузере при ошибке остаётся: рецепт при
+     *  запуске получает её явно (StepRun.recipeBody). */
+    StepAxis.prototype._persist = function () {
+        var app = this.app, a = this.st.axisInfo && this.st.axisInfo.axis;
+        if (!a || a.method !== 'manual' || !app.ready()) return;
+        var sid = app.sid();
+        this.api.postJSON('sessions/' + sid + '/axis/set', {center: a.center_x, tilt: a.tilt_deg, row: a.y_ref},
+            {expect: PREVIEW_EXPECT, what: 'Ось'}).then(null, function (err) {
+            app.session.handleError(err);
+        });
+    };
+
+    /** Стрелки на виде «Срез» или «0° − 180°»: ← → центр, ↑ ↓ наклон; с Shift — крупный шаг. */
+    StepAxis.prototype._onKey = function (ev) {
+        var k = KEY_STEPS[ev.key];
+        if (!k || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+        var t = ev.target, tag = t && t.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+        if (document.querySelector('.modal.in')) return;
+        var cur = this.app.viewer.current();
+        if ((cur !== 'slice' && cur !== 'diff') || !this._canEdit() || !this.app.config.can_run) return;
+        ev.preventDefault();
+        this.nudge(k[0], ev.shiftKey ? k[2] : k[1]);
     };
 
     /** Линия строки превью на виде «0° − 180°» (только показ). */
@@ -240,8 +350,16 @@
                     dl.appendChild(ui.el('dt', {text: k}));
                     dl.appendChild(ui.el('dd', {text: v}));
                 };
-                row('Центр', core.fmtNum(a.center_x, 2) + ' px (столбец кадра на строке ' + core.fmtNum(a.y_ref, 0) + ')');
-                row('Наклон', core.fmtNum(a.tilt_deg, 3) + '°');
+                var auto = st.autoAxis;
+                if (a.method === 'manual') {
+                    row('Ось', 'задана вручную');
+                    if (auto) {
+                        row('Авто', core.fmtNum(core.centerAt(auto, st.row), 2) + ' px · ' +
+                            core.fmtNum(auto.tilt_deg, 3) + '°');
+                    }
+                } else {
+                    row('Ось', 'авто');
+                }
                 var pair = st.axisInfo.pair;
                 if (pair && pair.angles) {
                     row('Пара', core.fmtNum(pair.angles[0], 2) + '° / ' + core.fmtNum(pair.angles[1], 2) + '°');
@@ -261,6 +379,12 @@
             e.row.max = st.loadedRoi.y1 - 1;
         }
         if (e.row && st.row !== null && st.row !== undefined) e.row.value = st.row;
+        var ax = st.axisInfo && st.axisInfo.axis, hasRow = st.row !== null && st.row !== undefined;
+        // поле, в котором сейчас печатают, не перетираем
+        if (e.center && document.activeElement !== e.center) {
+            e.center.value = ax && hasRow ? core.inputNum(core.centerAt(ax, st.row), 2) : '';
+        }
+        if (e.tilt && document.activeElement !== e.tilt) e.tilt.value = ax ? core.inputNum(ax.tilt_deg, 3) : '';
         this._renderSliceInfo();
         this._renderButtons();
     };
@@ -290,6 +414,12 @@
         ui.enable(e.diff, ready && st.axis !== 'running', why);
         ui.enable(e.auto, ready && st.axis !== 'running', why);
         ui.enable(e.ok, ready && (st.axis === 'auto'), st.axis === 'checked' ? 'Уже отмечено' : why);
+        var edit = this._canEdit(), whyEdit = ready ? 'Сначала найдите ось' : why;
+        ui.enable(e.center, edit, whyEdit);
+        ui.enable(e.tilt, edit, whyEdit);
+        e.nudge.forEach(function (b) {
+            ui.enable(b, edit, whyEdit);
+        });
     };
 
     S.StepAxis = StepAxis;

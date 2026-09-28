@@ -13,7 +13,7 @@
 | GET          | ``scans/<exp>/sample/<k>``                                            | нет    |
 | POST         | ``sessions``                                                          | да     |
 | GET, DELETE  | ``sessions/<sid>``                                                    | да     |
-| POST         | ``sessions/<sid>/ping|load|load/cancel|axis/auto|axis/scan|axis/tilt|recipe|estimate`` | да |
+| POST         | ``sessions/<sid>/ping|load|load/cancel|axis/auto|axis/scan|axis/tilt|axis/set|recipe|estimate`` | да |
 | GET          | ``sessions/<sid>/slice|axis/diff|rings/preview|repositioning``        | да     |
 | POST         | ``jobs``                                                              | да     |
 | GET          | ``jobs``, ``jobs/<id>``, ``jobs/<id>/log``                            | нет    |
@@ -89,7 +89,7 @@ RULES = (
     _rule('GET', r'sessions/{id}', run=True),
     _rule('DELETE', r'sessions/{id}', run=True, audit=True),
     _rule('POST', r'sessions/{id}/(?:load|load/cancel)', run=True, audit=True),
-    _rule('POST', r'sessions/{id}/(?:ping|axis/auto|axis/scan|axis/tilt|recipe|estimate)', run=True),
+    _rule('POST', r'sessions/{id}/(?:ping|axis/auto|axis/scan|axis/tilt|axis/set|recipe|estimate)', run=True),
     _rule('GET', r'sessions/{id}/(?:slice|axis/diff|rings/preview|repositioning)', run=True),
 
     _rule('POST', r'jobs', run=True, audit=True),

@@ -485,6 +485,34 @@
         return [z0, z1];
     };
 
+    // --- ось вращения -------------------------------------------------------------------------------------
+
+    /** Столбец оси на строке детектора y — как ``Axis.center_at`` движка: center_x + tan(tilt) · (y − y_ref). */
+    core.centerAt = function (axis, y) {
+        return axis.center_x + Math.tan(axis.tilt_deg * Math.PI / 180) * (y - axis.y_ref);
+    };
+
+    /** Ось, заданная вручную: центр на строке row и наклон (округлены до 0,001 px и 0,0001°). */
+    core.manualAxis = function (center, row, tilt) {
+        return {center_x: Math.round(center * 1000) / 1000, y_ref: row,
+            tilt_deg: Math.round(tilt * 10000) / 10000, method: 'manual'};
+    };
+
+    /** Сдвиг ручной оси: kind 'center' — центр на строке row на step px, 'tilt' — наклон на step° вокруг
+     *  строки row (центр на ней не меняется). */
+    core.nudgeAxis = function (axis, row, kind, step) {
+        var c = core.centerAt(axis, row), t = axis.tilt_deg;
+        if (kind === 'center') c += step;
+        else t += step;
+        return core.manualAxis(c, row, t);
+    };
+
+    /** Число для value поля type=number (десятичная точка, без хвоста нулей). */
+    core.inputNum = function (v, digits) {
+        if (!isNum(v)) return '';
+        return String(Number(v.toFixed(digits)));
+    };
+
     // --- форматирование -----------------------------------------------------------------------------------
 
     /** Число по-русски (десятичная запятая), digits знаков после запятой максимум; null/NaN — «—». */

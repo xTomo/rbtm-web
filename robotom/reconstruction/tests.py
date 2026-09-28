@@ -55,6 +55,7 @@ RUN_REQUESTS = (
     ('post', 'sessions/' + SID + '/axis/auto'),
     ('post', 'sessions/' + SID + '/axis/scan'),
     ('post', 'sessions/' + SID + '/axis/tilt'),
+    ('post', 'sessions/' + SID + '/axis/set'),
     ('post', 'sessions/' + SID + '/recipe'),
     ('post', 'sessions/' + SID + '/estimate'),
     ('get', 'sessions/' + SID + '/slice'),

@@ -92,6 +92,24 @@
                             <label for="axis-row">Строка превью</label>
                             <input id="axis-row" type="number" class="form-control input-sm" step="1">
                         </div>
+                        <div class="st-grid-row st-nudge" title="Столбец оси на строке превью, пиксели кадра">
+                            <label for="axis-center">Центр, px</label>
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="center" data-step="-1">−1</button>
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="center" data-step="-0.25">−¼</button>
+                            <input id="axis-center" type="number" class="form-control input-sm" step="0.25">
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="center" data-step="0.25">+¼</button>
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="center" data-step="1">+1</button>
+                        </div>
+                        <div class="st-grid-row st-nudge" title="Наклон оси к вертикали, градусы">
+                            <label for="axis-tilt">Наклон, °</label>
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="tilt" data-step="-0.1">−0,1</button>
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="tilt" data-step="-0.01">−0,01</button>
+                            <input id="axis-tilt" type="number" class="form-control input-sm" step="0.01">
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="tilt" data-step="0.01">+0,01</button>
+                            <button type="button" class="btn btn-default btn-xs" data-nudge="tilt" data-step="0.1">+0,1</button>
+                        </div>
+                        <div class="st-note text-muted">На срезе: ← → — центр ±¼ px (с Shift ±1), ↑ ↓ — наклон ±0,01°
+                            (с Shift ±0,1°). Наклон проверяйте срезами у верха и низа рамки.</div>
                         <div class="st-btns">
                             <button id="axis-slice" type="button" class="btn btn-default btn-sm"
                                     title="Срез строки превью при найденной оси">Срез</button>

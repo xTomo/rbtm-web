@@ -31,6 +31,12 @@ services:
     networks:
       - default
       - rbtmstorage_default
+    environment:
+      # Студия реконструкции (/studio/): recon-service из rbtm-recon — контейнер web_reconstructor_1 в сети
+      # rbtmstorage_default, порт 5560 наружу не публикуется. RECON_TOKEN — общий секрет, берётся из файла .env
+      # рядом с этим файлом (см. .env.example) и должен совпадать с RECON_TOKEN в web/.env rbtm-recon.
+      - RECON_TOKEN=${RECON_TOKEN}
+      - RECON_SERVICE_URL=http://web_reconstructor_1:5560/
     volumes:
       # Медиафайлы — монтируем с хоста, чтобы не потерять при пересборке образа
       - /home/robotom/rbtm_data/rbtm_web/media:/var/www/web/robotom/media

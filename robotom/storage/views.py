@@ -11,10 +11,11 @@ from django.http import HttpResponseBadRequest, HttpResponse
 from django.shortcuts import render
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 
 from requests.exceptions import Timeout
 from robotom.utils import force_https
+from reconstruction.views import can_view_studio
 
 
 storage_logger = logging.getLogger('storage_logger')
@@ -313,9 +314,18 @@ def storage_record_view(request, storage_record_id):
 
     recon_url = settings.RECONSTRUCTION_URL.format(exp_id=storage_record_id)
 
+    # Кнопка «Студия реконструкции» — только тем, кому студия доступна (ADM/EXP/RES)
+    studio_url = None
+    if can_view_studio(request.user):
+        try:
+            studio_url = reverse('reconstruction:studio', kwargs={'exp_id': storage_record_id})
+        except NoReverseMatch:
+            pass
+
     return render(request, 'storage/storage_record.html', {
         'record_id': storage_record_id,
         'recon_url': recon_url,
+        'studio_url': studio_url,
         'caption': 'Запись хранилища ' + str(storage_record_id),
         'to_show': to_show,
         'info': record,

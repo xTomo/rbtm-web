@@ -39,6 +39,7 @@
 - **`main`** — аутентификация, профили пользователей, система ролей, запросы на смену роли
 - **`experiment`** — управление томографом: настройка, запуск/остановка экспериментов, интерфейс оборудования. Проксирует команды в **Experiment API** (HTTP)
 - **`storage`** — просмотр результатов экспериментов (HDF5-файлы), поиск по метаданным, визуализация кадров. Проксирует запросы в **Storage API** (HTTP)
+- **`reconstruction`** — студия реконструкции (`/studio/<exp_id>/`): страница и прокси `/studio/api/*` по белому списку к **recon-service** из rbtm-recon (токен `RECON_TOKEN`). Выкатка и проверка — [`docs/STUDIO-DEPLOY.md`](docs/STUDIO-DEPLOY.md)
 
 ## Структура проекта
 
@@ -190,6 +191,8 @@ rbtm-web/
 | `/experiment/status/` | Прокси к статусу (JSON) | `experiment:status` |
 | `/experiment/storage-preview/` | PNG превью из Storage для мониторинга | `experiment:storage_preview` |
 | `/storage/` | `storage` | `storage` |
+| `/studio/<exp_id>/` | Студия реконструкции (ADM/EXP/RES; запуск — ADM/EXP) | `reconstruction:studio` |
+| `/studio/api/<path>` | Прокси к recon-service по белому списку (JSON и бинарные ответы, файлы потоком) | `reconstruction:api` |
 | `/admin/` | Django Admin | — |
 | `/accounts/` | `django.contrib.auth` | — |
 
@@ -208,6 +211,8 @@ rbtm-web/
 | `STORAGE_PUBLIC_HOST` | Публичный (доступный из браузера) адрес Storage; пусто → относительная ссылка через rbtm-proxy (default: `''`) |
 | `EXPERIMENT_HOST` | URL Experiment API (default: `http://localhost:5001/`) |
 | `TIMEOUT_DEFAULT` | Таймаут HTTP-запросов к внешним API, секунды (default: `120`) |
+| `RECON_SERVICE_URL` | URL recon-service студии реконструкции (env, default: `http://localhost:5560/`; в production — `http://web_reconstructor_1:5560/`) |
+| `RECON_TOKEN` | Общий секрет с recon-service (env, из `.env` рядом с `docker-compose.yml`; пусто — прокси студии отвечает 503) |
 | `EMAIL_*` | Настройки SMTP для отправки писем активации |
 | `CACHES` | `PyMemcacheCache` — в dev отключён (DummyCache) |
 

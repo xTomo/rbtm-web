@@ -92,6 +92,21 @@
 
 .btn.st-busy::after { content: ' …'; }
 
+/* шаг 3: сглаживание проекций и сравнение вариантов */
+.st-sep { border-top: 1px dashed #ddd; margin-top: 8px; padding-top: 6px; }
+.st-slider { gap: 8px; }
+.st-slider label { min-width: 32px; }
+.st-range { flex: 1 1 auto; min-width: 0; margin: 0; }
+.st-range:disabled { opacity: 0.45; }
+.st-range-val { flex: 0 0 auto; min-width: 42px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.st-more { margin: 4px 0 0; }
+/* normalize.css Bootstrap делает summary блоком — без треугольника; вернуть */
+.st-more > summary { display: list-item; font-size: 12px; color: #777; cursor: pointer; user-select: none; }
+.st-more > summary:hover { color: #333; }
+.st-more[open] > summary { margin-bottom: 2px; }
+.st-cmp { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #ddd; }
+.st-cmp .st-btns { margin-top: 2px; }
+
 /* --- просмотрщик ------------------------------------------------------------------------------------------- */
 .st-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; min-height: 24px; }
 .st-toolbar .btn-group { flex: 0 0 auto; }
@@ -163,6 +178,10 @@
     stroke-width: 3px; pointer-events: none;
 }
 .ov-label-line { fill: #4fc3f7; }
+/* плитки сравнения: рамка, выбранный вариант, вторая строка подписи (метрики) */
+.ov-frame.ov-tile { stroke: rgba(255, 255, 255, 0.4); stroke-width: 1px; }
+.ov-frame.ov-tile.ov-sel { stroke: #5cb85c; stroke-width: 2.5px; }
+.ov-label2 { fill: #e8e8e8; font-size: 11px; }
 
 /* лента углов */
 .st-thumbs-wrap { margin-top: 6px; }

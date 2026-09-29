@@ -9,7 +9,7 @@ const derive = S.steps.derive;
 function base(over) {
     return Object.assign({
         overview: 'ready', roiEdited: false, load: 'none', roiDirty: false, axis: 'none', ringsChosen: false,
-        runEdited: false, job: null, result: 'none'
+        smoothingChosen: false, runEdited: false, job: null, result: 'none'
     }, over);
 }
 
@@ -36,6 +36,14 @@ test('загрузка → ось → срез: статусы по шагам',
     assert.deepEqual(codes(base({load: 'ready', axis: 'checked', ringsChosen: true, runEdited: true})),
         ['checked', 'checked', 'checked', 'checked', 'none']);
     assert.equal(derive(base({load: 'error'})).fov.code, 'error');
+});
+
+test('шаг 3: «проверено» — выбран пресет колец или тронуто сглаживание; иначе «авто»', () => {
+    assert.equal(derive(base({load: 'ready', axis: 'auto'})).rings.code, 'auto');
+    assert.equal(derive(base({load: 'ready', axis: 'auto', smoothingChosen: true})).rings.code, 'checked');
+    assert.equal(derive(base({load: 'ready', axis: 'auto', ringsChosen: true})).rings.code, 'checked');
+    assert.equal(derive(base({smoothingChosen: true})).rings.code, 'none');          // область не загружена
+    assert.equal(derive(base({load: 'lost', smoothingChosen: true})).rings.code, 'stale');
 });
 
 test('рамка изменена после загрузки или сессия потеряна — шаги 2–4 «устарело»', () => {

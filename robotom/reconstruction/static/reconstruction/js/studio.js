@@ -11,11 +11,13 @@
  *   steps.js     — статусы шагов (derive — чистая функция);
  *   session.js   — интерактивная сессия recon-service;
  *   jobs.js      — панель задачи;
- *   step_*.js    — шаги.
+ *   step_*.js    — шаги (step_rings + step_smoothing — шаг 3 «Артефакты»);
+ *   compare.js   — сравнение вариантов колец и сглаживания на фрагменте среза (вид «Сравнение»).
  *
  * События шины app.bus: 'state' (patch) — изменились поля состояния; 'info' — сведения о скане; 'roi' (roi,
  * источник); 'row' (строка, источник, изменилась ли); 'view' (вид); 'load-start', 'loaded' (сессия), 'lost' —
- * загрузка области; 'axis', 'slice', 'rings', 'angles', 'recipe-params'; 'sample' (k, угол). */
+ * загрузка области; 'axis', 'slice', 'rings', 'smoothing' (действующие параметры сглаживания изменились), 'angles',
+ * 'recipe-params'; 'sample' (k, угол); 'compare' (результат сравнения или null). */
 (function (root) {
     'use strict';
     var S = root.Studio = root.Studio || {};
@@ -23,7 +25,7 @@
 
     var VIEW_TITLES = {
         envelope: 'Огибающая', sample: 'Угол', sinogram: 'Синограмма', slice: 'Срез', diff: '0° − 180°',
-        result: 'Готовый объём'
+        compare: 'Сравнение', result: 'Готовый объём'
     };
 
     function initialState(config) {
@@ -31,12 +33,14 @@
             exp_id: config.exp_id,
             // для статусов шагов (steps.derive)
             overview: 'loading', roiEdited: false, load: 'none', roiDirty: false, axis: 'none', ringsChosen: false,
-            runEdited: false, job: null, result: 'unknown',
+            smoothingChosen: false, runEdited: false, job: null, result: 'unknown',
             // данные
             info: null, ov: null, bin: 1, frame: null, roi: null, row: null, roiSuggested: null, rowSuggested: null,
             loadedRoi: null, loadProgress: null, loadStage: null, sampleAngles: [], thumbsStack: null, sampleK: -1,
             outsideIdx: [], outsideAngles: [], pixelSize: null, pixelUser: null,
             axisInfo: null, sliceMeta: null, rings: 'medium', angles: 'first_180', slices: null, binning: [4], estimate: null,
+            // сглаживание проекций (шаг 3): по умолчанию выключено; σ — при включении
+            smoothing: {enabled: false, sigma: 1.5, deblur: 'wiener', balance: 0.02, amount: 1.5},
             resultDoc: null
         };
     }
@@ -140,6 +144,8 @@
         app.fov = new S.StepFov(app);
         app.axis = new S.StepAxis(app);
         app.rings = new S.StepRings(app);
+        app.smoothing = new S.StepSmoothing(app);
+        app.compare = new S.Compare(app);
         app.run = new S.StepRun(app);
         app.result = new S.StepResult(app);
         app.set({});

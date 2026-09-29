@@ -1,6 +1,6 @@
 /* Студия реконструкции — запросы к recon-service через прокси Django (config.api_base + путь сервиса).
  *
- * api.getJSON / postJSON / del / getBinary / getText → Promise; ошибка — ApiError {status, code, body}.
+ * api.getJSON / postJSON / del / getBinary / postBinary / getText → Promise; ошибка — ApiError {status, code, body}.
  * Ошибки показываются всплывающим уведомлением, кроме: отменённых запросов, 409 superseded (запрос устарел),
  * и ожидаемых вызывающим (opts.expect: [статус | код ошибки]) — их обрабатывает вызывающий.
  * Канал (api.channel): новый запрос отменяет предыдущий (AbortController), seq растёт, для правок мышью —
@@ -188,6 +188,10 @@
     };
     Api.prototype.getBinary = function (path, params, opts) {
         return this.request(path, Object.assign({}, opts, {method: 'GET', params: params, kind: 'binary'}));
+    };
+    /** POST с телом JSON и бинарным ответом (стопка фрагментов сравнения). */
+    Api.prototype.postBinary = function (path, body, opts) {
+        return this.request(path, Object.assign({}, opts, {method: 'POST', body: body, kind: 'binary'}));
     };
     Api.prototype.getText = function (path, params, opts) {
         return this.request(path, Object.assign({}, opts, {method: 'GET', params: params, kind: 'text'}));

@@ -23,7 +23,8 @@
 
     /**
      * desc вида: {kind, unit, label, aspect (высота пикселя / ширина, по умолчанию 1),
-     *            coords(ix, iy) → строка координат для строки состояния или null}
+     *            coords(ix, iy) → строка координат для строки состояния или null,
+     *            inside(ix, iy) → false — точка не данные (промежуток мозаики): без значения под курсором}
      */
     function Viewer(stage, opts) {
         core.Emitter.call(this);
@@ -74,7 +75,9 @@
         return this.key;
     };
 
-    /** Показать (или заменить) изображение вида key. Текущий вид не меняется, если opts.select не задан. */
+    /** Показать (или заменить) изображение вида key. Текущий вид не меняется, если opts.select не задан.
+     *  opts: select, fit (вписать заново), resetWindow, hist — готовая гистограмма (core.histogram) вместо гистограммы
+     *  изображения: авто-окно по ней (у мозаики и «крупно» сравнения — по всем плиткам, без промежутков). */
     Viewer.prototype.show = function (key, img, desc, opts) {
         opts = opts || {};
         desc = desc || {};
@@ -86,7 +89,7 @@
         v.img = img;
         v.desc = desc;
         v.aspect = aspect;
-        v.hist = core.histogram(img);
+        v.hist = opts.hist || core.histogram(img);
         v.range = core.dataRange(v.hist);
         var keep = v.win && v.win.user && v.kind === desc.kind && !opts.resetWindow;
         if (!keep) {
@@ -402,7 +405,7 @@
         }
         var q = core.toImage(v.xf, p.x, p.y);
         var ix = Math.floor(q.x), iy = Math.floor(q.y);
-        if (ix < 0 || iy < 0 || ix >= v.img.w || iy >= v.img.h) {
+        if (ix < 0 || iy < 0 || ix >= v.img.w || iy >= v.img.h || (v.desc && v.desc.inside && !v.desc.inside(ix, iy))) {
             this.readout.textContent = hint;
             return;
         }

@@ -2,7 +2,8 @@
  *
  * Диапазон срезов [z0, z1) (строки детектора, по умолчанию y0..y1 загруженной рамки), режим углов (first_180 /
  * full_halves), копии с биннингом (×2/×4/×8, хотя бы одна — по ней шаг 5 показывает срезы; по умолчанию ×4);
- * POST sessions/<sid>/recipe {rings, angles, slices, binning, pixel_size_mm?, center/tilt/row — ручная ось} → POST sessions/<sid>/estimate
+ * POST sessions/<sid>/recipe {rings, angles, slices, binning, pixel_size_mm?, center/tilt/row — ручная ось,
+ * smoothing: {sigma, deblur, balance, amount} | null — только если человек трогал сглаживание} → POST sessions/<sid>/estimate
  * {recipe} → размер объёма, копия ×4, оценка времени. «Запустить» → рецепт заново → POST jobs {recipe, name};
  * дальше задачу ведёт панель задачи (jobs.js). */
 (function (root) {
@@ -52,7 +53,7 @@
             self.st.estimate = null;
             self.render();
         });
-        ['rings', 'angles', 'recipe-params', 'axis'].forEach(function (ev) {
+        ['rings', 'smoothing', 'angles', 'recipe-params', 'axis'].forEach(function (ev) {
             bus.on(ev, function () {
                 self.estimate();
             });
@@ -135,6 +136,9 @@
         if (st.slices) body.slices = [st.slices[0], st.slices[1]];
         if (st.binning && st.binning.length) body.binning = st.binning.slice();
         if (st.pixelUser) body.pixel_size_mm = st.pixelUser;
+        // сглаживание: ключ есть — выбор человека (provenance 'checked'; null — выключено), нет — значение по умолчанию
+        // (выключено, 'auto')
+        if (st.smoothingChosen) body.smoothing = core.smoothingBlock(st.smoothing);
         // ручная ось — явно: в сессию она уходит с задержкой (StepAxis._persist), запуск может её опередить
         var ax = st.axisInfo && st.axisInfo.axis;
         if (ax && ax.method === 'manual') {

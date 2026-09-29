@@ -1,5 +1,6 @@
 /* Студия реконструкции — чистая логика без DOM: декодирование бинарных ответов, гистограмма и окно (LUT),
- * преобразования координат просмотрщика, перетаскивание рамки, рамка поля зрения, форматирование, шина событий.
+ * преобразования координат просмотрщика, перетаскивание рамки, рамка поля зрения, параметры сглаживания, мозаика
+ * сравнения вариантов и видимая область среза, форматирование, шина событий.
  * Загружается первым; проверяется node-тестами (robotom/reconstruction/jstests/). */
 (function (root) {
     'use strict';
@@ -511,6 +512,145 @@
     core.inputNum = function (v, digits) {
         if (!isNum(v)) return '';
         return String(Number(v.toFixed(digits)));
+    };
+
+    // --- сглаживание проекций (блок рецепта smoothing) ---------------------------------------------------------
+
+    var DEBLUR = {wiener: 'Винер', unsharp: 'маска', none: 'без деблюра'};
+    core.DEBLUR_TEXT = DEBLUR;
+
+    /**
+     * Действующие параметры сглаживания из состояния страницы {enabled, sigma, deblur, balance, amount} или из блока
+     * рецепта {sigma, deblur, balance, amount}: {sigma (до 0,01), deblur, balance, amount} или null — выключено
+     * (enabled = false, σ нет или ≤ 0).
+     */
+    core.smoothingBlock = function (sm) {
+        if (!sm || sm.enabled === false) return null;
+        var sigma = Number(sm.sigma);
+        if (sm.sigma === null || sm.sigma === undefined || !isNum(sigma) || sigma <= 0) return null;
+        return {
+            sigma: Math.round(sigma * 100) / 100,
+            deblur: DEBLUR[sm.deblur] ? sm.deblur : 'wiener',
+            balance: isNum(sm.balance) ? sm.balance : 0.02,
+            amount: isNum(sm.amount) ? sm.amount : 1.5
+        };
+    };
+
+    /** Параметры запроса среза: {} — выключено; иначе smooth, deblur и сила деблюра своего метода
+     *  (balance — Винер, amount — маска). */
+    core.smoothingQuery = function (sm) {
+        var b = core.smoothingBlock(sm);
+        if (!b) return {};
+        var q = {smooth: b.sigma, deblur: b.deblur};
+        if (b.deblur === 'wiener') q.balance = b.balance;
+        else if (b.deblur === 'unsharp') q.amount = b.amount;
+        return q;
+    };
+
+    /** Подпись: «σ 1,5 · Винер 0,02», «σ 1 · маска 1,5», «σ 2 · без деблюра»; short — без силы деблюра;
+     *  выключено — ''. */
+    core.smoothingText = function (sm, short) {
+        var b = core.smoothingBlock(sm);
+        if (!b) return '';
+        var s = 'σ ' + core.fmtNum(b.sigma, 2) + ' · ' + DEBLUR[b.deblur];
+        if (!short && b.deblur === 'wiener') s += ' ' + core.fmtNum(b.balance, 4);
+        else if (!short && b.deblur === 'unsharp') s += ' ' + core.fmtNum(b.amount, 2);
+        return s;
+    };
+
+    // --- сравнение вариантов: мозаика фрагментов ---------------------------------------------------------------
+
+    /**
+     * Раскладка k плиток tw×th: не больше maxCols (4) в ряду, промежуток gap (8 px). Без размера вида — ряды
+     * выровнены (5 → 3 + 2, 7 → 4 + 3); с opts.viewW × opts.viewH — число столбцов, при котором мозаика, вписанная в
+     * вид, крупнее всего (при равенстве — меньше столбцов): широкие плитки идут 2 × 2, а не полосой.
+     * → {cols, rows, gap, tw, th, w, h, tiles: [{x, y, w, h}]} — координаты в пикселях мозаики.
+     */
+    core.mosaicLayout = function (k, tw, th, opts) {
+        opts = opts || {};
+        var maxCols = Math.max(1, opts.maxCols || 4), gap = opts.gap === undefined ? 8 : Math.max(0, opts.gap);
+        k = Math.max(0, k | 0);
+        var rows = Math.max(1, Math.ceil(k / maxCols));
+        var cols = Math.max(1, Math.ceil(k / rows));
+        if (opts.viewW > 0 && opts.viewH > 0 && k > 1) {
+            var best = 0;
+            for (var c = 1; c <= Math.min(k, maxCols); c++) {
+                var r = Math.ceil(k / c);
+                var s = Math.min(opts.viewW / (c * tw + (c - 1) * gap), opts.viewH / (r * th + (r - 1) * gap));
+                if (s > best * (1 + 1e-3)) {
+                    best = s;
+                    cols = c;
+                }
+            }
+        }
+        rows = Math.max(1, Math.ceil(k / cols));
+        var tiles = [];
+        for (var i = 0; i < k; i++) {
+            tiles.push({x: (i % cols) * (tw + gap), y: Math.floor(i / cols) * (th + gap), w: tw, h: th});
+        }
+        return {cols: cols, rows: rows, gap: gap, tw: tw, th: th, w: cols * tw + (cols - 1) * gap,
+            h: rows * th + (rows - 1) * gap, tiles: tiles};
+    };
+
+    /**
+     * Мозаика из стопки (k, h, w) по раскладке mosaicLayout(k, w, h): одно изображение с тем же типом, scale/offset и
+     * meta; промежутки — fill (по умолчанию код 0 = низ общего окна квантования, у float32 — NaN).
+     */
+    core.buildMosaic = function (stack, layout, fill) {
+        var Ctor = stack.data.constructor;
+        var out = new Ctor(layout.w * layout.h);
+        if (fill === undefined) fill = stack.dtype === 'float32' ? NaN : 0;
+        if (fill !== 0) out.fill(fill);
+        var tw = stack.w, th = stack.h, n = tw * th;
+        var k = Math.min(stack.k || 1, layout.tiles.length);
+        for (var i = 0; i < k; i++) {
+            var t = layout.tiles[i];
+            for (var y = 0; y < th; y++) {
+                var src = i * n + y * tw;
+                out.set(stack.data.subarray(src, src + tw), (t.y + y) * layout.w + t.x);
+            }
+        }
+        return {w: layout.w, h: layout.h, k: 1, shape: [layout.h, layout.w], dtype: stack.dtype, data: out,
+            scale: stack.scale, offset: stack.offset, quantized: stack.quantized, meta: stack.meta};
+    };
+
+    /** Номер плитки под точкой мозаики (x, y) или −1 (промежуток, вне мозаики). */
+    core.tileAt = function (layout, x, y) {
+        if (!layout || !isNum(x) || !isNum(y)) return -1;
+        for (var i = 0; i < layout.tiles.length; i++) {
+            var t = layout.tiles[i];
+            if (x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h) return i;
+        }
+        return -1;
+    };
+
+    /**
+     * Видимая часть изображения среза в пикселях полного среза: [x0, y0, x1, y1] (целые) или null — изображение
+     * видно целиком (или не видно вовсе). xf — преобразование вида, viewW×viewH — размер сцены (CSS px); img —
+     * {w, h, meta: {downsample, region}}: пиксель ix изображения — столбцы среза region[0] + ix·ds … + ds (края,
+     * не кратные ds, сервис отбрасывает). Сторона — в [opts.min (128), opts.max (512)] вокруг центра видимой части,
+     * область не выходит за покрытие изображения.
+     */
+    core.visibleRegion = function (xf, viewW, viewH, img, opts) {
+        opts = opts || {};
+        var maxS = opts.max || 512, minS = opts.min || 128;
+        if (!xf || !img || !(img.w > 0) || !(img.h > 0) || !(xf.sx > 0) || !(xf.sy > 0)) return null;
+        var m = img.meta || {}, ds = m.downsample > 0 ? m.downsample : 1;
+        var reg = m.region && m.region.length === 4 ? m.region : [0, 0, img.w * ds, img.h * ds];
+        var ix0 = Math.max(0, -xf.tx / xf.sx), ix1 = Math.min(img.w, (viewW - xf.tx) / xf.sx);
+        var iy0 = Math.max(0, -xf.ty / xf.sy), iy1 = Math.min(img.h, (viewH - xf.ty) / xf.sy);
+        if (!(ix1 > ix0) || !(iy1 > iy0)) return null;
+        var eps = 1e-6;
+        if (ix0 <= eps && iy0 <= eps && ix1 >= img.w - eps && iy1 >= img.h - eps) return null;
+        function span(a0, a1, b0, b1) {
+            var lo = b0 + a0 * ds, hi = b0 + a1 * ds, len = b1 - b0;
+            var side = clamp(Math.round(hi - lo), Math.min(minS, len), Math.min(maxS, len));
+            var s0 = clamp(Math.round((lo + hi) / 2 - side / 2), b0, b1 - side);
+            return [s0, s0 + side];
+        }
+        var x = span(ix0, ix1, reg[0], Math.min(reg[2], reg[0] + img.w * ds));
+        var y = span(iy0, iy1, reg[1], Math.min(reg[3], reg[1] + img.h * ds));
+        return [x[0], y[0], x[1], y[1]];
     };
 
     // --- форматирование -----------------------------------------------------------------------------------

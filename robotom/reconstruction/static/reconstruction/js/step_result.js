@@ -1,6 +1,7 @@
 /* Студия реконструкции — шаг 5 «Результат».
  *
- * GET results/<id> (404 — результата движка ещё нет): форма объёма, воксель, дата, путь к полному объёму
+ * GET results/<id> (404 — результата движка ещё нет): форма объёма, воксель, дата, кратко рецепт (кольца,
+ * сглаживание, углы, ось, строки), путь к полному объёму
  * (dir + '/' + result.volume.file — скачивается как раньше), файлы (ссылки api_base + results/<id>/file/<имя>),
  * история запусков; срезы копии ×4 по осям z/y/x с ползунком — GET results/<id>/slice?axis&i.
  * После завершения задачи — обновить. */
@@ -197,6 +198,8 @@
         var rc = r.recipe || {};
         var parts = [];
         if (rc.rings && rc.rings.preset) parts.push('кольца: ' + (RINGS[rc.rings.preset] || rc.rings.preset));
+        var smooth = core.smoothingText(rc.smoothing);          // выключено (или старый рецепт без блока) — ничего
+        if (smooth) parts.push('сглаживание ' + smooth);
         if (rc.recon && rc.recon.angles) parts.push(ANGLES[rc.recon.angles] || rc.recon.angles);
         if (rc.axis && core.isNum(rc.axis.center_x)) {
             parts.push('ось ' + core.fmtNum(rc.axis.center_x, 2) + ' px, наклон ' + core.fmtNum(rc.axis.tilt_deg || 0, 3) + '°');

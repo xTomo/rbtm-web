@@ -75,6 +75,25 @@ test('getBinary: декодирование заголовков ответа', 
     assert.equal(S.core.valueAt(img, 2, 1), 6 * 0.5 + 1);
 });
 
+test('postBinary: POST с телом JSON и CSRF, ответ — стопка (k, h, w)', async () => {
+    const calls = mockFetch(() => new Response(new Uint16Array([1, 2, 3, 4, 5, 6, 7, 8]).buffer, {
+        status: 200,
+        headers: {'X-Shape': '2,2,2', 'X-Dtype': 'uint16', 'X-Scale': '0.25', 'X-Offset': '0',
+            'X-Meta': '{"region":[0,0,2,2],"metrics":[{"noise":0.1},{"noise":0.2}]}'}
+    }));
+    const body = {row: 5, region: null, variants: [{rings: 'off', smoothing: null}, {rings: 'weak', smoothing: null}]};
+    const img = await api.postBinary('sessions/abc/compare', body);
+    assert.equal(calls[0].url, '/studio/api/sessions/abc/compare');
+    assert.equal(calls[0].init.method, 'POST');
+    assert.equal(calls[0].init.headers['X-CSRFToken'], 'tok');
+    assert.equal(calls[0].init.headers['Accept'], 'application/octet-stream');
+    assert.deepEqual(JSON.parse(calls[0].init.body), body);
+    assert.equal(img.k, 2);
+    assert.equal(img.w, 2);
+    assert.equal(img.meta.metrics[1].noise, 0.2);
+    assert.equal(S.core.valueAt(S.core.frameOf(img, 1), 1, 1), 8 * 0.25);
+});
+
 test('ошибка JSON {error}: ApiError с кодом, уведомление; expect — без уведомления', async () => {
     toasts.length = 0;
     mockFetch(() => jsonResponse(409, {error: 'busy', owner: 'ivan', exp_id: 'e2', idle_s: 12}));

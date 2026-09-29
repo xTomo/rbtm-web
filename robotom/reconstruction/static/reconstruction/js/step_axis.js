@@ -5,6 +5,8 @@
  * она сохраняется в сессии через POST sessions/<sid>/axis/set (с задержкой, её же берёт рецепт), сброс — авто-ось.
  * Превью среза GET sessions/<sid>/slice?row&center&tilt&rings&angles&seq — канал «последний выигрывает» с задержкой
  * 250 мс (смена только центра считается на сервисе быстрым путём, ~0,2 с); строка превью — в пределах рамки.
+ * При включённом сглаживании (шаг 3) — ещё smooth=σ&deblur и balance (Винер) или amount (маска); выключено — этих
+ * параметров нет. Смена колец или сглаживания пересчитывает срез; вид «Срез» открывается, если не смотрят «Сравнение».
  * Вспомогательный вид «0° − 180°» — GET sessions/<sid>/axis/diff?row&center&tilt&seq. Сетка центров — этап 4. */
 (function (root) {
     'use strict';
@@ -76,8 +78,12 @@
             if (changed) self.refreshSlice(source === 'axis');
             self._syncDiffOverlay();
         });
-        bus.on('rings', function () {
-            self.refreshSlice(true);
+        // кольца или сглаживание (в том числе вариант, выбранный щелчком в «Сравнении») — срез пересчитать; со
+        // «Сравнения» не уводить — он обновится в фоне
+        ['rings', 'smoothing'].forEach(function (ev) {
+            bus.on(ev, function () {
+                self.refreshSlice(app.viewer.current() !== 'compare');
+            });
         });
         bus.on('angles', function () {
             self.refreshSlice(true);
@@ -183,16 +189,19 @@
         var self = this, app = this.app, st = this.st;
         if (!app.ready() || st.axis === 'running') return;
         var sid = app.sid(), row = st.row, rings = st.rings, angles = st.angles;
+        var smooth = core.smoothingQuery(st.smoothing), smoothText = core.smoothingText(st.smoothing);
         this.sliceCh.run(function (signal, seq) {
-            return self.api.getBinary('sessions/' + sid + '/slice', self._axisParams(row,
-                {row: row, rings: rings, angles: angles, seq: seq}), {signal: signal, expect: PREVIEW_EXPECT, what: 'Срез'});
+            var params = self.axisParams(row, {row: row, rings: rings, angles: angles, seq: seq});
+            return self.api.getBinary('sessions/' + sid + '/slice', Object.assign(params, smooth),
+                {signal: signal, expect: PREVIEW_EXPECT, what: 'Срез'});
         }, now).then(function (img) {
             if (S.api.isStale(img) || sid !== app.sid()) return;
             st.sliceMeta = img.meta;
             var m = img.meta || {};
             var ds = m.downsample || 1;
             var reg = m.region || [0, 0, img.w * ds, img.h * ds];
-            var label = 'Срез строки ' + row + ' · ' + (RINGS_TEXT[rings] || rings) + ' · ' +
+            var label = 'Срез строки ' + row + ' · ' + (RINGS_TEXT[rings] || rings) +
+                (smoothText ? ' · ' + smoothText : '') + ' · ' +
                 (ANGLES_TEXT[angles] || angles) + (m.n_angles ? ' (' + m.n_angles + ' углов)' : '') +
                 (ds > 1 ? ' · уменьшен ×' + ds : '');
             app.viewer.show('slice', img, {
@@ -213,7 +222,7 @@
         if (!app.ready()) return;
         var sid = app.sid(), row = st.row;
         this.diffCh.run(function (signal, seq) {
-            return self.api.getBinary('sessions/' + sid + '/axis/diff', self._axisParams(row, {row: row, seq: seq}),
+            return self.api.getBinary('sessions/' + sid + '/axis/diff', self.axisParams(row, {row: row, seq: seq}),
                 {signal: signal, expect: PREVIEW_EXPECT, what: '0° − 180°'});
         }).then(function (img) {
             if (S.api.isStale(img) || sid !== app.sid()) return;
@@ -236,8 +245,9 @@
 
     // --- ручная ось ------------------------------------------------------------------------------------------
 
-    /** center/tilt текущей оси для запроса превью (центр — на строке row); без оси — как есть (ось сессии). */
-    StepAxis.prototype._axisParams = function (row, params) {
+    /** center/tilt текущей оси для запроса превью (центр — на строке row); без оси — как есть (ось сессии).
+     *  Берут и срез, и «0° − 180°», и сравнение вариантов (compare.js). */
+    StepAxis.prototype.axisParams = function (row, params) {
         var a = this.st.axisInfo && this.st.axisInfo.axis;
         if (a) {
             params.center = Math.round(core.centerAt(a, row) * 10000) / 10000;
@@ -399,6 +409,7 @@
         var t = m.timings || {};
         var parts = ['срез строки ' + m.row];
         if (core.isNum(t.total_s)) parts.push(core.fmtNum(t.total_s, 2) + ' с');
+        if (m.smoothing && core.isNum(t.smooth_s)) parts.push('сглаживание ' + core.fmtNum(t.smooth_s, 2) + ' с');
         if (m.n_angles) parts.push(m.n_angles + ' углов');
         if (m.downsample > 1) parts.push('показан уменьшенным ×' + m.downsample);
         ui.text(el, parts.join(' · '));

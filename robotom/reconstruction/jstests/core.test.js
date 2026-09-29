@@ -362,6 +362,154 @@ test('nudgeAxis: центр на строке превью и наклон во�
     assert.ok(Math.abs(core.centerAt(a3, 2269) - core.centerAt(a2, 2269)) < 2e-3);
 });
 
+// --- сглаживание проекций -------------------------------------------------------------------------------------
+
+test('smoothingBlock: выключено — null; состояние и блок рецепта; значения по умолчанию', () => {
+    const on = {enabled: true, sigma: 1.5000000000000002, deblur: 'wiener', balance: 0.02, amount: 1.5};
+    assert.deepEqual(core.smoothingBlock(on), {sigma: 1.5, deblur: 'wiener', balance: 0.02, amount: 1.5});
+    assert.equal(core.smoothingBlock(Object.assign({}, on, {enabled: false})), null);
+    assert.equal(core.smoothingBlock(null), null);
+    assert.equal(core.smoothingBlock({sigma: null, deblur: 'wiener'}), null);        // блок рецепта «выкл.»
+    assert.equal(core.smoothingBlock({sigma: 0}), null);
+    // блок рецепта (без enabled), неизвестный метод и пропуски — по умолчанию
+    assert.deepEqual(core.smoothingBlock({sigma: 2, deblur: 'lucy'}), {sigma: 2, deblur: 'wiener', balance: 0.02, amount: 1.5});
+    assert.deepEqual(core.smoothingBlock({sigma: '0.7', deblur: 'unsharp', amount: 2}),
+        {sigma: 0.7, deblur: 'unsharp', balance: 0.02, amount: 2});
+});
+
+test('smoothingQuery: параметры среза только при включённом, сила — своего метода', () => {
+    const sm = {enabled: true, sigma: 1.5, deblur: 'wiener', balance: 0.03, amount: 2};
+    assert.deepEqual(core.smoothingQuery(sm), {smooth: 1.5, deblur: 'wiener', balance: 0.03});
+    assert.deepEqual(core.smoothingQuery(Object.assign({}, sm, {deblur: 'unsharp'})), {smooth: 1.5, deblur: 'unsharp', amount: 2});
+    assert.deepEqual(core.smoothingQuery(Object.assign({}, sm, {deblur: 'none'})), {smooth: 1.5, deblur: 'none'});
+    assert.deepEqual(core.smoothingQuery(Object.assign({}, sm, {enabled: false})), {});
+    assert.deepEqual(core.smoothingQuery(undefined), {});
+});
+
+test('smoothingText: подписи по-русски; short — без силы; выключено — пусто', () => {
+    const sm = {enabled: true, sigma: 1.5, deblur: 'wiener', balance: 0.02, amount: 1.5};
+    assert.equal(core.smoothingText(sm), 'σ 1,5 · Винер 0,02');
+    assert.equal(core.smoothingText(sm, true), 'σ 1,5 · Винер');
+    assert.equal(core.smoothingText({sigma: 1, deblur: 'unsharp', amount: 1.5}), 'σ 1 · маска 1,5');
+    assert.equal(core.smoothingText({sigma: 2, deblur: 'none'}), 'σ 2 · без деблюра');
+    assert.equal(core.smoothingText({enabled: false, sigma: 1.5}), '');
+    assert.equal(core.smoothingText(null), '');
+});
+
+// --- мозаика сравнения ----------------------------------------------------------------------------------------
+
+test('mosaicLayout: не больше 4 в ряду, ряды выровнены, промежутки', () => {
+    const cols = (k) => {
+        const l = core.mosaicLayout(k, 10, 10);
+        return [l.cols, l.rows];
+    };
+    assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8].map(cols),
+        [[1, 1], [2, 1], [3, 1], [4, 1], [3, 2], [3, 2], [4, 2], [4, 2]]);
+    const l = core.mosaicLayout(5, 384, 200, {gap: 8});
+    assert.equal(l.w, 3 * 384 + 2 * 8);
+    assert.equal(l.h, 2 * 200 + 8);
+    assert.deepEqual(l.tiles[0], {x: 0, y: 0, w: 384, h: 200});
+    assert.deepEqual(l.tiles[2], {x: 2 * 392, y: 0, w: 384, h: 200});
+    assert.deepEqual(l.tiles[3], {x: 0, y: 208, w: 384, h: 200});
+    assert.deepEqual(l.tiles[4], {x: 392, y: 208, w: 384, h: 200});
+    const one = core.mosaicLayout(1, 7, 5, {gap: 8});
+    assert.equal(one.w, 7);
+    assert.equal(one.h, 5);
+    assert.equal(core.mosaicLayout(3, 4, 4, {maxCols: 2, gap: 0}).cols, 2);
+});
+
+test('mosaicLayout с размером вида: столбцов — при которых мозаика крупнее', () => {
+    const cols = (k, tw, th, vw, vh) => core.mosaicLayout(k, tw, th, {viewW: vw, viewH: vh}).cols;
+    assert.equal(cols(4, 384, 384, 1030, 470), 4);          // широкий вид — в ряд
+    assert.equal(cols(4, 512, 308, 1030, 470), 2);          // широкие плитки — 2 × 2, а не полосой
+    assert.equal(cols(5, 384, 384, 1030, 470), 3);          // 3 и 4 равны (2 ряда) — меньше столбцов: 3 + 2
+    assert.equal(cols(4, 384, 384, 500, 900), 2);
+    assert.equal(cols(4, 384, 384, 400, 1600), 1);          // высокий узкий вид — столбиком
+    assert.equal(cols(8, 100, 100, 5000, 100), 4);          // не больше 4 в ряду
+    assert.equal(cols(1, 384, 384, 1030, 470), 1);
+});
+
+test('buildMosaic: плитки на своих местах, промежутки — код 0 (низ окна) или NaN у float32', () => {
+    // стопка (3, 2, 3): значение = 100·k + 10·y + x
+    const k = 3, h = 2, w = 3;
+    const data = new Uint16Array(k * h * w);
+    for (let i = 0; i < k; i++) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) data[i * h * w + y * w + x] = 100 * i + 10 * y + x + 1;
+    const stack = {w, h, k, dtype: 'uint16', data, scale: 0.5, offset: -1, quantized: true, meta: {region: [1, 2, 4, 4]}};
+    const lay = core.mosaicLayout(k, w, h, {maxCols: 2, gap: 2});        // 2 + 1
+    const m = core.buildMosaic(stack, lay);
+    assert.equal(m.w, 2 * 3 + 2);
+    assert.equal(m.h, 2 * 2 + 2);
+    assert.equal(m.k, 1);
+    assert.equal(m.scale, 0.5);
+    assert.equal(m.offset, -1);
+    assert.deepEqual(m.meta, stack.meta);
+    assert.ok(m.data instanceof Uint16Array);
+    const at = (x, y) => m.data[y * m.w + x];
+    assert.equal(at(0, 0), 1);
+    assert.equal(at(2, 1), 13);
+    assert.equal(at(3, 0), 0);                        // промежуток
+    assert.equal(at(5, 0), 101);                      // плитка 1: x 5…7
+    assert.equal(at(7, 1), 113);
+    assert.equal(at(0, 4), 201);                      // плитка 2: y 4…5
+    assert.equal(at(2, 5), 213);
+    assert.equal(at(5, 4), 0);                        // пустое место второго ряда
+    const f = core.buildMosaic({w: 1, h: 1, k: 2, dtype: 'float32', data: new Float32Array([1, 2]), scale: 1, offset: 0,
+        meta: {}}, core.mosaicLayout(2, 1, 1, {gap: 1}));
+    assert.deepEqual(Array.from(f.data).map((v) => (Number.isNaN(v) ? 'NaN' : v)), [1, 'NaN', 2]);
+});
+
+test('tileAt: номер плитки, промежуток и вне мозаики — −1', () => {
+    const lay = core.mosaicLayout(5, 100, 50, {gap: 8});
+    assert.equal(core.tileAt(lay, 0, 0), 0);
+    assert.equal(core.tileAt(lay, 99.9, 49.9), 0);
+    assert.equal(core.tileAt(lay, 100, 10), -1);       // промежуток
+    assert.equal(core.tileAt(lay, 108, 10), 1);
+    assert.equal(core.tileAt(lay, 250, 10), 2);
+    assert.equal(core.tileAt(lay, 150, 70), 4);        // второй ряд, вторая плитка
+    assert.equal(core.tileAt(lay, 150, 55), -1);       // промежуток между рядами
+    assert.equal(core.tileAt(lay, 250, 70), -1);       // пустое место второго ряда
+    assert.equal(core.tileAt(lay, 400, 10), -1);       // правее мозаики
+    assert.equal(core.tileAt(lay, -1, 0), -1);
+    assert.equal(core.tileAt(lay, NaN, 0), -1);
+    assert.equal(core.tileAt(null, 0, 0), -1);
+});
+
+test('visibleRegion: вписанный срез — null; увеличенный — видимая часть в пикселях полного среза', () => {
+    const img = {w: 1000, h: 1000, meta: {downsample: 3, region: [0, 0, 3000, 3000]}};
+    // вписан в сцену 1000×800 с полями — виден целиком
+    const fit = core.fitTransform(1000, 1000, 1, 1000, 800, 8);
+    assert.equal(core.visibleRegion(fit, 1000, 800, img), null);
+    // масштаб 4: видно 250×200 пикселей изображения с (300, 400) → срез 750×600 с (900, 1200) → ≤ 512 вокруг центра
+    const xf = {sx: 4, sy: 4, tx: -1200, ty: -1600};
+    assert.deepEqual(core.visibleRegion(xf, 1000, 800, img), [1019, 1244, 1531, 1756]);
+    // масштаб 16: 62,5×50 px изображения → 187,5×150 среза; сторона не меньше 128, центр тот же
+    const xs = {sx: 16, sy: 16, tx: -16 * 300, ty: -16 * 400};
+    assert.deepEqual(core.visibleRegion(xs, 1000, 800, img), [900, 1200, 1088, 1350]);
+    const tiny = core.visibleRegion({sx: 100, sy: 100, tx: -100 * 300, ty: -100 * 400}, 1000, 800, img);
+    assert.equal(tiny[2] - tiny[0], 128);
+    assert.equal(tiny[3] - tiny[1], 128);
+    // opts.max/min
+    assert.deepEqual(core.visibleRegion(xf, 1000, 800, img, {max: 256}), [1147, 1372, 1403, 1628]);
+});
+
+test('visibleRegion: сдвиг среза (meta.region), обрезка краёв, прижим к краю, изображение вне вида', () => {
+    // срез — фрагмент [100, 200, 700, 800) без уменьшения
+    const img = {w: 600, h: 600, meta: {region: [100, 200, 700, 800]}};
+    // видна левая верхняя часть 300×300 изображения (масштаб 2 в сцене 600×600)
+    assert.deepEqual(core.visibleRegion({sx: 2, sy: 2, tx: 0, ty: 0}, 600, 600, img), [100, 200, 400, 500]);
+    // у правого края видно 100 столбцов: сторона — не меньше 128, область прижимается внутрь покрытия
+    assert.deepEqual(core.visibleRegion({sx: 1, sy: 1, tx: -500, ty: 0}, 600, 300, img), [572, 200, 700, 500]);
+    // без meta: покрытие — само изображение, ds = 1
+    assert.deepEqual(core.visibleRegion({sx: 1, sy: 1, tx: -10, ty: -10}, 50, 50, {w: 100, h: 100}), [0, 0, 100, 100]);
+    // изображение ушло из вида — null
+    assert.equal(core.visibleRegion({sx: 1, sy: 1, tx: 5000, ty: 0}, 600, 600, img), null);
+    // ds = 3, край не кратен: изображение 333 px покрывает 999 столбцов из 1000
+    const odd = {w: 333, h: 333, meta: {downsample: 3, region: [0, 0, 1000, 1000]}};
+    const r = core.visibleRegion({sx: 4, sy: 4, tx: -4 * 233, ty: 0}, 400, 400, odd);
+    assert.equal(r[2], 999);
+    assert.equal(r[2] - r[0], 300);
+});
+
 test('inputNum: точка для поля type=number', () => {
     assert.equal(core.inputNum(2268.3149, 2), '2268.31');
     assert.equal(core.inputNum(-1.2, 3), '-1.2');

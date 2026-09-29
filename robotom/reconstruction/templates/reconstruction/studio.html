@@ -8,7 +8,8 @@
 - asset_version — добавляется к URL статики (?v=...): Apache кэширует JS на год.
 
 Разметка шагов и просмотрщика — здесь, поведение — static/reconstruction/js/*.js (window.Studio, без сборки;
-порядок подключения важен: core → api → ui → viewer → overlay → thumbstrip → steps → session → jobs → step_* → studio).
+порядок подключения важен: core → api → ui → viewer → overlay → thumbstrip → steps → session → jobs → step_fov →
+step_axis → step_rings → step_smoothing → compare → step_run → step_result → studio).
 {% endcomment %}
 {% block content %}
 {{ studio_config|json_script:"studio-config" }}
@@ -137,6 +138,58 @@
                             <button type="button" class="btn btn-default" data-rings="strong">Сильно</button>
                         </div>
                         <div id="rings-note" class="st-note text-muted"></div>
+                        <div class="st-btns">
+                            <button type="button" class="btn btn-default btn-sm" data-compare="rings"
+                                    title="Фрагмент среза 1:1 при всех пресетах колец (с текущим сглаживанием) — вид «Сравнение»">Сравнить кольца</button>
+                        </div>
+
+                        <div class="st-sub st-sep">Сглаживание проекций:</div>
+                        <div class="btn-group btn-group-sm st-seg" id="sm-toggle" role="group" aria-label="Сглаживание проекций">
+                            <button type="button" class="btn btn-default" data-smooth="off">Выкл</button>
+                            <button type="button" class="btn btn-default" data-smooth="on">Вкл</button>
+                        </div>
+                        <div class="st-grid-row st-slider" title="σ гауссова ядра, пиксели детектора (0,7…2; по умолчанию 1,5)">
+                            <label for="sm-sigma">σ, px</label>
+                            <input id="sm-sigma" type="range" class="st-range" min="0.7" max="2" step="0.1" value="1.5">
+                            <span id="sm-sigma-val" class="st-range-val"></span>
+                        </div>
+                        <details id="sm-more" class="st-more">
+                            <summary>Дополнительно</summary>
+                            <div class="st-sub">Деблюринг после реконструкции:</div>
+                            <div class="btn-group btn-group-xs st-seg" id="sm-deblur" role="group" aria-label="Деблюринг">
+                                <button type="button" class="btn btn-default" data-deblur="wiener"
+                                        title="Фильтр Винера тем же ядром (как в «Марсе»)">Винер</button>
+                                <button type="button" class="btn btn-default" data-deblur="unsharp"
+                                        title="Нерезкая маска тем же ядром">Маска</button>
+                                <button type="button" class="btn btn-default" data-deblur="none"
+                                        title="Только сглаживание, без восстановления краёв">Без</button>
+                            </div>
+                            <div class="st-grid-row st-slider" id="sm-strength-row">
+                                <label for="sm-strength" id="sm-strength-label">β</label>
+                                <input id="sm-strength" type="range" class="st-range">
+                                <span id="sm-strength-val" class="st-range-val"></span>
+                            </div>
+                            <div id="sm-deblur-note" class="st-note text-muted"></div>
+                        </details>
+                        <div class="st-btns">
+                            <button type="button" class="btn btn-default btn-sm" data-compare="sigma"
+                                    title="Фрагмент среза 1:1 без сглаживания и при σ 0,7, 1, 1,5, 2 (текущие кольца и деблюринг) — вид «Сравнение»">Сравнить σ</button>
+                        </div>
+                        <div class="st-note text-muted">Каждая проекция сглаживается гауссом σ, после реконструкции —
+                            деблюринг тем же ядром: шум ниже, края восстанавливаются. Сравнивайте варианты при равном
+                            шуме (метрики на плитках). Обзорный срез уменьшен усреднением (обычно ×3) и занижает шум и
+                            тонкие кольца — судите по фрагменту 1:1 (вид «Сравнение»).</div>
+
+                        <div id="cmp-panel" class="st-cmp hidden">
+                            <div id="cmp-info" class="st-note"></div>
+                            <div class="st-btns">
+                                <button id="cmp-show" type="button" class="btn btn-default btn-xs">Показать</button>
+                                <button id="cmp-large" type="button" class="btn btn-default btn-xs"
+                                        title="Одна плитка на весь вид (Enter или пробел); ← → — листать варианты">Крупно</button>
+                            </div>
+                            <div class="st-note text-muted">Щелчок по плитке — выбрать вариант. Enter или пробел —
+                                крупно, ← → — листать варианты на том же месте, Esc — мозаика.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -223,6 +276,8 @@
                             title="Превью: срез строки превью по загруженной области при текущей оси и кольцах (не готовый объём)">Срез</button>
                     <button type="button" class="btn btn-default" data-view="diff"
                             title="Кадр 0° минус отражённый кадр 180°: при верной оси контуры гасятся">0° − 180°</button>
+                    <button type="button" class="btn btn-default" data-view="compare"
+                            title="Фрагмент среза 1:1 при разных кольцах или σ (кнопки «Сравнить…» в шаге 3): щелчок по плитке — выбрать, Enter — крупно">Сравнение</button>
                     <button type="button" class="btn btn-default" data-view="result"
                             title="Срез готового объёма последнего запуска (копия ×4). Есть после реконструкции; ось и номер среза — в шаге 5">Готовый объём</button>
                 </div>
@@ -260,6 +315,8 @@
 <script src="{% static 'reconstruction/js/step_fov.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_axis.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_rings.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/step_smoothing.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/compare.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_run.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_result.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/studio.js' %}?v={{ asset_version }}"></script>

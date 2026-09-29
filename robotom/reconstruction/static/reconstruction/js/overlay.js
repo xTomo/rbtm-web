@@ -7,6 +7,8 @@
  * Фигуры:
  *  {id, type: 'rect', x0, x1, y0, y1, bounds: {x0, y0, x1, y1}, minW, minH, axes: 'xy' | 'x', editable, warn,
  *   label}                  — рамка: 8 ручек (углы и середины сторон), края и перенос (ручка в центре);
+ *   для плиток сравнения (editable: false): cls — класс рамки ('ov-tile'), sel — выбранная, labelInside — подпись
+ *   внутри у левого верхнего угла (true) или нижнего ('bottom'), label2 — вторая строка подписи (метрики);
  *  {id, type: 'hline', y, x0, x1, ymin, ymax, editable, label} — горизонтальная линия с ручкой справа.
  *
  * События: 'drag' (id, геометрия) — во время перетаскивания; 'commit' (id, геометрия) — по отпусканию. */
@@ -100,7 +102,7 @@
         sh.gs = gs;
         var editable = spec.editable !== false;
         if (spec.type === 'rect') {
-            sh.frame = svgEl('rect', {'class': 'ov-frame'}, gi);
+            sh.frame = svgEl('rect', {'class': 'ov-frame' + (spec.cls ? ' ' + spec.cls : '')}, gi);
             if (editable) {
                 var edges = spec.axes === 'x' ? ['w', 'e'] : ['n', 's', 'w', 'e'];
                 sh.hits = {};
@@ -120,6 +122,7 @@
                 sh.handles.move = mv;
             }
             sh.label = svgEl('text', {'class': 'ov-label'}, gs);
+            if (spec.label2 !== undefined) sh.label2 = svgEl('text', {'class': 'ov-label ov-label2'}, gs);
         } else if (spec.type === 'hline') {
             sh.line = svgEl('line', {'class': 'ov-line'}, gi);
             if (editable) {
@@ -229,6 +232,7 @@
         if (s.type === 'rect') {
             setAttrs(sh.frame, {x: s.x0, y: s.y0, width: Math.max(0, s.x1 - s.x0), height: Math.max(0, s.y1 - s.y0)});
             sh.frame.classList.toggle('ov-warn', !!s.warn);
+            sh.frame.classList.toggle('ov-sel', !!s.sel);
             if (sh.hits) {
                 var L = {
                     n: [s.x0, s.y0, s.x1, s.y0], s: [s.x0, s.y1, s.x1, s.y1],
@@ -258,8 +262,15 @@
             });
             if (sh.label) {
                 sh.label.textContent = s.label || '';
-                // над рамкой, а если она у верхнего края вида — внутри
-                setAttrs(sh.label, {x: a.x + 4, y: a.y < 18 ? a.y + 16 : a.y - 6});
+                // над рамкой, а если она у верхнего края вида (или так задано) — внутри; 'bottom' — внутри у низа
+                // (верх вида занят подписью просмотрщика)
+                var inside = s.labelInside || a.y < 18, bottom = s.labelInside === 'bottom';
+                var lx = a.x + (s.labelInside ? 6 : 4);
+                setAttrs(sh.label, {x: lx, y: bottom ? b.y - (sh.label2 ? 22 : 7) : inside ? a.y + 16 : a.y - 6});
+                if (sh.label2) {
+                    sh.label2.textContent = s.label2 || '';
+                    setAttrs(sh.label2, {x: lx, y: bottom ? b.y - 7 : inside ? a.y + 31 : a.y + 14});
+                }
             }
         } else if (s.type === 'hline') {
             setAttrs(sh.line, {x1: s.x0, y1: s.y, x2: s.x1, y2: s.y});

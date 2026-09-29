@@ -20,8 +20,10 @@
 
     /**
      * state: {overview: 'loading'|'ready'|'error', roiEdited, load: 'none'|'loading'|'ready'|'error'|'lost',
-     *         roiDirty, axis: 'none'|'running'|'auto'|'checked'|'error', ringsChosen, runEdited,
+     *         roiDirty, axis: 'none'|'running'|'auto'|'checked'|'error', ringsChosen, smoothingChosen, runEdited,
      *         job: null | {status}, result: 'unknown'|'loading'|'none'|'ready'|'error'}
+     * Шаг 3 «Артефакты» — «проверено», если человек выбрал пресет колец или трогал сглаживание (в том числе выбрал
+     * вариант в сравнении), иначе «авто» (значения по умолчанию).
      */
     function derive(s) {
         var ready = s.load === 'ready' && !s.roiDirty;
@@ -48,7 +50,8 @@
 
         if (stale) out.rings = st('stale', null, staleHint);
         else if (!ready) out.rings = st('none');
-        else out.rings = s.ringsChosen ? st('checked') : st('auto', null, 'пресет по умолчанию');
+        else if (s.ringsChosen || s.smoothingChosen) out.rings = st('checked');
+        else out.rings = st('auto', null, 'кольца и сглаживание по умолчанию');
 
         var js = s.job && s.job.status;
         if (ACTIVE_JOB.indexOf(js) >= 0) out.run = st('running', null, 'задача реконструкции');

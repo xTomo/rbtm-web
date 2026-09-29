@@ -39,8 +39,9 @@
             row: ui.$('fov-row'), size: ui.$('fov-size'), outside: ui.$('fov-outside'), ps: ui.$('fov-ps'),
             psSrc: ui.$('fov-ps-src'), psWarn: ui.$('fov-ps-warn'), sino: ui.$('fov-sino'), reset: ui.$('fov-reset'),
             load: ui.$('fov-load'), cancel: ui.$('fov-cancel'), progress: ui.$('fov-progress'),
-            loadMsg: ui.$('fov-load-msg'), dirty: ui.$('fov-dirty')
+            loadMsg: ui.$('fov-load-msg'), dirty: ui.$('fov-dirty'), dataWarn: ui.$('fov-data-warn')
         };
+        this.dataWarnings = [];
         this.outsideCh = this.api.channel({delay: 300});
         this.sinoCh = this.api.channel({
             onBusy: function (b) {
@@ -465,6 +466,7 @@
             if (prev !== 'loading') {
                 this.loadT0 = Date.now();
                 this.loadMsg = '';
+                this.dataWarnings = [];
                 st.loadedRoi = null;
                 app.set({load: 'loading', roiDirty: false});
                 app.bus.emit('load-start');
@@ -475,6 +477,8 @@
             var loaded = roiOf(s.roi);
             var fresh = prev !== 'ready' || !core.sameRoi(st.loadedRoi, loaded);
             st.loadedRoi = loaded;
+            // предупреждения по данным (проверка контрольных кадров advanced-скана, сдвиги образца)
+            this.dataWarnings = (s.warnings || []).slice();
             if (fresh) {
                 var took = this.loadT0 ? (Date.now() - this.loadT0) / 1000 : null;
                 this.loadMsg = took !== null ? 'Область загружена за ' + core.fmtDuration(took) + '.' : '';
@@ -622,6 +626,28 @@
         ui.text(e.loadMsg, msg);
         ui.show(e.loadMsg, !!msg);
         if (e.loadMsg) e.loadMsg.classList.toggle('text-danger', st.load === 'error');
+        this._renderDataWarnings();
+    };
+
+    /** Предупреждения по данным загруженной области: сбой угла на вставках (контрольные кадры) — красным. */
+    StepFov.prototype._renderDataWarnings = function () {
+        var el = this.e.dataWarn, st = this.st;
+        if (!el) return;
+        var list = st.load === 'ready' ? this.dataWarnings : [];
+        ui.clear(el);
+        ui.show(el, list.length > 0);
+        if (!list.length) return;
+        var severe = list.some(function (w) {
+            return /контрольные кадры|повернулся/.test(w);
+        });
+        el.classList.toggle('alert-danger', severe);
+        el.classList.toggle('alert-warning', !severe);
+        el.appendChild(ui.el('strong', {text: severe ? 'Данные сняты со сбоем угла' : 'Предупреждения по данным'}));
+        var ul = ui.el('ul', {class: 'st-warnings'});
+        list.forEach(function (w) {
+            ul.appendChild(ui.el('li', {text: w}));
+        });
+        el.appendChild(ul);
     };
 
     S.StepFov = StepFov;

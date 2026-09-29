@@ -85,6 +85,7 @@
 .st-files, .st-history { padding-left: 18px; margin: 2px 0 4px; font-size: 12px; }
 .st-files a { word-break: break-all; }
 .st-warnings { font-size: 12px; color: #8a6d3b; padding-left: 18px; margin: 4px 0; }
+.alert .st-warnings { color: inherit; }
 
 .st-res-ctl { display: flex; align-items: center; gap: 6px; }
 .st-res-index { width: 76px; height: 24px; padding: 2px 5px; }

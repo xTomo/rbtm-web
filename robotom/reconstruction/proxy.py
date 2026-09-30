@@ -11,6 +11,7 @@
 | GET          | ``health``                                                            | нет    |
 | GET          | ``scans/<exp>/info|overview|envelope|thumbs|outside|sinogram``        | нет    |
 | GET          | ``scans/<exp>/sample/<k>``                                            | нет    |
+| POST         | ``scans/<exp>/prefetch`` (исходный HDF5 — в кэш ОС, пока выбирается рамка) | да |
 | POST         | ``sessions``                                                          | да     |
 | GET, DELETE  | ``sessions/<sid>``                                                    | да     |
 | POST         | ``sessions/<sid>/ping|load|load/cancel|axis/auto|axis/scan|axis/tilt|axis/set|recipe|estimate`` | да |
@@ -85,6 +86,7 @@ RULES = (
     _rule('GET', r'health'),
     _rule('GET', r'scans/{exp}/(?:info|overview|envelope|thumbs|outside|sinogram)'),
     _rule('GET', r'scans/{exp}/sample/[0-9]{{1,6}}'),
+    _rule('POST', r'scans/{exp}/prefetch', run=True),
 
     _rule('POST', r'sessions', run=True, audit=True),
     _rule('GET', r'sessions/{id}', run=True),

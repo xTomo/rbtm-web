@@ -5,6 +5,7 @@
  * линией строки превью; поля x0, x1, y0, y1, строка — синхронно с рамкой; лента углов scans/<id>/thumbs;
  * после правки рамки (задержка 300 мс) — scans/<id>/outside → углы, где объект выходит за рамку.
  * Синограмма строки — scans/<id>/sinogram?row. «Загрузить область» — сессия (session.js), прогресс, отмена.
+ * После обзора — POST scans/<id>/prefetch: пока человек выбирает рамку, сервис читает исходный файл (HDD) в кэш ОС.
  * Правка рамки после загрузки — шаги 2–4 «устарело» (roiDirty), нужна повторная загрузка. */
 (function (root) {
     'use strict';
@@ -77,6 +78,7 @@
         return api.getJSON('scans/' + id + '/overview', null, {what: 'Обзор скана'}).then(function (ov) {
             self._applyOverview(ov);
             self._loadEnvelope();
+            self._prefetch();
             return ov;
         }, function (err) {
             app.set({overview: 'error'});
@@ -84,6 +86,14 @@
             app.thumbs.message('');
             return null;
         });
+    };
+
+    /** Исходный файл — в кэш ОС, пока выбирается рамка: «Загрузить область» потом дочитывает с диска только остаток.
+     *  Только тем, кто может загружать, и пока область не загружена; сервис сам останавливает чтение при загрузке. */
+    StepFov.prototype._prefetch = function () {
+        var app = this.app;
+        if (!app.config.can_run || app.state.load === 'loading' || app.state.load === 'ready') return;
+        this.api.postJSON('scans/' + this.id + '/prefetch', {}, {quiet: true}).catch(function () {});
     };
 
     StepFov.prototype._applyOverview = function (ov) {

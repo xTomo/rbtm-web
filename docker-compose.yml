@@ -31,6 +31,9 @@ services:
     networks:
       - default
       - rbtmstorage_default
+    # Секреты и серверные значения для robotom/robotom/settings.py: SECRET_KEY, EMAIL_HOST_PASSWORD, RECON_TOKEN
+    # (общий с rbtm-recon/web/.env) и необязательные переопределения — см. .env.example. Без .env compose не стартует.
+    env_file: .env
     volumes:
       # Медиафайлы — монтируем с хоста, чтобы не потерять при пересборке образа
       - /home/robotom/rbtm_data/rbtm_web/media:/var/www/web/robotom/media

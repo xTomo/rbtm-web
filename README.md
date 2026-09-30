@@ -39,6 +39,7 @@
 - **`main`** — аутентификация, профили пользователей, система ролей, запросы на смену роли
 - **`experiment`** — управление томографом: настройка, запуск/остановка экспериментов, интерфейс оборудования. Проксирует команды в **Experiment API** (HTTP)
 - **`storage`** — просмотр результатов экспериментов (HDF5-файлы), поиск по метаданным, визуализация кадров. Проксирует запросы в **Storage API** (HTTP)
+- **`reconstruction`** — студия реконструкции (`/studio/<exp_id>/`): страница и прокси `/studio/api/*` по белому списку к **recon-service** из rbtm-recon (токен `RECON_TOKEN`). Выкатка и проверка — [`docs/STUDIO-DEPLOY.md`](docs/STUDIO-DEPLOY.md)
 
 ## Структура проекта
 
@@ -56,7 +57,8 @@ rbtm-web/
     │   ├── urls.py             # корневой URL-роутер
     │   ├── wsgi.py
     │   ├── utils.py            # общие утилиты (force_https и др.)
-    │   ├── dev_settings.py     # настройки для разработки
+    │   ├── settings.py         # production (в git; секреты — из .env)
+    │   ├── dev_settings.py     # настройки для разработки и общая часть production
     │   └── bamboo_settings.py  # настройки для CI (SQLite, наследует dev_settings)
     ├── main/                   # приложение: аутентификация и профили
     │   ├── models.py           # UserProfile, RoleRequest
@@ -190,6 +192,8 @@ rbtm-web/
 | `/experiment/status/` | Прокси к статусу (JSON) | `experiment:status` |
 | `/experiment/storage-preview/` | PNG превью из Storage для мониторинга | `experiment:storage_preview` |
 | `/storage/` | `storage` | `storage` |
+| `/studio/<exp_id>/` | Студия реконструкции (ADM/EXP/RES; запуск — ADM/EXP) | `reconstruction:studio` |
+| `/studio/api/<path>` | Прокси к recon-service по белому списку (JSON и бинарные ответы, файлы потоком) | `reconstruction:api` |
 | `/admin/` | Django Admin | — |
 | `/accounts/` | `django.contrib.auth` | — |
 
@@ -208,6 +212,8 @@ rbtm-web/
 | `STORAGE_PUBLIC_HOST` | Публичный (доступный из браузера) адрес Storage; пусто → относительная ссылка через rbtm-proxy (default: `''`) |
 | `EXPERIMENT_HOST` | URL Experiment API (default: `http://localhost:5001/`) |
 | `TIMEOUT_DEFAULT` | Таймаут HTTP-запросов к внешним API, секунды (default: `120`) |
+| `RECON_SERVICE_URL` | URL recon-service студии реконструкции (env, default: `http://localhost:5560/`; в production — `http://web_reconstructor_1:5560/`) |
+| `RECON_TOKEN` | Общий секрет с recon-service (env, из `.env` рядом с `docker-compose.yml`; пусто — прокси студии отвечает 503) |
 | `EMAIL_*` | Настройки SMTP для отправки писем активации |
 | `CACHES` | `PyMemcacheCache` — в dev отключён (DummyCache) |
 
@@ -236,29 +242,40 @@ rbtm-web/
 
 ### `settings.py` — production
 
-Файл `robotom/robotom/settings.py` содержит production-настройки и **не хранится в git**.
-`DATABASES.HOST` в нём читается из переменной окружения (а не захардкожен), поэтому
-Dockerfile больше не подменяет его через `sed` при сборке образа.
+`robotom/robotom/settings.py` хранится в git. Он импортирует `dev_settings.py` (общая часть: приложения, шаблоны, логи,
+маршруты Experiment/Storage API) и переопределяет только отличия production. Секреты и серверные значения берутся из
+окружения контейнера: файл `.env` рядом с `docker-compose.yml` подключается к сервису `server` через `env_file`
+(образец — `.env.example`; `.env` не в git и не попадает в образ).
 
-Ключевые отличия от `dev_settings.py`:
-- `DEBUG = False`
-- `STORAGE_HOST = 'http://rbtmstorage_server_1:5006/'`
-- `EXPERIMENT_HOST = 'http://10.0.6.86:5001/'` (реальный IP томографа)
-- `CSRF_TRUSTED_ORIGINS` — список доменов и IP, с которых принимаются POST-запросы
+| Переменная `.env` | Обязательна | Умолчание в `settings.py` |
+|---|---|---|
+| `SECRET_KEY` | да | — (пусто: Django не обслуживает запросы; сборке образа не нужен) |
+| `EMAIL_HOST_PASSWORD` | да | — |
+| `RECON_TOKEN` | да | — (тот же, что в `rbtm-recon/web/.env`; пусто — студия отвечает 503) |
+| `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` | нет | домены и IP нынешней установки (список через запятую) |
+| `EXPERIMENT_HOST` | нет | `http://10.0.6.86:5001/` |
+| `STORAGE_HOST`, `STORAGE_PUBLIC_HOST` | нет | `http://rbtmstorage_server_1:5006/`, пусто |
+| `RECONSTRUCTION_HOST`, `RECON_SERVICE_URL` | нет | `http://10.0.7.153:5550/`, `http://web_reconstructor_1:5560/` |
+| `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT` | нет | `database`, `robotom_users`, `postgres`, `postgres`, пусто |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_HOST_USER`, `DEFAULT_FROM_EMAIL` | нет | Gmail SMTP, 587, TLS, ящик проекта |
+| `DJANGO_DEBUG` | нет | `false` |
 
-> **При обновлении:** добавить в `settings.py` строку:
-> ```python
-> EXPERIMENT_SOURCE_GET_STATE = urljoin(EXPERIMENT_HOST, '/tomograph/{}/source/state')
-> ```
-> (автоматически наследуется из `dev_settings.py`, но в production файле должна быть явно)
+Адреса сервисов (`*_HOST`) `dev_settings.py` читает из окружения, потому что от них строятся все маршруты API;
+`settings.py` задаёт production-умолчания до импорта общей части. Хэшеры паролей включают `MD5PasswordHasher` — для
+старых учётных записей. Необязательный `robotom/local_settings.py` (вне git) подключается последним — для срочных
+правок на сервере.
 
-> **При слиянии этой ветки в `settings.py` дополнительно проверить:**
-> - `DATABASES.HOST` читается из переменной окружения, а не захардкожен (sed, подменявший
->   его в Dockerfile при сборке образа, удалён — см. выше).
-> - `STORAGE_HDF5_FILE` собирается через `STORAGE_PUBLIC_HOST`, а не
->   `urljoin(STORAGE_HOST, ...)` (см. раздел про `STORAGE_HDF5_FILE` выше).
-> - В файле не осталось удалённых из `dev_settings.py` настроек: `STORAGE_*_USER_HOST`,
->   `STORAGE_FRAMES_HOST`, `REQUEST_DEBUG`.
+**Переход со старого (не из git) `settings.py`** — один раз на сервере, до `git pull`:
+
+```bash
+mv robotom/robotom/settings.py robotom/robotom/settings.py.bak   # иначе pull откажется перезаписать файл
+git pull --ff-only
+python3 tools/settings_to_env.py robotom/robotom/settings.py.bak >> .env   # секреты — в файл, не на экран
+chmod 600 .env
+```
+
+`tools/settings_to_env.py` переносит `SECRET_KEY`, `EMAIL_HOST_PASSWORD` и те значения старого файла, которые
+отличаются от умолчаний нового `settings.py`; в терминал секреты не печатает. `RECON_TOKEN` добавить отдельно.
 
 ## Запуск
 

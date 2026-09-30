@@ -5,5 +5,8 @@ media/
 
 *.py[cod]
 *.log
-robotom/robotom/settings.py
+# settings.py — в git (секреты — в .env); локальные правки сервера и старые копии — нет
+robotom/robotom/local_settings.py
+robotom/robotom/settings.py.bak*
+.env
 .DS_Store

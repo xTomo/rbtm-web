@@ -3,12 +3,11 @@
 from urllib.parse import urljoin
 import os
 
-# Настройки для локальной разработки.
-# Для production создайте robotom/robotom/settings.py с реальными значениями.
-# Обязательные параметры:
-#   DEBUG, ALLOWED_HOSTS, SECRET_KEY, DATABASES,
-#   STORAGE_HOST, EXPERIMENT_HOST, RECONSTRUCTION_HOST,
-#   CSRF_TRUSTED_ORIGINS, EMAIL_*, CACHES, TOMO_NUM
+# Настройки для локальной разработки и общая часть production.
+# Production — robotom/robotom/settings.py (в git): импортирует этот модуль и переопределяет только отличия;
+# секреты и серверные значения приходят из окружения (файл .env, см. .env.example).
+# Адреса сервисов (STORAGE_HOST, EXPERIMENT_HOST, RECONSTRUCTION_HOST) читаются из окружения, потому что от них
+# ниже строятся все маршруты API: production задаёт свои значения до импорта этого модуля.
 
 DEBUG = True
 
@@ -17,9 +16,9 @@ TOMO_NUM = 1
 
 TIMEOUT_DEFAULT = 120  # таймаут HTTP-запросов к внешним API, секунды
 
-STORAGE_HOST = 'http://localhost:5006/'
-EXPERIMENT_HOST = 'http://localhost:5001/'
-RECONSTRUCTION_HOST = 'http://10.0.7.153:5550/'
+STORAGE_HOST = os.environ.get('STORAGE_HOST', 'http://localhost:5006/')
+EXPERIMENT_HOST = os.environ.get('EXPERIMENT_HOST', 'http://localhost:5001/')
+RECONSTRUCTION_HOST = os.environ.get('RECONSTRUCTION_HOST', 'http://10.0.7.153:5550/')
 
 # Публичный (доступный из браузера пользователя) адрес Storage — используется
 # только для ссылок, которые отдаются в HTML и открываются напрямую браузером
@@ -33,6 +32,12 @@ STORAGE_PUBLIC_HOST = os.environ.get('STORAGE_PUBLIC_HOST', '')
 
 # RECONSTRUCTION routes
 RECONSTRUCTION_URL = urljoin(RECONSTRUCTION_HOST, '/view/tomo_object/{exp_id}')
+
+# Студия реконструкции (приложение reconstruction): recon-service из rbtm-recon (reconservice, порт 5560)
+# и общий с ним секрет — тот же RECON_TOKEN, что в web/.env rbtm-recon. В production оба приходят из
+# окружения контейнера (docker-compose.yml, .env); пустой токен — прокси студии отвечает 503.
+RECON_SERVICE_URL = os.environ.get('RECON_SERVICE_URL', 'http://localhost:5560/')
+RECON_TOKEN = os.environ.get('RECON_TOKEN', '')
 
 # STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')
@@ -167,6 +172,7 @@ INSTALLED_APPS = (
     'main',
     'experiment',
     'storage',
+    'reconstruction',
 )
 
 SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'

@@ -14,36 +14,15 @@
 проксирует на старую страницу реконструкции. Правки `000-default.conf` не нужны — `/studio/` обслуживает Django
 (`WSGIScriptAlias /`).
 
-## 1. Прод `robotom/robotom/settings.py`
+## 1. Настройки: `settings.py` в git, секреты в `.env`
 
-Файл не в git — правится на сервере руками **до сборки образа**: Dockerfile копирует его в образ и запускает
-`collectstatic` с этими настройками. Без приложения в `INSTALLED_APPS` JS студии не попадёт в `/static/`, а страница
-`/studio/<exp_id>/` упадёт с `TemplateDoesNotExist` (500).
+`robotom/robotom/settings.py` теперь в git и уже содержит приложение `reconstruction` и чтение `RECON_*` из
+окружения — править его на сервере не нужно. Секреты (`SECRET_KEY`, `EMAIL_HOST_PASSWORD`, `RECON_TOKEN`) — в `.env`
+рядом с `docker-compose.yml` (см. README, раздел «`settings.py` — production», и `.env.example`).
 
-В `INSTALLED_APPS` — строка `'reconstruction',` после `'storage',`:
-
-```python
-INSTALLED_APPS = (
-    ...
-    'main',
-    'experiment',
-    'storage',
-    'reconstruction',
-)
-```
-
-Рядом с `RECONSTRUCTION_URL` — две настройки (в файле должен быть `import os`; если его нет — добавить в начало):
-
-```python
-# Студия реконструкции: recon-service (rbtm-recon, контейнер web_reconstructor_1) и общий с ним секрет —
-# тот же RECON_TOKEN, что в web/.env rbtm-recon. Значения приходят из окружения контейнера (docker-compose.yml, .env).
-RECON_SERVICE_URL = os.environ.get('RECON_SERVICE_URL', 'http://web_reconstructor_1:5560/')
-RECON_TOKEN = os.environ.get('RECON_TOKEN', '')
-```
-
-Логи студии идут в логгер `storage_logger.reconstruction` — дочерний к `storage_logger`, поэтому попадают в
-`logs/storage.log` без правок `LOGGING` (если в прод-файле есть логгер `storage_logger`, как в `dev_settings.py`).
-Миграций у приложения нет.
+Переход со старого (не из git) файла — один раз, до `git pull`: `mv robotom/robotom/settings.py
+robotom/robotom/settings.py.bak`, затем `git pull`, затем
+`python3 tools/settings_to_env.py robotom/robotom/settings.py.bak >> .env`.
 
 ## 2. Токен: `.env` рядом с `docker-compose.yml`
 
@@ -76,7 +55,7 @@ chmod 600 .env
    docker exec web_reconstructor_1 wget -qO- http://localhost:5560/health
    ```
    В ответе `"ok": true` и `"token_configured": true`.
-2. **rbtm-web** — эта ветка: правки `settings.py` (п. 1), `.env` (п. 2), затем
+2. **rbtm-web** — переход на `settings.py` из git (п. 1), `.env` (п. 2), затем
    ```bash
    cd <каталог rbtm-web>
    docker-compose up --build -d server

@@ -88,6 +88,13 @@
         bus.on('angles', function () {
             self.refreshSlice(true);
         });
+        // компенсация смещения образца включена/выключена — сдвиги кадров другие: авто-ось найти заново по новой паре,
+        // ось, заданную вручную, оставить и пересчитать срез
+        bus.on('motion', function () {
+            var a = self.st.axisInfo && self.st.axisInfo.axis;
+            if (a && a.method === 'manual') self.refreshSlice(true, true);
+            else self.runAuto();
+        });
         bus.on('info', function () {
             self.render();
         });

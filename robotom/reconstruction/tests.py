@@ -64,6 +64,8 @@ RUN_REQUESTS = (
     ('get', 'sessions/' + SID + '/axis/diff'),
     ('get', 'sessions/' + SID + '/rings/preview'),
     ('get', 'sessions/' + SID + '/repositioning'),
+    ('get', 'sessions/' + SID + '/motion'),
+    ('post', 'sessions/' + SID + '/motion'),
     ('post', 'jobs'),
     ('post', 'jobs/' + SID + '/cancel'),
 )

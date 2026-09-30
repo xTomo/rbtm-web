@@ -200,6 +200,8 @@
         if (rc.rings && rc.rings.preset) parts.push('кольца: ' + (RINGS[rc.rings.preset] || rc.rings.preset));
         var smooth = core.smoothingText(rc.smoothing);          // выключено (или старый рецепт без блока) — ничего
         if (smooth) parts.push('сглаживание ' + smooth);
+        var motionText = core.motionText(rc.motion);             // не компенсировалось (или старый рецепт) — ничего
+        if (motionText) parts.push(motionText);
         if (rc.recon && rc.recon.angles) parts.push(ANGLES[rc.recon.angles] || rc.recon.angles);
         if (rc.axis && core.isNum(rc.axis.center_x)) {
             parts.push('ось ' + core.fmtNum(rc.axis.center_x, 2) + ' px, наклон ' + core.fmtNum(rc.axis.tilt_deg || 0, 3) + '°');

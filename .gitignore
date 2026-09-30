@@ -8,5 +8,8 @@ media/
 # settings.py — в git (секреты — в .env); локальные правки сервера и старые копии — нет
 robotom/robotom/local_settings.py
 robotom/robotom/settings.py.bak*
+robotom/robotom/settings.py_
+# дампы базы (хэши паролей)
+*.sql
 .env
 .DS_Store

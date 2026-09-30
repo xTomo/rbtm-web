@@ -46,6 +46,7 @@ VIEW_REQUESTS = (
     ('get', 'results/exp-1/file/obj.4.raw'),
 )
 RUN_REQUESTS = (
+    ('post', 'scans/exp-1/prefetch'),
     ('post', 'sessions'),
     ('get', 'sessions/' + SID),
     ('delete', 'sessions/' + SID),

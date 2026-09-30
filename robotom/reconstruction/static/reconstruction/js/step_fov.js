@@ -18,6 +18,7 @@
     };
     var LOAD_STAGES = {
         queued: 'в очереди', crop: 'чтение кадров', dark_empty: 'опорные кадры', repositioning: 'сдвиги образца',
+        motion: 'смещение образца',
         ready: 'готово', canceling: 'отмена…', canceled: 'отменена', error: 'ошибка'
     };
     var FOV_VIEWS = ['envelope', 'sample', 'sinogram'];
@@ -40,7 +41,9 @@
             row: ui.$('fov-row'), size: ui.$('fov-size'), outside: ui.$('fov-outside'), ps: ui.$('fov-ps'),
             psSrc: ui.$('fov-ps-src'), psWarn: ui.$('fov-ps-warn'), sino: ui.$('fov-sino'), reset: ui.$('fov-reset'),
             load: ui.$('fov-load'), cancel: ui.$('fov-cancel'), progress: ui.$('fov-progress'),
-            loadMsg: ui.$('fov-load-msg'), dirty: ui.$('fov-dirty'), dataWarn: ui.$('fov-data-warn')
+            loadMsg: ui.$('fov-load-msg'), dirty: ui.$('fov-dirty'), dataWarn: ui.$('fov-data-warn'),
+            motion: ui.$('fov-motion'), motionText: ui.$('fov-motion-text'), motionChart: ui.$('fov-motion-chart'),
+            motionMode: ui.$('fov-motion-mode')
         };
         this.dataWarnings = [];
         this.outsideCh = this.api.channel({delay: 300});
@@ -196,6 +199,13 @@
                 st.roi = roiOf(st.roiSuggested);
                 self._roiChanged('reset', true);
                 app.setRow(st.rowSuggested, 'fov');
+            });
+        }
+        if (e.motionMode) {
+            ui.qsa('[data-motion]', e.motionMode).forEach(function (b) {
+                b.addEventListener('click', function () {
+                    self._setMotion(b.getAttribute('data-motion'));
+                });
             });
         }
         if (e.load) {
@@ -477,6 +487,7 @@
                 this.loadT0 = Date.now();
                 this.loadMsg = '';
                 this.dataWarnings = [];
+                this.motion = null;
                 st.loadedRoi = null;
                 app.set({load: 'loading', roiDirty: false});
                 app.bus.emit('load-start');
@@ -489,6 +500,7 @@
             st.loadedRoi = loaded;
             // предупреждения по данным (проверка контрольных кадров advanced-скана, сдвиги образца)
             this.dataWarnings = (s.warnings || []).slice();
+            if (!this.motion || fresh) this.motion = s.motion || null;       // сводка; с dx — после GET motion
             if (fresh) {
                 var took = this.loadT0 ? (Date.now() - this.loadT0) / 1000 : null;
                 this.loadMsg = took !== null ? 'Область загружена за ' + core.fmtDuration(took) + '.' : '';
@@ -496,6 +508,7 @@
             }
             app.set({load: 'ready', roiDirty: !core.sameRoi(st.roi, loaded)});
             if (fresh) app.bus.emit('loaded', s);
+            if (fresh) this._fetchMotion();
         } else if (s.state === 'error') {
             this.loadT0 = null;
             this.loadMsg = 'Ошибка загрузки: ' + (s.error || 'неизвестная ошибка');
@@ -637,6 +650,85 @@
         ui.show(e.loadMsg, !!msg);
         if (e.loadMsg) e.loadMsg.classList.toggle('text-danger', st.load === 'error');
         this._renderDataWarnings();
+        this._renderMotion();
+    };
+
+    // --- смещение образца --------------------------------------------------------------------------------------
+
+    /** Сведения о смещении образца с dx по кадрам (для графика). */
+    StepFov.prototype._fetchMotion = function () {
+        var self = this, app = this.app, sid = app.sid();
+        if (!sid) return;
+        this.api.getJSON('sessions/' + sid + '/motion', null, {quiet: true}).then(function (m) {
+            if (sid !== app.sid()) return;
+            self.motion = m;
+            self._renderMotion();
+        }, function () {});
+    };
+
+    /** Режим компенсации смещения; после смены — авто-ось и срез пересчитываются (событие 'motion'). */
+    StepFov.prototype._setMotion = function (mode) {
+        var self = this, app = this.app, sid = app.sid();
+        if (!sid || this.motionBusy || !app.config.can_run || (this.motion && this.motion.mode === mode)) return;
+        this.motionBusy = true;
+        this._renderMotion();
+        var what = 'Компенсация смещения';
+        this.api.postJSON('sessions/' + sid + '/motion', {mode: mode},
+            {expect: ['not_found', 'taken_over', 'forbidden', 'not_ready'], what: what}).then(function (m) {
+            self.motionBusy = false;
+            if (sid !== app.sid()) return;
+            self.motion = m;
+            self._renderMotion();
+            app.bus.emit('motion', m);
+        }, function (err) {
+            self.motionBusy = false;
+            self._renderMotion();
+            if (app.session.handleError(err)) return;
+            if (!err || err.code !== 'not_ready') app.api.report(err, what);
+        });
+    };
+
+    StepFov.prototype._renderMotion = function () {
+        var e = this.e, m = this.motion, app = this.app;
+        if (!e.motion) return;
+        var show = this.st.load === 'ready' && !!m && !!m.measured;
+        ui.show(e.motion, show);
+        if (!show) return;
+        var inconsistent = m.status === 'inconsistent';
+        e.motion.classList.toggle('alert', !!m.applied || inconsistent);
+        e.motion.classList.toggle('alert-info', !!m.applied);
+        e.motion.classList.toggle('alert-warning', !m.applied && inconsistent);
+        e.motion.classList.toggle('text-muted', !m.applied && !inconsistent);
+        ui.text(e.motionText, 'Смещение образца: ' + (m.message || '—') + '.');
+        if (e.motionChart) {
+            while (e.motionChart.firstChild) e.motionChart.removeChild(e.motionChart.firstChild);
+            var has = Array.isArray(m.dx) && m.dx.length > 1 && m.status !== 'no_object';
+            e.motionChart.style.display = has ? '' : 'none';
+            if (has) {
+                var c = core.motionChart(m.dx, m.dx_raw, 300, 48);
+                var ns = 'http://www.w3.org/2000/svg', doc = e.motionChart.ownerDocument;
+                var add = function (tag, attrs) {
+                    var el = doc.createElementNS(ns, tag);
+                    Object.keys(attrs).forEach(function (k) {
+                        el.setAttribute(k, attrs[k]);
+                    });
+                    e.motionChart.appendChild(el);
+                };
+                add('line', {'class': 'mc-zero', x1: 0, x2: 300, y1: c.zero, y2: c.zero});
+                if (c.raw) add('path', {'class': 'mc-raw', d: c.raw});
+                if (c.dx) add('path', {'class': 'mc-dx', d: c.dx});
+                e.motionChart.setAttribute('aria-label', 'смещение до ' + core.fmtNum(c.max, 1) + ' px');
+            }
+        }
+        var canRun = !!app.config.can_run, busy = !!this.motionBusy;
+        ui.qsa('[data-motion]', e.motionMode).forEach(function (b) {
+            var on = b.getAttribute('data-motion') === m.mode;
+            b.classList.toggle('active', on);
+            b.classList.toggle('btn-primary', on);
+            b.classList.toggle('btn-default', !on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            ui.enable(b, canRun && !busy, !canRun ? 'Доступно экспериментатору и администратору' : 'Применяется…');
+        });
     };
 
     /** Предупреждения по данным загруженной области: сбой угла на вставках (контрольные кадры) — красным. */

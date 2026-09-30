@@ -744,6 +744,51 @@
         return s || expId;
     };
 
+    // --- смещение образца (motion) -----------------------------------------------------------------------------
+
+    /** Мини-график смещения в прямоугольнике w×h: пути SVG 'd' для dx (сглаженное) и raw (по кадрам, null — разрыв)
+     *  по порядку кадров; масштаб симметричный от нуля, общий для обоих; zero — y нулевой линии. */
+    core.motionChart = function (dx, raw, w, h, pad) {
+        dx = dx || [];
+        raw = raw || [];
+        pad = pad === undefined ? 3 : pad;
+        var m = 0;
+        dx.concat(raw).forEach(function (v) {
+            if (isNum(v)) m = Math.max(m, Math.abs(v));
+        });
+        m = m || 1;
+        var n = Math.max(dx.length, raw.length);
+        function X(i) {
+            return n > 1 ? i * w / (n - 1) : w / 2;
+        }
+        function Y(v) {
+            return h / 2 - v * (h / 2 - pad) / m;
+        }
+        function r2(v) {
+            return Math.round(v * 100) / 100;
+        }
+        function path(arr) {
+            var d = [], pen = false;
+            arr.forEach(function (v, i) {
+                if (!isNum(v)) {
+                    pen = false;
+                    return;
+                }
+                d.push((pen ? 'L' : 'M') + r2(X(i)) + ' ' + r2(Y(v)));
+                pen = true;
+            });
+            return d.join(' ');
+        }
+        return {dx: path(dx), raw: path(raw), zero: r2(Y(0)), max: m};
+    };
+
+    /** Строка о смещении образца для рецепта (шаг 5): '' — выключено или не компенсировалось. */
+    core.motionText = function (block) {
+        if (!block || !block.applied) return '';
+        var s = block.summary || {};
+        return 'смещение образца компенсировано' + (isNum(s.rms) ? ' (СКО ' + core.fmtNum(s.rms, 1) + ' px)' : '');
+    };
+
     /** Экранирование для вставки текста в HTML. */
     core.escapeHtml = function (s) {
         return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {

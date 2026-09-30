@@ -80,6 +80,21 @@ step_axis → step_rings → step_smoothing → compare → step_run → step_re
                         <div id="fov-load-msg" class="st-note hidden"></div>
                         <div id="fov-data-warn" class="st-note alert alert-warning hidden"
                              title="Предупреждения по данным загруженной области (сервис реконструкции)"></div>
+                        <div id="fov-motion" class="st-note st-motion hidden"
+                             title="Смещение образца во время съёмки: отклонение центра масс проекций от вращения неподвижного образца, по кадрам (синее — оценка, серое — по кадрам до сглаживания)">
+                            <div id="fov-motion-text"></div>
+                            <svg id="fov-motion-chart" class="st-motion-chart" viewBox="0 0 300 48"
+                                 preserveAspectRatio="none" aria-hidden="true"></svg>
+                            <div class="btn-group btn-group-xs st-seg" id="fov-motion-mode" role="group"
+                                 aria-label="Компенсация смещения образца">
+                                <button type="button" class="btn btn-default" data-motion="auto"
+                                        title="Компенсировать, если найден сдвиг образца, одинаковый по высоте, и нет сбоя угла на вставках">Авто</button>
+                                <button type="button" class="btn btn-default" data-motion="on"
+                                        title="Компенсировать всегда">Вкл</button>
+                                <button type="button" class="btn btn-default" data-motion="off"
+                                        title="Не компенсировать">Выкл</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

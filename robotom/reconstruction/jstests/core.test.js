@@ -515,3 +515,22 @@ test('inputNum: точка для поля type=number', () => {
     assert.equal(core.inputNum(-1.2, 3), '-1.2');
     assert.equal(core.inputNum(NaN, 2), '');
 });
+
+test('motionChart: пути графика смещения, разрывы на null, симметричный масштаб', () => {
+    const c = core.motionChart([0, 2, -4], [1, null, -4], 100, 20, 0);
+    assert.equal(c.max, 4);
+    assert.equal(c.zero, 10);
+    assert.equal(c.dx, 'M0 10 L50 5 L100 20');
+    assert.equal(c.raw, 'M0 7.5 M100 20');                  // null — разрыв линии
+    const flat = core.motionChart([0, 0], [], 10, 10);
+    assert.equal(flat.max, 1);                                // нулевой сигнал — без деления на ноль
+    assert.equal(core.motionChart([], [], 10, 10).dx, '');
+});
+
+test('motionText: строка рецепта о компенсации смещения', () => {
+    assert.equal(core.motionText(null), '');
+    assert.equal(core.motionText({mode: 'auto', applied: false}), '');
+    assert.equal(core.motionText({mode: 'auto', applied: true, summary: {rms: 2.27}}),
+        'смещение образца компенсировано (СКО 2,3 px)');
+    assert.equal(core.motionText({mode: 'on', applied: true}), 'смещение образца компенсировано');
+});

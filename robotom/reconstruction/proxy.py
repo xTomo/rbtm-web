@@ -16,6 +16,7 @@
 | GET, DELETE  | ``sessions/<sid>``                                                    | да     |
 | POST         | ``sessions/<sid>/ping|load|load/cancel|axis/auto|axis/scan|axis/tilt|axis/set|recipe|estimate`` | да |
 | POST         | ``sessions/<sid>/compare`` (варианты колец и сглаживания на фрагменте среза) | да     |
+| POST         | ``sessions/<sid>/smoothing/auto`` (подбор σ сглаживания по половинам углов) | да     |
 | GET          | ``sessions/<sid>/slice|axis/diff|rings/preview|repositioning|motion`` | да     |
 | POST         | ``sessions/<sid>/motion`` (режим компенсации смещения образца)        | да     |
 | POST         | ``jobs``                                                              | да     |
@@ -93,7 +94,7 @@ RULES = (
     _rule('GET', r'sessions/{id}', run=True),
     _rule('DELETE', r'sessions/{id}', run=True, audit=True),
     _rule('POST', r'sessions/{id}/(?:load|load/cancel)', run=True, audit=True),
-    _rule('POST', r'sessions/{id}/(?:ping|axis/auto|axis/scan|axis/tilt|axis/set|recipe|estimate|compare)', run=True),
+    _rule('POST', r'sessions/{id}/(?:ping|axis/auto|axis/scan|axis/tilt|axis/set|recipe|estimate|compare|smoothing/auto)', run=True),
     _rule('GET', r'sessions/{id}/(?:slice|axis/diff|rings/preview|repositioning|motion)', run=True),
     _rule('POST', r'sessions/{id}/motion', run=True, audit=True),
 

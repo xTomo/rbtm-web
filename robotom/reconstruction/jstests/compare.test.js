@@ -26,12 +26,12 @@ test('варианты «Сравнить кольца»: все пресеты 
     v.forEach((x) => assert.deepEqual(x.smoothing, {sigma: 1.2, deblur: 'unsharp', balance: 0.02, amount: 2}));
 });
 
-test('варианты «Сравнить σ»: выкл, 0,7, 1, 1,5, 2 при текущих кольцах и деблюринге (и при выключенном)', () => {
+test('варианты «Сравнить σ»: выкл, 1, 1,5, 2, 2,5, 3, 4 при текущих кольцах и деблюринге (и при выключенном)', () => {
     const v = C.variants('sigma', state({rings: 'strong', smoothing: {enabled: false, sigma: 1.5, deblur: 'wiener',
         balance: 0.05, amount: 1.5}}));
-    assert.deepEqual(v.map((x) => x.rings), ['strong', 'strong', 'strong', 'strong', 'strong']);
+    assert.deepEqual(v.map((x) => x.rings), Array(7).fill('strong'));
     assert.equal(v[0].smoothing, null);
-    assert.deepEqual(v.slice(1).map((x) => x.smoothing.sigma), [0.7, 1, 1.5, 2]);
+    assert.deepEqual(v.slice(1).map((x) => x.smoothing.sigma), [1, 1.5, 2, 2.5, 3, 4]);
     v.slice(1).forEach((x) => {
         assert.equal(x.smoothing.deblur, 'wiener');
         assert.equal(x.smoothing.balance, 0.05);
@@ -156,4 +156,18 @@ test('клавиши: только на виде «Сравнение» и не 
         if (prevDoc === undefined) delete globalThis.document;
         else globalThis.document = prevDoc;
     }
+});
+
+test('autoText: итог подбора σ — выбранная, без сглаживания, край шкалы, минимум с допуском', () => {
+    const T = S.StepSmoothing.autoText;
+    const scores = [{sigma: null, rmse: 0.059, noise: 0.059}, {sigma: 2, rmse: 0.009, noise: 0.0072},
+        {sigma: 2.5, rmse: 0.0087, noise: 0.0055}, {sigma: 4, rmse: 0.0104, noise: 0.0029}];
+    assert.equal(T(null), '');
+    const t = T({row: 1800, sigma: 2, sigma_min: 2.5, at_limit: false, scores});
+    assert.ok(t.startsWith('Подбор σ (строка 1800): σ 2 — ошибка среза'), t);
+    assert.ok(t.includes('без сглаживания') && t.includes('Точный минимум — σ 2,5'), t);
+    assert.ok(T({row: 5, sigma: 4, sigma_min: 4, at_limit: true, scores}).includes('на краю шкалы (σ 4)'));
+    assert.ok(!T({row: 5, sigma: 2.5, sigma_min: 2.5, at_limit: false, scores}).includes('минимум'));
+    assert.ok(T({row: 5, sigma: null, sigma_min: null, at_limit: false, scores}).includes('сглаживание выключено'));
+    assert.equal(S.StepSmoothing.SIGMA_MAX, 4);
 });

@@ -40,7 +40,7 @@
             outsideIdx: [], outsideAngles: [], pixelSize: null, pixelUser: null,
             axisInfo: null, sliceMeta: null, rings: 'medium', angles: 'first_180', slices: null, binning: [4], estimate: null,
             // сглаживание проекций (шаг 3): по умолчанию выключено; σ — при включении
-            smoothing: {enabled: false, sigma: 1.5, deblur: 'wiener', balance: 0.02, amount: 1.5},
+            smoothing: {enabled: false, sigma: 2.0, deblur: 'none', balance: 0.02, amount: 1.5},
             resultDoc: null
         };
     }

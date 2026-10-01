@@ -4,7 +4,8 @@
  * seq} → стопка uint16 (k, th, tw) с одним общим окном; X-Meta: region, variants (нормализованные), metrics
  * [{noise (1/мм, шум среза по половинам углов), sharpness (относительно варианта 0)}], timings, downsample. Канал
  * «последний выигрывает». «Сравнить кольца» — пресеты off/weak/medium/strong при текущем сглаживании; «Сравнить σ» —
- * без сглаживания и σ 1 / 1,5 / 2 / 2,5 / 3 / 4 при текущих кольцах и деблюринге.
+ * без сглаживания и σ 1 / 1,5 / 2 / 2,5 / 3 / 4 при текущих кольцах и деблюринге; «Сравнить TV» — без TV и сила
+ * 1 / 2 / 3 / 4σ при текущих кольцах и сглаживании. Во всех вариантах, кроме «Сравнить TV», TV — текущий.
  * Фрагмент: вид «Срез» увеличен (видна часть среза) — видимая часть в пикселях полного среза (core.visibleRegion,
  * сторона 128…512 вокруг её центра); иначе фрагмент прошлого сравнения той же строки, а в первый раз region: null
  * (сервис выберет квадрат 384 с краями по срезу первого варианта).
@@ -22,7 +23,8 @@
     var RINGS = ['off', 'weak', 'medium', 'strong'];
     var RINGS_TEXT = {off: 'кольца: выкл', weak: 'кольца: слабо', medium: 'кольца: средне', strong: 'кольца: сильно'};
     var SIGMAS = [null, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
-    var TITLES = {rings: 'Сравнение колец', sigma: 'Сравнение σ'};
+    var TITLES = {rings: 'Сравнение колец', sigma: 'Сравнение σ', tv: 'Сравнение TV'};
+    var TV_STRENGTHS = [null, 1, 2, 3, 4];
     var SIZE = 384, MAX_PX = 1400;
     var LAYOUT = {maxCols: 4, gap: 8};
     var REGION = {min: 128, max: 512};
@@ -31,18 +33,27 @@
 
     // --- чистые помощники (node-тесты) ---------------------------------------------------------------------------
 
-    /** Варианты сравнения kind ('rings' | 'sigma') при состоянии st: [{rings, smoothing: блок | null}]. */
+    /** Варианты сравнения kind ('rings' | 'sigma' | 'tv') при состоянии st: [{rings, smoothing: блок | null,
+     *  denoise: блок | null}]; во всех, кроме 'tv', TV — текущий. */
     function variants(kind, st) {
+        var dn = core.denoiseBlock(st.denoise);
+        var sm = core.smoothingBlock(st.smoothing);
         if (kind === 'rings') {
-            var sm = core.smoothingBlock(st.smoothing);
             return RINGS.map(function (p) {
-                return {rings: p, smoothing: sm};
+                return {rings: p, smoothing: sm, denoise: dn};
+            });
+        }
+        if (kind === 'tv') {
+            var it = (st.denoise && st.denoise.iterations) || 50;
+            return TV_STRENGTHS.map(function (k) {
+                return {rings: st.rings, smoothing: sm,
+                    denoise: k === null ? null : core.denoiseBlock({enabled: true, strength: k, iterations: it})};
             });
         }
         var cur = st.smoothing || {};
         return SIGMAS.map(function (s) {
             return {rings: st.rings, smoothing: s === null ? null : core.smoothingBlock({sigma: s, deblur: cur.deblur,
-                balance: cur.balance, amount: cur.amount})};
+                balance: cur.balance, amount: cur.amount}), denoise: dn};
         });
     }
 
@@ -50,6 +61,7 @@
     function variantLabel(kind, v) {
         if (!v) return '';
         if (kind === 'rings') return RINGS_TEXT[v.rings] || ('кольца: ' + v.rings);
+        if (kind === 'tv') return core.denoiseText(v.denoise) || 'без TV';
         return core.smoothingText(v.smoothing, true) || 'без сглаживания';
     }
 
@@ -66,6 +78,11 @@
     function isCurrent(kind, v, st) {
         if (!v) return false;
         if (kind === 'rings') return v.rings === st.rings;
+        if (kind === 'tv') {
+            var x = core.denoiseBlock(v.denoise), y = core.denoiseBlock(st.denoise);
+            if (!x || !y) return !x && !y;
+            return x.strength === y.strength;
+        }
         var a = core.smoothingBlock(v.smoothing), b = core.smoothingBlock(st.smoothing);
         if (!a || !b) return !a && !b;
         return a.sigma === b.sigma && a.deblur === b.deblur;
@@ -136,7 +153,7 @@
             self._renderPanel();
         });
         // выбор варианта (щелчком или в шаге 3) — перерисовать рамку «выбрано»
-        ['rings', 'smoothing'].forEach(function (ev) {
+        ['rings', 'smoothing', 'denoise'].forEach(function (ev) {
             bus.on(ev, function () {
                 self._overlay();
             });
@@ -268,6 +285,9 @@
         var parts = [TITLES[res.kind], 'строка ' + res.row];
         if (res.kind === 'rings') {
             parts.push(core.smoothingText(v0.smoothing) || 'без сглаживания');
+        } else if (res.kind === 'tv') {
+            parts.push(RINGS_TEXT[v0.rings] || '');
+            parts.push(core.smoothingText(v0.smoothing) || 'без сглаживания');
         } else {
             parts.push(RINGS_TEXT[v0.rings] || '');
             var sm = null;
@@ -343,6 +363,9 @@
         }
         if (res.kind === 'rings') {
             app.rings.choose(v.rings);
+        } else if (res.kind === 'tv') {
+            var d = core.denoiseBlock(v.denoise);
+            app.denoise.set(d ? {enabled: true, strength: d.strength} : {enabled: false});
         } else {
             var b = core.smoothingBlock(v.smoothing);
             if (!b) {
@@ -355,7 +378,8 @@
             }
         }
         var sm = res.kind === 'sigma' ? core.smoothingText(v.smoothing) : '';
-        var full = sm ? 'сглаживание ' + sm : name;
+        var full = sm ? 'сглаживание ' + sm : (res.kind === 'tv' && core.denoiseBlock(v.denoise) ? 'шумоподавление ' +
+            name : name);
         ui.toast('Выбрано: ' + full + ' — срез и оценка пересчитываются.', 'success', 3000);
     };
 

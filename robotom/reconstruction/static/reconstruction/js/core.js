@@ -558,6 +558,31 @@
         return s;
     };
 
+    // --- шумоподавление TV 3D после реконструкции (блок рецепта denoise) ---------------------------------------
+
+    /** Действующие параметры TV из состояния {enabled, strength, iterations} или блока рецепта {method, strength,
+     *  iterations}: {method: 'tv', strength (до 0,1), iterations} или null — выключено. Вес считает сервис. */
+    core.denoiseBlock = function (dn) {
+        if (!dn || dn.enabled === false) return null;
+        if (dn.enabled === undefined && dn.method !== 'tv') return null;
+        var s = Number(dn.strength);
+        if (!isNum(s) || s <= 0) return null;
+        var it = Number(dn.iterations);
+        return {method: 'tv', strength: Math.round(s * 10) / 10, iterations: isNum(it) && it > 0 ? Math.round(it) : 50};
+    };
+
+    /** Параметры запроса среза: {} — выключено; иначе tv (сила) и tv_iter. */
+    core.denoiseQuery = function (dn) {
+        var b = core.denoiseBlock(dn);
+        return b ? {tv: b.strength, tv_iter: b.iterations} : {};
+    };
+
+    /** Подпись: «TV 2σ»; выключено — ''. */
+    core.denoiseText = function (dn) {
+        var b = core.denoiseBlock(dn);
+        return b ? 'TV ' + core.fmtNum(b.strength, 1) + 'σ' : '';
+    };
+
     // --- сравнение вариантов: мозаика фрагментов ---------------------------------------------------------------
 
     /**

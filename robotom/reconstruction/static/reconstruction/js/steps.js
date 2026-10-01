@@ -50,7 +50,7 @@
 
         if (stale) out.rings = st('stale', null, staleHint);
         else if (!ready) out.rings = st('none');
-        else if (s.ringsChosen || s.smoothingChosen) out.rings = st('checked');
+        else if (s.ringsChosen || s.smoothingChosen || s.denoiseChosen) out.rings = st('checked');
         else out.rings = st('auto', null, 'кольца и сглаживание по умолчанию');
 
         var js = s.job && s.job.status;

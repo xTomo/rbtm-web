@@ -3,14 +3,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {load} = require('./load');
 
-const S = load('core.js', 'api.js', 'step_smoothing.js', 'compare.js', 'step_run.js');
+const S = load('core.js', 'api.js', 'step_smoothing.js', 'step_denoise.js', 'compare.js', 'step_run.js');
 const core = S.core;
 const C = S.Compare;
 
 function state(over) {
     return Object.assign({
         rings: 'medium', angles: 'first_180', row: 2269, smoothingChosen: false,
-        smoothing: {enabled: false, sigma: 1.5, deblur: 'wiener', balance: 0.02, amount: 1.5}
+        smoothing: {enabled: false, sigma: 1.5, deblur: 'wiener', balance: 0.02, amount: 1.5},
+        denoiseChosen: false, denoise: {enabled: false, strength: 2, iterations: 50}
     }, over);
 }
 
@@ -18,8 +19,8 @@ function state(over) {
 
 test('варианты «Сравнить кольца»: все пресеты при текущем сглаживании', () => {
     assert.deepEqual(C.variants('rings', state()), [
-        {rings: 'off', smoothing: null}, {rings: 'weak', smoothing: null},
-        {rings: 'medium', smoothing: null}, {rings: 'strong', smoothing: null}]);
+        {rings: 'off', smoothing: null, denoise: null}, {rings: 'weak', smoothing: null, denoise: null},
+        {rings: 'medium', smoothing: null, denoise: null}, {rings: 'strong', smoothing: null, denoise: null}]);
     const on = state({smoothing: {enabled: true, sigma: 1.2, deblur: 'unsharp', balance: 0.02, amount: 2}});
     const v = C.variants('rings', on);
     assert.equal(v.length, 4);
@@ -170,4 +171,57 @@ test('autoText: итог подбора σ — выбранная, без сгл
     assert.ok(!T({row: 5, sigma: 2.5, sigma_min: 2.5, at_limit: false, scores}).includes('минимум'));
     assert.ok(T({row: 5, sigma: null, sigma_min: null, at_limit: false, scores}).includes('сглаживание выключено'));
     assert.equal(S.StepSmoothing.SIGMA_MAX, 4);
+});
+
+
+// --- TV 3D --------------------------------------------------------------------------------------------------------
+
+test('denoiseBlock/Query/Text: выключено — null, {}, пусто; сила округляется; блок рецепта', () => {
+    const core = S.core;
+    assert.equal(core.denoiseBlock(null), null);
+    assert.equal(core.denoiseBlock({enabled: false, strength: 2}), null);
+    assert.deepEqual(core.denoiseBlock({enabled: true, strength: 2.04, iterations: 50}),
+        {method: 'tv', strength: 2, iterations: 50});
+    assert.deepEqual(core.denoiseBlock({method: 'tv', strength: 3, weight: 0.06, iterations: 40}),
+        {method: 'tv', strength: 3, iterations: 40});
+    assert.equal(core.denoiseBlock({method: null, strength: 2}), null);                  // блок рецепта «выкл.»
+    assert.deepEqual(core.denoiseQuery({enabled: true, strength: 2.5}), {tv: 2.5, tv_iter: 50});
+    assert.deepEqual(core.denoiseQuery({enabled: false, strength: 2.5}), {});
+    assert.equal(core.denoiseText({enabled: true, strength: 2.5}), 'TV 2,5σ');
+    assert.equal(core.denoiseText({enabled: false}), '');
+});
+
+test('варианты «Сравнить TV»: без TV и 1–4σ при текущих кольцах и сглаживании; в других — текущий TV', () => {
+    const st = state({rings: 'weak', smoothing: {enabled: true, sigma: 1, deblur: 'none', balance: 0.02, amount: 1.5},
+        denoise: {enabled: true, strength: 3, iterations: 40}});
+    const v = C.variants('tv', st);
+    assert.deepEqual(v.map((x) => x.denoise && x.denoise.strength), [null, 1, 2, 3, 4]);
+    v.forEach((x) => {
+        assert.equal(x.rings, 'weak');
+        assert.equal(x.smoothing.sigma, 1);
+        if (x.denoise) assert.equal(x.denoise.iterations, 40);
+    });
+    assert.equal(C.variantLabel('tv', v[0]), 'без TV');
+    assert.equal(C.variantLabel('tv', v[2]), 'TV 2σ');
+    assert.ok(C.isCurrent('tv', v[3], st) && !C.isCurrent('tv', v[2], st) && !C.isCurrent('tv', v[0], st));
+    assert.ok(C.isCurrent('tv', v[0], state()));
+    C.variants('rings', st).concat(C.variants('sigma', st)).forEach((x) => assert.equal(x.denoise.strength, 3));
+});
+
+test('recipeBody: denoise — только после правки; включённый — с силой и строкой превью', () => {
+    const body = (st) => S.StepRun.prototype.recipeBody.call({st});
+    assert.ok(!('denoise' in body(state())));
+    assert.equal(body(state({denoiseChosen: true})).denoise, null);
+    const b = body(state({denoiseChosen: true, denoise: {enabled: true, strength: 2.5, iterations: 50}}));
+    assert.deepEqual(b.denoise, {method: 'tv', strength: 2.5, iterations: 50});
+    assert.equal(b.row, 2269);
+});
+
+test('hintText: TV без сглаживания или с сильным — совет σ 1', () => {
+    const H = S.StepDenoise.hintText;
+    assert.equal(H(state()), '');
+    const on = {enabled: true, strength: 2, iterations: 50};
+    assert.ok(H(state({denoise: on})).includes('σ 1'));
+    assert.ok(H(state({denoise: on, smoothing: {enabled: true, sigma: 3, deblur: 'none'}})).includes('σ 1'));
+    assert.equal(H(state({denoise: on, smoothing: {enabled: true, sigma: 1, deblur: 'none'}})), '');
 });

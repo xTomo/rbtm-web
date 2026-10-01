@@ -80,7 +80,7 @@
         });
         // кольца или сглаживание (в том числе вариант, выбранный щелчком в «Сравнении») — срез пересчитать; со
         // «Сравнения» не уводить — он обновится в фоне
-        ['rings', 'smoothing'].forEach(function (ev) {
+        ['rings', 'smoothing', 'denoise'].forEach(function (ev) {
             bus.on(ev, function () {
                 self.refreshSlice(app.viewer.current() !== 'compare');
             });
@@ -196,7 +196,8 @@
         var self = this, app = this.app, st = this.st;
         if (!app.ready() || st.axis === 'running') return;
         var sid = app.sid(), row = st.row, rings = st.rings, angles = st.angles;
-        var smooth = core.smoothingQuery(st.smoothing), smoothText = core.smoothingText(st.smoothing);
+        var smooth = Object.assign(core.smoothingQuery(st.smoothing), core.denoiseQuery(st.denoise));
+        var smoothText = [core.smoothingText(st.smoothing), core.denoiseText(st.denoise)].filter(Boolean).join(' · ');
         this.sliceCh.run(function (signal, seq) {
             var params = self.axisParams(row, {row: row, rings: rings, angles: angles, seq: seq});
             return self.api.getBinary('sessions/' + sid + '/slice', Object.assign(params, smooth),

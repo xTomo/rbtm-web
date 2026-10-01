@@ -53,7 +53,7 @@
             self.st.estimate = null;
             self.render();
         });
-        ['rings', 'smoothing', 'angles', 'recipe-params', 'axis'].forEach(function (ev) {
+        ['rings', 'smoothing', 'denoise', 'angles', 'recipe-params', 'axis'].forEach(function (ev) {
             bus.on(ev, function () {
                 self.estimate();
             });
@@ -139,6 +139,11 @@
         // сглаживание: ключ есть — выбор человека (provenance 'checked'; null — выключено), нет — значение по умолчанию
         // (выключено, 'auto')
         if (st.smoothingChosen) body.smoothing = core.smoothingBlock(st.smoothing);
+        // TV 3D: так же; вес по силе и шуму строки превью считает сервис
+        if (st.denoiseChosen) {
+            body.denoise = core.denoiseBlock(st.denoise);
+            if (body.denoise && st.row !== null && st.row !== undefined) body.row = st.row;
+        }
         // ручная ось — явно: в сессию она уходит с задержкой (StepAxis._persist), запуск может её опередить
         var ax = st.axisInfo && st.axisInfo.axis;
         if (ax && ax.method === 'manual') {
@@ -275,12 +280,17 @@
                 binned[b] > 0 ? null : 'text-warning');
         });
         if (est.n_angles_used) row('Углов', est.n_angles_used + ' из ' + (est.n_data_frames || '?') + ' data-кадров');
-        var t = est.time;
+        var t = est.time, dn = est.denoise;
+        var tvS = dn && core.isNum(dn.s) ? dn.s : 0;
         if (t && core.isNum(t.recon_s)) {
-            var total = t.recon_s + (core.isNum(t.prepare_s) ? t.prepare_s : 0);
+            var total = t.recon_s + (core.isNum(t.prepare_s) ? t.prepare_s : 0) + tvS;
             row('Время', '≈ ' + core.fmtDuration(total) + ' (' + (TIME_SOURCE[t.source] || t.source || '') + ')');
         } else {
             row('Время', 'оценится после превью среза', 'text-muted');
+        }
+        if (tvS) {
+            row('из них TV 3D', '≈ ' + core.fmtDuration(tvS) + (dn.source === 'default' ? ' (грубо, без замеров)' : ''),
+                dn.source === 'default' ? 'text-muted' : null);
         }
         el.appendChild(dl);
     };

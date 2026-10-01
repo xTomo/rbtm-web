@@ -9,7 +9,7 @@
 
 Разметка шагов и просмотрщика — здесь, поведение — static/reconstruction/js/*.js (window.Studio, без сборки;
 порядок подключения важен: core → api → ui → viewer → overlay → thumbstrip → steps → session → jobs → step_fov →
-step_axis → step_rings → step_smoothing → compare → step_run → step_result → studio).
+step_axis → step_rings → step_smoothing → step_denoise → compare → step_run → step_result → studio).
 {% endcomment %}
 {% block content %}
 {{ studio_config|json_script:"studio-config" }}
@@ -195,6 +195,26 @@ step_axis → step_rings → step_smoothing → compare → step_run → step_re
                                     title="Фрагмент среза 1:1 без сглаживания и при σ 1, 1,5, 2, 2,5, 3, 4 (текущие кольца и деблюринг) — вид «Сравнение»">Сравнить σ</button>
                         </div>
                         <div id="sm-auto-note" class="st-note"></div>
+
+                        <div class="st-sub st-sep">Шумоподавление после реконструкции (TV 3D):</div>
+                        <div class="btn-group btn-group-sm st-seg" id="tv-toggle" role="group" aria-label="Шумоподавление TV 3D">
+                            <button type="button" class="btn btn-default" data-tv="off">Выкл</button>
+                            <button type="button" class="btn btn-default" data-tv="on">Вкл</button>
+                        </div>
+                        <div class="st-grid-row st-slider" title="Вес TV в долях σ шума среза (0,5…5; по умолчанию 2): больше — чище, но мелкие детали сливаются">
+                            <label for="tv-strength">сила</label>
+                            <input id="tv-strength" type="range" class="st-range" min="0.5" max="5" step="0.5" value="2">
+                            <span id="tv-strength-val" class="st-range-val"></span>
+                        </div>
+                        <div class="st-btns">
+                            <button type="button" class="btn btn-default btn-sm" data-compare="tv"
+                                    title="Фрагмент среза 1:1 без TV и с силой 1, 2, 3, 4σ (текущие кольца и сглаживание) — вид «Сравнение»">Сравнить TV</button>
+                        </div>
+                        <div id="tv-hint" class="st-note text-warning"></div>
+                        <div class="st-note text-muted">TV выравнивает гладкие области и оставляет края резкими — в
+                            отличие от сглаживания, которое размывает всё. Лучше вместе со сглаживанием проекций σ 1
+                            без деблюра. Сила — в долях шума среза: 2–3σ обычно достаточно, при 4σ и больше мелкие
+                            детали начинают сливаться. Задача дольше на несколько минут (оценка — в шаге 4).</div>
                         <div class="st-note text-muted">Каждая проекция сглаживается гауссом σ (по желанию — деблюринг
                             тем же ядром). Мельче ~2σ детали уходят вместе с шумом: на шумных сканах там и нет сигнала.
                             «Подобрать σ» сравнивает срезы по чётным и нечётным углам — у них один объект и независимый
@@ -338,6 +358,7 @@ step_axis → step_rings → step_smoothing → compare → step_run → step_re
 <script src="{% static 'reconstruction/js/step_axis.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_rings.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_smoothing.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/step_denoise.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/compare.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_run.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_result.js' %}?v={{ asset_version }}"></script>

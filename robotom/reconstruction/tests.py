@@ -60,6 +60,7 @@ RUN_REQUESTS = (
     ('post', 'sessions/' + SID + '/recipe'),
     ('post', 'sessions/' + SID + '/estimate'),
     ('post', 'sessions/' + SID + '/compare'),
+    ('post', 'sessions/' + SID + '/smoothing/auto'),
     ('get', 'sessions/' + SID + '/slice'),
     ('get', 'sessions/' + SID + '/axis/diff'),
     ('get', 'sessions/' + SID + '/rings/preview'),

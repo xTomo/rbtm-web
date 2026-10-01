@@ -2,9 +2,9 @@
  *
  * POST sessions/<sid>/compare {row, center, tilt, angles, region | null, size, variants: [{rings, smoothing}], max_px,
  * seq} → стопка uint16 (k, th, tw) с одним общим окном; X-Meta: region, variants (нормализованные), metrics
- * [{noise (1/мм), sharpness (относительно варианта 0)}], timings, downsample. Канал «последний выигрывает».
- * «Сравнить кольца» — пресеты off/weak/medium/strong при текущем сглаживании; «Сравнить σ» — без сглаживания и
- * σ 0,7 / 1 / 1,5 / 2 при текущих кольцах и деблюринге.
+ * [{noise (1/мм, шум среза по половинам углов), sharpness (относительно варианта 0)}], timings, downsample. Канал
+ * «последний выигрывает». «Сравнить кольца» — пресеты off/weak/medium/strong при текущем сглаживании; «Сравнить σ» —
+ * без сглаживания и σ 1 / 1,5 / 2 / 2,5 / 3 / 4 при текущих кольцах и деблюринге.
  * Фрагмент: вид «Срез» увеличен (видна часть среза) — видимая часть в пикселях полного среза (core.visibleRegion,
  * сторона 128…512 вокруг её центра); иначе фрагмент прошлого сравнения той же строки, а в первый раз region: null
  * (сервис выберет квадрат 384 с краями по срезу первого варианта).
@@ -21,7 +21,7 @@
     var PREVIEW_EXPECT = ['not_found', 'taken_over', 'forbidden', 'not_ready'];
     var RINGS = ['off', 'weak', 'medium', 'strong'];
     var RINGS_TEXT = {off: 'кольца: выкл', weak: 'кольца: слабо', medium: 'кольца: средне', strong: 'кольца: сильно'};
-    var SIGMAS = [null, 0.7, 1.0, 1.5, 2.0];
+    var SIGMAS = [null, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
     var TITLES = {rings: 'Сравнение колец', sigma: 'Сравнение σ'};
     var SIZE = 384, MAX_PX = 1400;
     var LAYOUT = {maxCols: 4, gap: 8};

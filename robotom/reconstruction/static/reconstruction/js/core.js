@@ -522,7 +522,7 @@
     /**
      * Действующие параметры сглаживания из состояния страницы {enabled, sigma, deblur, balance, amount} или из блока
      * рецепта {sigma, deblur, balance, amount}: {sigma (до 0,01), deblur, balance, amount} или null — выключено
-     * (enabled = false, σ нет или ≤ 0).
+     * (enabled = false, σ нет или ≤ 0). Неизвестный или пустой deblur — 'none' (как smoothing.DEFAULTS сервиса).
      */
     core.smoothingBlock = function (sm) {
         if (!sm || sm.enabled === false) return null;
@@ -530,7 +530,7 @@
         if (sm.sigma === null || sm.sigma === undefined || !isNum(sigma) || sigma <= 0) return null;
         return {
             sigma: Math.round(sigma * 100) / 100,
-            deblur: DEBLUR[sm.deblur] ? sm.deblur : 'wiener',
+            deblur: DEBLUR[sm.deblur] ? sm.deblur : 'none',
             balance: isNum(sm.balance) ? sm.balance : 0.02,
             amount: isNum(sm.amount) ? sm.amount : 1.5
         };

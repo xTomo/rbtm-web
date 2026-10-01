@@ -165,21 +165,21 @@ step_axis → step_rings → step_smoothing → compare → step_run → step_re
                             <button type="button" class="btn btn-default" data-smooth="off">Выкл</button>
                             <button type="button" class="btn btn-default" data-smooth="on">Вкл</button>
                         </div>
-                        <div class="st-grid-row st-slider" title="σ гауссова ядра, пиксели детектора (0,7…2; по умолчанию 1,5)">
+                        <div class="st-grid-row st-slider" title="σ гауссова ядра, пиксели детектора (0,7…4; по умолчанию 2)">
                             <label for="sm-sigma">σ, px</label>
-                            <input id="sm-sigma" type="range" class="st-range" min="0.7" max="2" step="0.1" value="1.5">
+                            <input id="sm-sigma" type="range" class="st-range" min="0.7" max="4" step="0.1" value="2">
                             <span id="sm-sigma-val" class="st-range-val"></span>
                         </div>
                         <details id="sm-more" class="st-more">
                             <summary>Дополнительно</summary>
                             <div class="st-sub">Деблюринг после реконструкции:</div>
                             <div class="btn-group btn-group-xs st-seg" id="sm-deblur" role="group" aria-label="Деблюринг">
+                                <button type="button" class="btn btn-default" data-deblur="none"
+                                        title="Только сглаживание, без восстановления краёв (по умолчанию)">Без</button>
                                 <button type="button" class="btn btn-default" data-deblur="wiener"
-                                        title="Фильтр Винера тем же ядром (как в «Марсе»)">Винер</button>
+                                        title="Фильтр Винера тем же ядром (как в «Марсе») — для малошумных сканов">Винер</button>
                                 <button type="button" class="btn btn-default" data-deblur="unsharp"
                                         title="Нерезкая маска тем же ядром">Маска</button>
-                                <button type="button" class="btn btn-default" data-deblur="none"
-                                        title="Только сглаживание, без восстановления краёв">Без</button>
                             </div>
                             <div class="st-grid-row st-slider" id="sm-strength-row">
                                 <label for="sm-strength" id="sm-strength-label">β</label>
@@ -189,13 +189,18 @@ step_axis → step_rings → step_smoothing → compare → step_run → step_re
                             <div id="sm-deblur-note" class="st-note text-muted"></div>
                         </details>
                         <div class="st-btns">
+                            <button type="button" class="btn btn-default btn-sm" id="sm-auto"
+                                    title="Оценить ошибку среза при σ 0…4 (текущие кольца и деблюринг) по двум половинам углов и включить лучшую σ. Фрагмент — видимая часть увеличенного «Среза» или квадрат 512 с краями">Подобрать σ</button>
                             <button type="button" class="btn btn-default btn-sm" data-compare="sigma"
-                                    title="Фрагмент среза 1:1 без сглаживания и при σ 0,7, 1, 1,5, 2 (текущие кольца и деблюринг) — вид «Сравнение»">Сравнить σ</button>
+                                    title="Фрагмент среза 1:1 без сглаживания и при σ 1, 1,5, 2, 2,5, 3, 4 (текущие кольца и деблюринг) — вид «Сравнение»">Сравнить σ</button>
                         </div>
-                        <div class="st-note text-muted">Каждая проекция сглаживается гауссом σ, после реконструкции —
-                            деблюринг тем же ядром: шум ниже, края восстанавливаются. Сравнивайте варианты при равном
-                            шуме (метрики на плитках). Обзорный срез уменьшен усреднением (обычно ×3) и занижает шум и
-                            тонкие кольца — судите по фрагменту 1:1 (вид «Сравнение»).</div>
+                        <div id="sm-auto-note" class="st-note"></div>
+                        <div class="st-note text-muted">Каждая проекция сглаживается гауссом σ (по желанию — деблюринг
+                            тем же ядром). Мельче ~2σ детали уходят вместе с шумом: на шумных сканах там и нет сигнала.
+                            «Подобрать σ» сравнивает срезы по чётным и нечётным углам — у них один объект и независимый
+                            шум — и берёт σ с наименьшей ошибкой. Шум на плитках сравнения считается так же. Обзорный
+                            срез уменьшен усреднением (обычно ×3) и занижает шум и тонкие кольца — судите по фрагменту
+                            1:1 (вид «Сравнение»).</div>
 
                         <div id="cmp-panel" class="st-cmp hidden">
                             <div id="cmp-info" class="st-note"></div>

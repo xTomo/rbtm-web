@@ -372,7 +372,8 @@ test('smoothingBlock: выключено — null; состояние и бло�
     assert.equal(core.smoothingBlock({sigma: null, deblur: 'wiener'}), null);        // блок рецепта «выкл.»
     assert.equal(core.smoothingBlock({sigma: 0}), null);
     // блок рецепта (без enabled), неизвестный метод и пропуски — по умолчанию
-    assert.deepEqual(core.smoothingBlock({sigma: 2, deblur: 'lucy'}), {sigma: 2, deblur: 'wiener', balance: 0.02, amount: 1.5});
+    assert.deepEqual(core.smoothingBlock({sigma: 2, deblur: 'lucy'}), {sigma: 2, deblur: 'none', balance: 0.02, amount: 1.5});
+    assert.equal(core.smoothingBlock({sigma: 3.5}).deblur, 'none');                   // как smoothing.DEFAULTS сервиса
     assert.deepEqual(core.smoothingBlock({sigma: '0.7', deblur: 'unsharp', amount: 2}),
         {sigma: 0.7, deblur: 'unsharp', balance: 0.02, amount: 2});
 });

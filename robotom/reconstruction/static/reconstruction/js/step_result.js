@@ -2,7 +2,8 @@
  *
  * GET results/<id> (404 — результата движка ещё нет): форма объёма, воксель, дата, кратко рецепт (кольца,
  * сглаживание, углы, ось, строки), путь к полному объёму
- * (dir + '/' + result.volume.file — скачивается как раньше), файлы (ссылки api_base + results/<id>/file/<имя>),
+ * (dir + '/' + result.volume.file) и ссылки на него и его .hx — через старую раздачу статики (config.full_volume_url +
+ * full[].rel из ответа сервиса; сервис полный объём не отдаёт), файлы (ссылки api_base + results/<id>/file/<имя>),
  * история запусков; срезы копии ×4 по осям z/y/x с ползунком — GET results/<id>/slice?axis&i.
  * После завершения задачи — обновить. */
 (function (root) {
@@ -15,6 +16,16 @@
     var PLANE = {z: ['x', 'y'], y: ['x', 'z'], x: ['y', 'z']};
     var RINGS = {off: 'выкл', weak: 'слабо', medium: 'средне', strong: 'сильно'};
     var ANGLES = {first_180: 'первые 180°', full_halves: 'все полуобороты (усреднение)'};
+
+    /** Ссылки на полный объём: [{name, href, size}] по ответу results/<id> (full: [{name, rel, size}]) и префиксу
+     *  раздачи статики base; без префикса или без файлов — []. */
+    function fullVolumeLinks(doc, base) {
+        if (!base || !doc || !doc.full || !doc.full.length) return [];
+        var b = String(base).replace(/\/+$/, '') + '/';
+        return doc.full.map(function (f) {
+            return {name: f.name, size: f.size, href: b + String(f.rel).split('/').map(encodeURIComponent).join('/')};
+        });
+    }
 
     function StepResult(app) {
         var self = this;
@@ -233,6 +244,17 @@
             el.appendChild(ui.el('div', {class: 'input-group input-group-sm st-path-group'}, [
                 inp, ui.el('span', {class: 'input-group-btn'}, [copy])
             ]));
+            var links = fullVolumeLinks(doc, this.app.config.full_volume_url);
+            if (links.length) {
+                var ful = ui.el('ul', {class: 'st-files'});
+                links.forEach(function (f) {
+                    var a = ui.el('a', {href: f.href, text: f.name, download: f.name,
+                        title: 'Полный объём — через старую раздачу статики (/reconstruct/static), не через сервис'});
+                    ful.appendChild(ui.el('li', null, [a, ui.el('span', {class: 'text-muted', text: ' ' +
+                        core.fmtBytes(f.size)})]));
+                });
+                el.appendChild(ful);
+            }
         }
 
         if (r.warnings && r.warnings.length) {
@@ -300,5 +322,6 @@
         ui.text(e.n, n ? 'из ' + n : '');
     };
 
+    StepResult.fullVolumeLinks = fullVolumeLinks;
     S.StepResult = StepResult;
 })(typeof window !== 'undefined' ? window : globalThis);

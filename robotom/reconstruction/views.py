@@ -122,6 +122,7 @@ def studio_view(request, exp_id):
         'specimen': specimen,
         'storage_url': _storage_record_url(exp_id),
         'legacy_url': settings.RECONSTRUCTION_URL.format(exp_id=exp_id),
+        'full_volume_url': getattr(settings, 'RECON_FULL_VOLUME_URL', ''),
         'csrf_token': get_token(request),
     }
     return render(request, 'reconstruction/studio.html', {

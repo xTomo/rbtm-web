@@ -38,6 +38,10 @@ RECONSTRUCTION_URL = urljoin(RECONSTRUCTION_HOST, '/view/tomo_object/{exp_id}')
 # окружения контейнера (docker-compose.yml, .env); пустой токен — прокси студии отвечает 503.
 RECON_SERVICE_URL = os.environ.get('RECON_SERVICE_URL', 'http://localhost:5560/')
 RECON_TOKEN = os.environ.get('RECON_TOKEN', '')
+# Ссылка на полный объём в шаге «Результат»: префикс старой раздачи статики, смотрящей в хранилище результатов
+# (Apache: /reconstruct/static → web_web_1:5550/static, tomo_data — тот же каталог, что /storage сервиса); к нему
+# добавляется <id>/reconstruction/<файл>. Пусто — ссылки нет, только путь.
+RECON_FULL_VOLUME_URL = os.environ.get('RECON_FULL_VOLUME_URL', '/reconstruct/static/tomo_data/')
 
 # STORAGE routes
 STORAGE_FRAMES_PNG = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}/frames/{frame_id}/png')

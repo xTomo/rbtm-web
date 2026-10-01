@@ -214,7 +214,7 @@ class StudioPageTest(StudioUsersMixin, TestCase):
         config = _studio_config(response)
         self.assertEqual(config, response.context['studio_config'])
         self.assertEqual(set(config), {'exp_id', 'api_base', 'can_run', 'user', 'specimen', 'storage_url',
-                                       'legacy_url', 'csrf_token'})
+                                       'legacy_url', 'full_volume_url', 'csrf_token'})
         self.assertEqual(config['exp_id'], EXP_ID)
         self.assertEqual(config['api_base'], '/studio/api/')
         self.assertEqual(config['api_base'], reverse('reconstruction:api_root'))
@@ -223,6 +223,7 @@ class StudioPageTest(StudioUsersMixin, TestCase):
         self.assertEqual(config['specimen'], u'Образец')
         self.assertEqual(config['storage_url'], '/storage/storage_record_exp-1/')
         self.assertEqual(config['legacy_url'], settings.RECONSTRUCTION_URL.format(exp_id=EXP_ID))
+        self.assertEqual(config['full_volume_url'], '/reconstruct/static/tomo_data/')
         self.assertTrue(config['csrf_token'])
         self.assertEqual(response.context['exp_id'], EXP_ID)
         self.assertIn(u'Образец', response.context['caption'])

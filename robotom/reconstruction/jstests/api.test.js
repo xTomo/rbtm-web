@@ -212,6 +212,7 @@ test('describe: понятные тексты кодов сессии', () => {
     const E = S.api.ApiError;
     assert.match(S.api.describe(new E(410, {error: 'taken_over', by: 'petr'})), /перехватил пользователь petr/);
     assert.match(S.api.describe(new E(404, {error: 'not_found'})), /сессия закрыта/);
+    assert.match(S.api.describe(new E(409, {error: 'acquiring'})), /съёмка эксперимента ещё идёт/);
     assert.match(S.api.describe(new E(409, {error: 'not_ready', state: 'loading'})), /loading/);
     assert.equal(S.api.describe(new E(400, {error: 'ROI x [0, 0) вне кадра'})), 'ROI x [0, 0) вне кадра');
     const te = new TypeError('Failed to fetch');

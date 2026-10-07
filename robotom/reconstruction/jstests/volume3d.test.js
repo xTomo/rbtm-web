@@ -97,6 +97,35 @@ test('texWindow: окно в единицах текстуры R8 (код / 255)
     assert.ok(deg[1] > deg[0]);
 });
 
+test('палитры: 256 цветов, известные концы, у перцептивных яркость растёт монотонно', () => {
+    const names = V.PALETTES.map((p) => p[0]);
+    assert.deepEqual(names, ['gray', 'inferno', 'viridis', 'magma', 'plasma', 'cividis', 'jet']);
+    const rgb = (n, i) => Array.from(V.paletteTable(n).subarray(i * 3, i * 3 + 3));
+    for (const n of names) assert.equal(V.paletteTable(n).length, 768, n);
+    assert.deepEqual(rgb('gray', 0), [0, 0, 0]);
+    assert.deepEqual(rgb('gray', 255), [255, 255, 255]);
+    assert.deepEqual(rgb('viridis', 0), [68, 1, 84]);          // matplotlib: #440154
+    assert.deepEqual(rgb('viridis', 255), [253, 231, 37]);     // #fde725
+    assert.deepEqual(rgb('inferno', 0), [0, 0, 4]);
+    assert.deepEqual(rgb('jet', 0), [0, 0, 128]);
+    assert.deepEqual(rgb('jet', 255), [128, 0, 0]);
+    assert.deepEqual(V.paletteTable('нет такой'), V.paletteTable('gray'));
+    const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    for (const n of ['inferno', 'viridis', 'magma', 'plasma', 'cividis']) {
+        for (let i = 8; i < 256; i += 8) assert.ok(lum(rgb(n, i)) > lum(rgb(n, i - 8)), n + ' ' + i);
+    }
+    // jet немонотонна по яркости: у голубого–жёлтого (≈ 0,375–0,625) ярче, чем у красного конца
+    assert.ok(lum(rgb('jet', 160)) > lum(rgb('jet', 255)));
+});
+
+test('colorbarTicks: середина шкалы с учётом гаммы', () => {
+    const t = V.colorbarTicks(0, 2, 1);
+    assert.deepEqual(t.map((x) => x.frac), [1, 0.5, 0]);
+    assert.deepEqual(t.map((x) => x.value), [2, 1, 0]);
+    close(V.colorbarTicks(0, 1, 2)[1].value, Math.SQRT1_2);
+    close(V.colorbarTicks(-1, 1, 0.5)[1].value, -1 + 2 * 0.25);
+});
+
 test('slicePosition и контуры: срез i копии — центр плоскости в вокселях 3D-объёма', () => {
     assert.equal(V.slicePosition(5, 2), 2.75);
     assert.equal(V.slicePosition(0, 1), 0.5);

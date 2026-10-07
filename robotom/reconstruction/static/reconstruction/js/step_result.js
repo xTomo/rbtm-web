@@ -49,6 +49,7 @@
             info: ui.$('res-info'), view: ui.$('res-view'), axes: ui.$('res-axes'), slider: ui.$('res-slider'),
             index: ui.$('res-index'), n: ui.$('res-n'), show: ui.$('res-show'), sub: ui.$('res-sub'),
             v3d: ui.$('res-3d'), show3d: ui.$('res-3d-show'), info3d: ui.$('res-3d-info'), mode3d: ui.$('res-3d-mode'),
+            cmap: ui.$('res-3d-cmap'),
             gamma: ui.$('res-3d-gamma'), gammaVal: ui.$('res-3d-gamma-val'), depth: ui.$('res-3d-depth'),
             depthLabel: ui.$('res-3d-depth-label'), depthVal: ui.$('res-3d-depth-val'), box: ui.$('res-3d-box'),
             slice3d: ui.$('res-3d-slice'), clip: ui.$('res-3d-clip'), clipAxis: ui.$('res-3d-clip-axis'),
@@ -140,6 +141,14 @@
                 });
             });
         }
+        if (e.cmap) {
+            S.vol3d.PALETTES.forEach(function (p) {
+                e.cmap.appendChild(ui.el('option', {value: p[0], text: p[1]}));
+            });
+        }
+        on(e.cmap, 'change', function () {
+            self._set3d({cmap: e.cmap.value});
+        });
         on(e.gamma, 'input', function () {
             self._set3d({gamma: parseFloat(e.gamma.value) || 1});
         });
@@ -228,6 +237,9 @@
             var first = !app.viewer.has('volume3d');
             app.viewer.show('volume3d', img, {
                 kind: 'volume3d', unit: '1/мм', external: v3, hint: v3.hint,
+                // вещество образца — 1–2 % вокселей объёма: верх авто-окна по 99,5 % резал бы его (на a82d2e0a
+                // 1,03 при веществе 0,85–1,34 1/мм), а «Максимум» вдоль луча почти всегда выше — берём 99,99 %
+                autoPercentiles: [0.5, 99.99],
                 label: 'Готовый объём в 3D: ' + img.k + ' × ' + img.h + ' × ' + img.w + ', в ' + (m.binning || '?') +
                     ' раз меньше полного по каждой оси' +
                     (m.voxel_mm ? ', воксель ' + core.fmtNum(m.voxel_mm * 1000, 3) + ' мкм' : '')
@@ -344,6 +356,10 @@
                 b.classList.toggle('btn-primary', on);
                 b.classList.toggle('btn-default', !on);
             });
+        }
+        if (e.cmap) {
+            e.cmap.value = r.cmap;
+            e.cmap.disabled = r.mode === 'iso';         // поверхность освещается, значение на ней одно — порог
         }
         if (e.gamma) {
             e.gamma.value = r.gamma;

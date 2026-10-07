@@ -100,11 +100,19 @@
                                     {% endfor %}
                                 </td>
                                 <td>
-                                    <a href="{{ record.recon_url }}" target="_blank"
+                                    {% if record.studio_url %}
+                                    <a href="{{ record.studio_url }}" target="_blank"
                                        class="btn btn-xs btn-info"
-                                       title="Просмотр реконструкции">
+                                       title="Студия реконструкции">
                                         <span class="glyphicon glyphicon-eye-open"></span> К реконструкции
                                     </a>
+                                    {% else %}
+                                    <a href="{{ record.recon_url }}" target="_blank"
+                                       class="btn btn-xs btn-info"
+                                       title="Jupyter-реконструкция (студия доступна экспериментатору, исследователю и администратору)">
+                                        <span class="glyphicon glyphicon-eye-open"></span> К реконструкции
+                                    </a>
+                                    {% endif %}
                                 </td>
                                 <td class="col-nowrap">{{ record.datetime }}</td>
                                 <td class="col-nowrap">{{ record.data_angle_step }}&deg;</td>
@@ -118,11 +126,13 @@
                                     </div>
                                 </td>
                                 <td>
+                                    {% if can_delete %}
                                     <div style="cursor: pointer;" data-toggle="tooltip" data-placement="top"
                                          title="Удалить эксперимент" onClick="deleteExperiment(this.id)"
-                                         id="{{ record.experiment_id }}">
+                                         id="{{ record.experiment_id }}" data-specimen="{{ record.specimen }}">
                                         <span class="glyphicon glyphicon-trash" style="padding-top: 5px;"/>
                                     </div>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}
@@ -136,6 +146,7 @@
         </div>
     {% endif %}
 
+   {% if can_delete %}{% csrf_token %}{% endif %}
    <script type="text/javascript">
         var storage_url = '{{ storage_url }}'
         var page_size = '{{ page_size }}'
@@ -171,6 +182,6 @@
         });
    </script>
 
-    <script type='text/javascript' src="{% static 'storage/js/storage_index.js' %}"></script>
+    <script type='text/javascript' src="{% static 'storage/js/storage_index.js' %}?v=20261007"></script>
 
 {% endblock content %}

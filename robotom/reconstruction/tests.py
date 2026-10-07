@@ -651,7 +651,7 @@ class StorageRecordStudioButtonTest(StudioUsersMixin, TestCase):
                 self.assertEqual(response.context['studio_url'], '/studio/exp-1/')
                 self.assertContains(response, 'href="/studio/exp-1/"')
                 self.assertContains(response, u'Студия реконструкции')
-                self.assertContains(response, u'Перейти к реконструкции')
+                self.assertContains(response, u'Jupyter реконструкция')
 
     def test_no_button_for_guest(self):
         self.login('guest')
@@ -659,4 +659,115 @@ class StorageRecordStudioButtonTest(StudioUsersMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.context['studio_url'])
         self.assertNotContains(response, '/studio/')
-        self.assertContains(response, u'Перейти к реконструкции')
+        self.assertContains(response, u'Jupyter реконструкция')
+
+
+class StorageIndexStudioLinkTest(StudioUsersMixin, TestCase):
+    """«К реконструкции» в списке хранилища ведёт в студию тем, кому она доступна, остальным — на старую страницу."""
+
+    def get_index(self):
+        experiments = [{'_id': 'exp-1', 'specimen': 'sample', 'datetime': '07.10.2026 12:00:00',
+                        'experiment parameters': {'advanced': False, 'DARK': {}, 'EMPTY': {}, 'DATA': {}}}]
+        with mock.patch('storage.views.requests.post', return_value=_storage_answer(200, json.dumps(experiments))):
+            return self.client.get('/storage/')
+
+    def test_studio_link_for_studio_roles(self):
+        for name in ('res', 'exp', 'adm'):
+            with self.subTest(role=name):
+                self.login(name)
+                response = self.get_index()
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'href="/studio/exp-1/"')
+                self.assertContains(response, u'К реконструкции')
+
+    def test_legacy_link_for_guest(self):
+        self.login('guest')
+        response = self.get_index()
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '/studio/')
+        self.assertContains(response, u'К реконструкции')
+
+
+class StorageDeleteTest(StudioUsersMixin, TestCase):
+    """Удаление эксперимента: только POST с CSRF, только ADM/EXP, подтверждение — название образца; раньше удалял
+    любой GET без входа. Хранилище (requests) замокано: проверяется, дошёл ли DELETE до него."""
+
+    URL = '/storage/delete_experiment_exp-1/'
+
+    def post(self, client, confirm='sample', specimen='sample', deleted='success'):
+        found = [{'_id': 'exp-1', 'specimen': specimen}]
+        with mock.patch('storage.views.requests.post', return_value=_storage_answer(200, json.dumps(found))), \
+                mock.patch('storage.views.requests.delete',
+                           return_value=_storage_answer(200, json.dumps({'deleted': deleted}))) as delete:
+            response = client.post(self.URL, {'confirm': confirm})
+        return response, delete
+
+    def test_get_refused_without_storage_call(self):
+        for name in (None, 'guest', 'exp', 'adm'):
+            with self.subTest(role=name):
+                client = Client()
+                if name:
+                    self.login(name, client)
+                with mock.patch('storage.views.requests.delete') as delete:
+                    response = client.get(self.URL)
+                self.assertEqual(response.status_code, 405)
+                delete.assert_not_called()
+
+    def test_anonymous_and_roles_without_right(self):
+        response, delete = self.post(Client())
+        self.assertEqual(response.status_code, 302)               # на страницу входа
+        delete.assert_not_called()
+        for name in ('guest', 'res', 'noprofile', 'inactive'):
+            with self.subTest(role=name):
+                client = self.login(name, Client())
+                response, delete = self.post(client)
+                self.assertIn(response.status_code, (302, 403))
+                delete.assert_not_called()
+
+    def test_wrong_confirmation(self):
+        client = self.login('exp', Client())
+        for confirm in ('', 'другое', 'exp-1'):
+            with self.subTest(confirm=confirm):
+                response, delete = self.post(client, confirm=confirm)
+                self.assertEqual(response.status_code, 400)
+                delete.assert_not_called()
+
+    def test_deleted_by_exp_and_adm(self):
+        for name in ('exp', 'adm'):
+            with self.subTest(role=name):
+                client = self.login(name, Client())
+                response, delete = self.post(client, confirm='  sample ')
+                self.assertEqual(response.status_code, 200)
+                delete.assert_called_once()
+                self.assertTrue(delete.call_args[0][0].endswith('/exp-1'))
+
+    def test_no_specimen_confirm_by_id(self):
+        client = self.login('exp', Client())
+        response, delete = self.post(client, confirm='exp-1', specimen='')
+        self.assertEqual(response.status_code, 200)
+        delete.assert_called_once()
+
+    def test_csrf_required(self):
+        client = Client(enforce_csrf_checks=True)
+        self.login('exp', client)
+        response, delete = self.post(client)
+        self.assertEqual(response.status_code, 403)
+        delete.assert_not_called()
+
+    def test_trash_only_for_delete_roles(self):
+        experiments = [{'_id': 'exp-1', 'specimen': 'sample', 'datetime': '07.10.2026 12:00:00',
+                        'experiment parameters': {'advanced': False, 'DARK': {}, 'EMPTY': {}, 'DATA': {}}}]
+        for name, visible in (('res', False), ('guest', False), ('exp', True), ('adm', True)):
+            with self.subTest(role=name):
+                client = self.login(name, Client())
+                with mock.patch('storage.views.requests.post',
+                                return_value=_storage_answer(200, json.dumps(experiments))):
+                    response = client.get('/storage/')
+                self.assertEqual(response.status_code, 200)
+                (self.assertContains if visible else self.assertNotContains)(response, 'deleteExperiment(this.id)')
+
+    def test_frames_downloading_requires_login(self):
+        with mock.patch('storage.views.requests.post') as post:
+            response = Client().get('/storage/frames_downloading_exp-1/')
+        self.assertEqual(response.status_code, 302)              # на страницу входа
+        post.assert_not_called()

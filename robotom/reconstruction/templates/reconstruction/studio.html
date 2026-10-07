@@ -24,6 +24,8 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
         </div>
         <span id="st-readonly" class="label label-default hidden"
               title="Загрузка области и запуск реконструкции доступны экспериментатору и администратору">только просмотр</span>
+        <button id="st-recipes" type="button" class="btn btn-default btn-xs st-recipes-open"
+                title="Рецепты запусков: посмотреть, скачать, загрузить из файла, применить к шагам, запустить как есть">Рецепты</button>
     </div>
 
     <div class="row st-row">
@@ -362,5 +364,6 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
 <script src="{% static 'reconstruction/js/compare.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_run.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/step_result.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/recipes.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/studio.js' %}?v={{ asset_version }}"></script>
 {% endblock content %}

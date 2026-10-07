@@ -23,6 +23,18 @@ urlpatterns = [
     ),
 
     re_path(
+        r'^storage_record_(?P<storage_record_id>[a-zA-Z\d\-]+)/frames\.json$',
+        views.frames_json,
+        name='frames_json'
+    ),
+
+    re_path(
+        r'^storage_record_(?P<storage_record_id>[a-zA-Z\d\-]+)/frame_(?P<frame_id>[a-zA-Z\d]+)\.png$',
+        views.frame_png,
+        name='frame_png'
+    ),
+
+    re_path(
         r'^delete_experiment_(?P<experiment_id>[a-zA-Z\d\-]+)/$',
         views.delete_experiment,
         name='delete_experiment'

@@ -49,6 +49,8 @@ STORAGE_FRAMES_INFO_HOST = urljoin(STORAGE_HOST, '/storage/frames_info/get')
 STORAGE_EXPERIMENTS_GET_HOST = urljoin(STORAGE_HOST, '/storage/experiments/get')
 STORAGE_EXPERIMENTS_HOST = urljoin(STORAGE_HOST, '/storage/experiments')
 STORAGE_HDF5_FILE = STORAGE_PUBLIC_HOST.rstrip('/') + '/storage/experiments/{exp_id}.h5'
+# Тот же .h5 по внутреннему адресу: сайт спрашивает у nginx хранилища только размер (HEAD), файл не читает
+STORAGE_HDF5_INTERNAL = urljoin(STORAGE_HOST, '/storage/experiments/{exp_id}.h5')
 
 # EXPERIMENT routes
 # address templates, where {} is a placeholder for tomograph number

@@ -4,14 +4,18 @@
  * 65536 записей. Несколько «видов» (огибающая, угол, синограмма, срез, …): у каждого своё изображение, окно и
  * масштаб; при новой картинке того же вида окно сохраняется, если пользователь его менял, масштаб — если размер
  * тот же. Масштаб колесом вокруг курсора, панорама перетаскиванием, двойной щелчок — вписать.
- * Гистограмма с двумя ручками окна. Значение под курсором — в физических единицах вида.
+ * Гистограмма с двумя ручками окна: её ось — окно плюс по 20 % его ширины с каждой стороны (пересчитывается при
+ * вводе чисел, «Авто» и после перетаскивания ручки — ручку всегда можно утащить дальше края), двойной щелчок —
+ * весь диапазон данных; полоса внизу — палитра окна. Значение под курсором — в физических единицах вида.
+ * Палитра (core.PALETTES, выбор у гистограммы, помнится в localStorage) — общая для видов с desc.colormap (срезы)
+ * и внешнего 3D-вида; проекции остаются серыми. Масштабная шкала (внизу слева) — у видов с desc.pixel_mm.
  *
  * Внешний вид (desc.external — объект с activate(on), setWindow(lo, hi), fit(), например S.View3D): изображение
  * хранится здесь ради гистограммы и окна, а рисует и обрабатывает мышь он сам (свой canvas поверх); 2D-холст на это
  * время скрыт, масштаб и панорама просмотрщика не работают, в строке состояния — desc.hint.
  *
  * События: 'transform' (xf) — изменилось преобразование текущего вида; 'view' (key) — сменился вид;
- * 'image' (key) — у вида новое изображение (или вид удалён); 'window' (lo, hi) — окно. */
+ * 'image' (key) — у вида новое изображение (или вид удалён); 'window' (lo, hi) — окно; 'palette' (имя) — палитра. */
 (function (root) {
     'use strict';
     var S = root.Studio = root.Studio || {};
@@ -25,12 +29,51 @@
         return e;
     }
 
+    var PALETTE_KEY = 'studio.palette';
+
+    /** Палитра из localStorage (выбор пользователя в этом браузере); нет или недоступно — серая. */
+    function loadPalette() {
+        try {
+            var name = root.localStorage && root.localStorage.getItem(PALETTE_KEY);
+            return name && core.hasPalette(name) ? name : 'gray';
+        } catch (e) {
+            return 'gray';
+        }
+    }
+
+    function savePalette(name) {
+        try {
+            if (root.localStorage) root.localStorage.setItem(PALETTE_KEY, name);
+        } catch (e) { /* приватный режим — не запоминаем */ }
+    }
+
+    /** Полоска палитры на холсте canvas (ширина × высота в пикселях холста). */
+    function paintSwatch(canvas, name) {
+        var ctx = canvas.getContext && canvas.getContext('2d');
+        if (!ctx) return;
+        var w = canvas.width, h = canvas.height, pal = core.paletteTable(name);
+        var img = ctx.createImageData(w, h);
+        for (var x = 0; x < w; x++) {
+            var q = Math.round(x / Math.max(1, w - 1) * 255) * 3;
+            for (var y = 0; y < h; y++) {
+                var p = (y * w + x) * 4;
+                img.data[p] = pal[q];
+                img.data[p + 1] = pal[q + 1];
+                img.data[p + 2] = pal[q + 2];
+                img.data[p + 3] = 255;
+            }
+        }
+        ctx.putImageData(img, 0, 0);
+    }
+
     /**
      * desc вида: {kind, unit, label, aspect (высота пикселя / ширина, по умолчанию 1),
      *            coords(ix, iy) → строка координат для строки состояния или null,
      *            inside(ix, iy) → false — точка не данные (промежуток мозаики): без значения под курсором,
      *            external — внешний вид (см. заголовок), hint — подсказка в строке состояния для него,
-     *            autoPercentiles — [нижний, верхний] перцентили авто-окна, по умолчанию 0,5 и 99,5}
+     *            autoPercentiles — [нижний, верхний] перцентили авто-окна, по умолчанию 0,5 и 99,5,
+     *            colormap — true: вид рисуется выбранной палитрой (срезы), иначе серым,
+     *            pixel_mm — размер пикселя изображения по горизонтали, мм (для масштабной шкалы)}
      */
     function Viewer(stage, opts) {
         core.Emitter.call(this);
@@ -46,11 +89,18 @@
         this.caption = el('div', 'sv-caption hidden');
         this.msg = el('div', 'sv-msg');
         this.busyEl = el('div', 'sv-busy hidden');
+        this.scalebar = el('div', 'sv-scalebar hidden');
+        this.scalebarBar = el('div', 'sv-scalebar-bar');
+        this.scalebarLabel = el('div', 'sv-scalebar-label');
+        this.scalebar.appendChild(this.scalebarLabel);
+        this.scalebar.appendChild(this.scalebarBar);
         stage.appendChild(this.canvas);
         stage.appendChild(this.svg);
         stage.appendChild(this.caption);
+        stage.appendChild(this.scalebar);
         stage.appendChild(this.msg);
         stage.appendChild(this.busyEl);
+        this.palette = loadPalette();
         this.views = {};
         this.key = null;
         this.W = 0;
@@ -157,6 +207,7 @@
         this._schedule();
         this.emit('transform', this.xf());
         this._refreshReadout();
+        this._updateScaleBar();
     };
 
     /** Текст-заглушка вида без изображения («Загрузка обзора…»). */
@@ -234,6 +285,7 @@
         this._schedule();
         this.emit('transform', this.xf());
         this._refreshReadout();
+        this._updateScaleBar();
     };
 
     /** Клиентские координаты → координаты изображения текущего вида (null без изображения). */
@@ -257,9 +309,47 @@
         if (!(hi > lo)) hi = lo + Math.max(Math.abs(lo) * 1e-6, 1e-12);
         v.win = {lo: lo, hi: hi, user: user !== false};
         v.dirty = true;
+        if (this._ext) this._ext.setWindow(lo, hi);       // сразу, не с кадром: шкала цвета 3D — по этому окну
         this._schedule();
         if (this.hist) this.hist.update(v);
         this.emit('window', lo, hi);
+    };
+
+    // --- палитра и масштабная шкала ----------------------------------------------------------------------
+
+    /** Палитра видов с desc.colormap и внешнего вида: имя из core.PALETTES; запоминается в этом браузере. */
+    Viewer.prototype.setPalette = function (name) {
+        if (!core.hasPalette(name) || name === this.palette) return;
+        this.palette = name;
+        savePalette(name);
+        var self = this;
+        Object.keys(this.views).forEach(function (k) {
+            self.views[k].dirty = true;
+        });
+        this._schedule();
+        if (this.hist) this.hist.update(this.views[this.key] || null);
+        this.emit('palette', name);
+    };
+
+    /** Таблица палитры для вида v (null — серый). */
+    Viewer.prototype._paletteOf = function (v) {
+        return v && v.desc && v.desc.colormap && this.palette !== 'gray' ? core.paletteTable(this.palette) : null;
+    };
+
+    /** Палитра, которой сейчас рисуется вид v ('gray' у видов без desc.colormap). */
+    Viewer.prototype.paletteName = function (v) {
+        v = v === undefined ? this.views[this.key] : v;
+        return v && v.desc && (v.desc.colormap || v.desc.external) ? this.palette : 'gray';
+    };
+
+    Viewer.prototype._updateScaleBar = function () {
+        var v = this.views[this.key], sb = this.scalebar;
+        var px = v && v.img && v.xf && !this._ext && v.desc ? v.desc.pixel_mm : null;
+        var s = px > 0 ? core.scaleBar(px / v.xf.sx, Math.min(140, this.W * 0.2), this.W * 0.4) : null;
+        sb.classList.toggle('hidden', !s);
+        if (!s) return;
+        this.scalebarBar.style.width = Math.round(s.px) + 'px';
+        this.scalebarLabel.textContent = s.label;
     };
 
     Viewer.prototype.autoWindow = function () {
@@ -294,7 +384,8 @@
         }
         var cctx = v.canvas.getContext('2d');
         if (!v.imageData) v.imageData = cctx.createImageData(img.w, img.h);
-        core.toRGBA(img, v.win.lo, v.win.hi, v.imageData.data, img.dtype === 'uint16' ? this._lut : null);
+        core.toRGBA(img, v.win.lo, v.win.hi, v.imageData.data, img.dtype === 'uint16' ? this._lut : null,
+            this._paletteOf(v));
         cctx.putImageData(v.imageData, 0, 0);
         v.dirty = false;
     };
@@ -466,8 +557,13 @@
         var self = this;
         this.viewer = viewer;
         this.v = null;
+        this.axis = null;           // [от, до] оси, физические единицы
+        this.full = false;          // ось — весь диапазон данных (двойной щелчок), иначе окно ± 20 %
+        this._drag = false;
         container.classList.add('sv-hist');
         this.plot = el('div', 'sv-hist-plot');
+        this.plot.title = 'Ось — окно и по 20 % его ширины с каждой стороны: отпустите ручку у края, ось раздвинется. ' +
+            'Двойной щелчок — весь диапазон данных / снова по окну. Полоса внизу — палитра окна';
         this.canvas = el('canvas');
         this.hLo = el('div', 'sv-hh sv-hh-lo');
         this.hHi = el('div', 'sv-hh sv-hh-hi');
@@ -493,6 +589,7 @@
         ctl.appendChild(this.inHi);
         ctl.appendChild(this.unit);
         ctl.appendChild(this.autoBtn);
+        ctl.appendChild(this._buildPalette());
         container.appendChild(this.plot);
         container.appendChild(ctl);
 
@@ -509,6 +606,12 @@
         }
         this.inLo.addEventListener('change', onInput);
         this.inHi.addEventListener('change', onInput);
+        this.plot.addEventListener('dblclick', function () {
+            if (!self.v) return;
+            self.full = !self.full;
+            self.axis = null;
+            self.update(self.v);
+        });
         this._dragHandle(this.hLo, 'lo');
         this._dragHandle(this.hHi, 'hi');
         if (typeof root.ResizeObserver === 'function') {
@@ -518,10 +621,87 @@
         }
     }
 
+    /** Выбор палитры: кнопка с образцом и названием, меню — образцы всех палитр. */
+    Histogram.prototype._buildPalette = function () {
+        var self = this, viewer = this.viewer;
+        var wrap = el('div', 'sv-pal');
+        var btn = this.palBtn = el('button', 'btn btn-default btn-xs sv-pal-btn');
+        btn.type = 'button';
+        btn.title = 'Палитра срезов и 3D (проекции и 0° − 180° — серые). inferno, viridis, magma, plasma, cividis — ' +
+            'яркость растёт монотонно, ложных границ нет; jet привычна, но рисует границы на голубом и жёлтом, ' +
+            'которых в данных нет';
+        this.palSwatch = el('canvas', 'sv-pal-swatch');
+        this.palSwatch.width = 48;
+        this.palSwatch.height = 10;
+        this.palName = el('span', 'sv-pal-name');
+        btn.appendChild(this.palSwatch);
+        btn.appendChild(this.palName);
+        var menu = this.palMenu = el('div', 'sv-pal-menu hidden');
+        core.PALETTES.forEach(function (p) {
+            var item = el('button', 'sv-pal-item');
+            item.type = 'button';
+            item.setAttribute('data-palette', p[0]);
+            var sw = el('canvas', 'sv-pal-swatch');
+            sw.width = 96;
+            sw.height = 12;
+            paintSwatch(sw, p[0]);
+            var name = el('span', 'sv-pal-name');
+            name.textContent = p[1];
+            item.appendChild(sw);
+            item.appendChild(name);
+            item.addEventListener('click', function () {
+                viewer.setPalette(p[0]);
+                self._closeMenu();
+            });
+            menu.appendChild(item);
+        });
+        wrap.appendChild(btn);
+        wrap.appendChild(menu);
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (menu.classList.contains('hidden')) self._openMenu();
+            else self._closeMenu();
+        });
+        this._outside = function (e) {
+            if (!wrap.contains(e.target)) self._closeMenu();
+        };
+        this._esc = function (e) {
+            if (e.key === 'Escape') self._closeMenu();
+        };
+        this._renderPalette();
+        return wrap;
+    };
+
+    Histogram.prototype._openMenu = function () {
+        var cur = this.viewer.palette;
+        Array.prototype.forEach.call(this.palMenu.children, function (it) {
+            it.classList.toggle('active', it.getAttribute('data-palette') === cur);
+        });
+        this.palMenu.classList.remove('hidden');
+        root.document.addEventListener('pointerdown', this._outside, true);
+        root.document.addEventListener('keydown', this._esc);
+    };
+
+    Histogram.prototype._closeMenu = function () {
+        this.palMenu.classList.add('hidden');
+        root.document.removeEventListener('pointerdown', this._outside, true);
+        root.document.removeEventListener('keydown', this._esc);
+    };
+
+    Histogram.prototype._renderPalette = function () {
+        var name = this.viewer.palette;
+        paintSwatch(this.palSwatch, name);
+        var p = core.PALETTES.filter(function (x) {
+            return x[0] === name;
+        })[0];
+        this.palName.textContent = p ? p[1] : name;
+    };
+
+    /** Ось: окно ± 20 % (или весь диапазон данных); во время перетаскивания ручки не меняется. */
     Histogram.prototype._range = function () {
         var v = this.v;
-        var r = v.range;
-        return r[1] > r[0] ? r : [r[0], r[0] + 1];
+        if (!this.axis) this.axis = core.histAxis(v.win.lo, v.win.hi, v.range, this.full);
+        return this.axis;
     };
 
     Histogram.prototype._dragHandle = function (h, which) {
@@ -533,6 +713,7 @@
                 h.setPointerCapture(e.pointerId);
             } catch (err) { /* уже отпущен */ }
             h.classList.add('sv-hh-drag');
+            self._drag = true;
             function move(ev) {
                 var r = self.plot.getBoundingClientRect();
                 var rg = self._range();
@@ -551,6 +732,11 @@
                 try {
                     h.releasePointerCapture(ev.pointerId);
                 } catch (err) { /* уже отпущен */ }
+                self._drag = false;
+                if (self.v && !self.full) {             // ось — по новому окну: ручку можно тянуть дальше
+                    self.axis = null;
+                    self.update(self.v);
+                }
             }
             h.addEventListener('pointermove', move);
             h.addEventListener('pointerup', up);
@@ -559,6 +745,8 @@
     };
 
     Histogram.prototype.update = function (v) {
+        if (v !== this.v) this.full = false;
+        if (v !== this.v || !this._drag) this.axis = null;  // новое окно или вид — новая ось; при перетаскивании — та же
         this.v = v;
         var on = !!(v && v.img);
         this.inLo.disabled = this.inHi.disabled = this.autoBtn.disabled = !on;
@@ -574,8 +762,12 @@
             var ap = (v.desc && v.desc.autoPercentiles) || [0.5, 99.5];
             this.autoBtn.title = 'Окно по персентилям ' + core.fmtNum(ap[0], 2) + ' и ' + core.fmtNum(ap[1], 2) + ' %';
         }
+        this._renderPalette();
         this.draw();
     };
+
+    /** Высота полосы палитры внизу гистограммы, CSS px. */
+    var STRIP = 5;
 
     Histogram.prototype.draw = function () {
         var c = this.canvas, W = this.plot.clientWidth, H = this.plot.clientHeight;
@@ -598,15 +790,25 @@
         var lmax = Math.log(1 + max) || 1;
         var span = rg[1] - rg[0];
         var xLo = (v.win.lo - rg[0]) / span * W, xHi = (v.win.hi - rg[0]) / span * W;
+        var HB = H - STRIP - 1;
         // окно — подсветка
         ctx.fillStyle = 'rgba(66, 139, 202, 0.12)';
-        ctx.fillRect(core.clamp(xLo, 0, W), 0, core.clamp(xHi, 0, W) - core.clamp(xLo, 0, W), H);
+        ctx.fillRect(core.clamp(xLo, 0, W), 0, core.clamp(xHi, 0, W) - core.clamp(xLo, 0, W), HB);
         ctx.fillStyle = '#777';
         var bw = W / n;
         for (var j = 0; j < n; j++) {
             if (!bins[j]) continue;
-            var bh = Math.log(1 + bins[j]) / lmax * (H - 2);
-            ctx.fillRect(j * bw, H - bh, Math.max(1, bw), bh);
+            var bh = Math.log(1 + bins[j]) / lmax * (HB - 2);
+            ctx.fillRect(j * bw, HB - bh, Math.max(1, bw), bh);
+        }
+        // полоса палитры: цвет, которым рисуется значение под ней (вне окна — цвет края)
+        var pal = core.paletteTable(this.viewer.paletteName(v));
+        var dw = v.win.hi - v.win.lo;
+        for (var x = 0; x < W; x++) {
+            var val = rg[0] + (x + 0.5) / W * span;
+            var q = Math.round(core.clamp(dw > 0 ? (val - v.win.lo) / dw : 0, 0, 1) * 255) * 3;
+            ctx.fillStyle = 'rgb(' + pal[q] + ',' + pal[q + 1] + ',' + pal[q + 2] + ')';
+            ctx.fillRect(x, H - STRIP, 1, STRIP);
         }
         this.hLo.style.left = core.clamp(xLo, 0, W) + 'px';
         this.hHi.style.left = core.clamp(xHi, 0, W) + 'px';

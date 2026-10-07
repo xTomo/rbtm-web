@@ -285,6 +285,13 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                     </div>
                     <div class="panel-body">
                         <div id="res-info"></div>
+                        <div id="res-switch" class="btn-group btn-group-sm st-seg st-res-switch hidden" role="group"
+                             aria-label="Что показывать">
+                            <button type="button" class="btn btn-default" data-res="slice"
+                                    title="Срез копии с биннингом — ось и номер ниже">Срез</button>
+                            <button type="button" class="btn btn-default" data-res="3d"
+                                    title="Весь объём в 3D: копия, уменьшенная до ≤ 320³ вокселей (рисует видеокарта этого компьютера)">3D</button>
+                        </div>
                         <div id="res-view" class="st-res-view hidden">
                             <div id="res-sub" class="st-sub"
                                  title="Копия объёма, уменьшенная в b раз по каждой оси (среднее по кубу b×b×b)">Срезы копии с биннингом:</div>
@@ -296,17 +303,11 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                                 </div>
                                 <input id="res-index" type="number" class="form-control input-sm st-res-index" step="1">
                                 <span id="res-n" class="text-muted"></span>
-                                <button id="res-show" type="button" class="btn btn-default btn-xs">Показать</button>
                             </div>
                             <input id="res-slider" type="range" class="st-res-slider" min="0" max="0" step="1">
                         </div>
                         <div id="res-3d" class="st-res-3d hidden">
-                            <div class="st-sub st-sep">Объёмный вид:</div>
-                            <div class="st-btns">
-                                <button id="res-3d-show" type="button" class="btn btn-default btn-sm"
-                                        title="Весь объём в 3D: копия, уменьшенная до ≤ 320³ вокселей (рисует видеокарта этого компьютера)">Показать 3D</button>
-                                <span id="res-3d-info" class="st-note text-muted"></span>
-                            </div>
+                            <div class="st-sub st-sep">Объёмный вид: <span id="res-3d-info" class="text-muted"></span></div>
                             <div class="btn-group btn-group-xs st-seg" id="res-3d-mode" role="group" aria-label="Рендер">
                                 <button type="button" class="btn btn-default" data-mode="soft"
                                         title="Максимум вдоль луча, ослабленный пройденным веществом: читается глубина">Мягкий</button>
@@ -314,11 +315,6 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                                         title="Самый яркий воксель вдоль луча — светлее всего, но глубина не читается">Максимум</button>
                                 <button type="button" class="btn btn-default" data-mode="iso"
                                         title="Оболочка по порогу, освещённая со стороны глаза">Поверхность</button>
-                            </div>
-                            <div class="st-grid-row">
-                                <label for="res-3d-cmap">Палитра</label>
-                                <select id="res-3d-cmap" class="form-control input-sm"
-                                        title="inferno, viridis, magma, plasma, cividis — яркость растёт монотонно, ложных границ нет (cividis различима и при дальтонизме); jet привычна, но рисует границы на голубом и жёлтом, которых в данных нет"></select>
                             </div>
                             <div class="st-grid-row st-slider" title="Меньше 1 — светлее полутона, яркое не пережигается">
                                 <label for="res-3d-gamma">Гамма</label>
@@ -349,8 +345,9 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             </div>
                             <input id="res-3d-clip-pos" type="range" class="st-res-slider" min="0" max="1000" step="1"
                                    value="500" title="Положение плоскости разреза">
-                            <div class="st-note text-muted">Окно контраста — гистограммой под просмотрщиком, как у
-                                срезов. Мышь: перетаскивание — поворот, Shift или правая кнопка — сдвиг, колесо —
+                            <div class="st-note text-muted">Окно контраста и палитра — у гистограммы под
+                                просмотрщиком, общие со срезами (в «Поверхности» палитры нет). Рамка подписана длинами
+                                рёбер в мм. Мышь: перетаскивание — поворот, Shift или правая кнопка — сдвиг, колесо —
                                 масштаб, двойной щелчок — исходный вид.</div>
                         </div>
                     </div>

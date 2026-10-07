@@ -100,6 +100,24 @@
 .st-checks label, .st-res-3d .st-grid-row label { font-weight: normal; font-size: 12px; margin: 0; }
 .st-res-3d .st-grid-row select { flex: 0 1 90px; height: 24px; padding: 1px 4px; }
 .sv-gl { cursor: grab; touch-action: none; }
+.st-res-switch { margin: 6px 0 8px; }
+.sv-scalebar { position: absolute; left: 12px; bottom: 12px; pointer-events: none; color: #fff;
+    font-size: 12px; line-height: 14px; text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.sv-scalebar-label { text-align: center; margin-bottom: 2px; white-space: nowrap; }
+.sv-scalebar-bar { height: 4px; background: #fff; border: 1px solid #000; box-sizing: content-box; }
+.sv-edge-label { position: absolute; transform: translate(-50%, -50%); pointer-events: none; color: #ddd;
+    font-size: 11px; white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.sv-pal { position: relative; }
+.sv-pal-btn { display: inline-flex; align-items: center; gap: 5px; }
+.sv-pal-swatch { display: block; border: 1px solid #999; }
+.sv-pal-btn .sv-pal-swatch { width: 48px; height: 10px; }
+.sv-pal-menu { position: absolute; right: 0; bottom: 100%; margin-bottom: 4px; z-index: 20; background: #fff;
+    border: 1px solid #ccc; border-radius: 3px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); padding: 4px; }
+.sv-pal-item { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none;
+    padding: 3px 6px; font-size: 12px; text-align: left; white-space: nowrap; border-radius: 2px; }
+.sv-pal-item:hover { background: #eef4fa; }
+.sv-pal-item.active { background: #d9e8f6; font-weight: bold; }
+.sv-pal-item .sv-pal-swatch { width: 96px; height: 12px; }
 .sv-cbar { position: absolute; right: 10px; top: 34px; height: 180px; display: flex; gap: 6px; pointer-events: none; }
 .sv-cbar-grad { width: 14px; height: 100%; border: 1px solid #888; image-rendering: auto; }
 .sv-cbar-labels { display: flex; flex-direction: column; justify-content: space-between; margin: -7px 0;
@@ -162,7 +180,7 @@
 /* гистограмма и окно */
 .sv-hist { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .sv-hist-plot {
-    position: relative; flex: 1 1 auto; height: 36px; background: #f7f7f7; border: 1px solid #ddd;
+    position: relative; flex: 1 1 auto; height: 42px; background: #f7f7f7; border: 1px solid #ddd;
     border-radius: 3px; touch-action: none; user-select: none; -webkit-user-select: none;
 }
 .sv-hist-plot canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }

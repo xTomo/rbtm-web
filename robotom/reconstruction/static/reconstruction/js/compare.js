@@ -251,8 +251,10 @@
         var self = this, res = this.res, app = this.app;
         if (!res) return;
         var img = this.large >= 0 ? core.frameOf(res.stack, this.large) : res.mosaic;
+        var ps = app.pixelMm();
         app.viewer.show('compare', img, {
-            kind: 'compare', unit: '1/мм', label: this._caption(),
+            kind: 'compare', unit: '1/мм', label: this._caption(), colormap: true,
+            pixel_mm: ps ? ps * (res.ds || 1) : null,
             coords: function (ix, iy) {
                 return self._coords(res, ix, iy);
             },

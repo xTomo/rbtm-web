@@ -99,6 +99,12 @@
             st.row = r;
             app.bus.emit('row', r, source, changed);
         };
+        /** Размер пикселя детектора, мм (правка пользователя или из скана) — для масштабной шкалы; null — неизвестен. */
+        app.pixelMm = function () {
+            var st = app.state;
+            var v = st.pixelUser || (st.pixelSize ? st.pixelSize.value_mm : null);
+            return v > 0 ? v : null;
+        };
         app.showView = function (key) {
             app.viewer.select(key);
         };

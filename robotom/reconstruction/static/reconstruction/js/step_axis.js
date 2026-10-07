@@ -212,8 +212,9 @@
                 (smoothText ? ' · ' + smoothText : '') + ' · ' +
                 (ANGLES_TEXT[angles] || angles) + (m.n_angles ? ' (' + m.n_angles + ' углов)' : '') +
                 (ds > 1 ? ' · уменьшен ×' + ds : '');
+            var ps = app.pixelMm();
             app.viewer.show('slice', img, {
-                kind: 'slice', unit: '1/мм', label: label,
+                kind: 'slice', unit: '1/мм', label: label, colormap: true, pixel_mm: ps ? ps * ds : null,
                 coords: function (ix, iy) {
                     return 'срез x ' + (reg[0] + ix * ds) + ', y ' + (reg[1] + iy * ds);
                 }
@@ -237,8 +238,9 @@
             var lr = st.loadedRoi || {x0: 0, y0: 0};
             var ds = (img.meta && img.meta.downsample) || 1;
             st.diffDs = ds;
+            var ps = app.pixelMm();
             app.viewer.show('diff', img, {
-                kind: 'diff', unit: '',
+                kind: 'diff', unit: '', pixel_mm: ps ? ps * ds : null,
                 label: 'Кадр 0° − отражённый кадр 180° при текущей оси: при верной оси контуры гасятся' +
                     (ds > 1 ? ' · уменьшен ×' + ds : ''),
                 coords: function (ix, iy) {

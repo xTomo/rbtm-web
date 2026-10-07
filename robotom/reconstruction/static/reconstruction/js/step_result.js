@@ -47,9 +47,8 @@
         this.id = app.config.exp_id;
         this.e = {
             info: ui.$('res-info'), view: ui.$('res-view'), axes: ui.$('res-axes'), slider: ui.$('res-slider'),
-            index: ui.$('res-index'), n: ui.$('res-n'), show: ui.$('res-show'), sub: ui.$('res-sub'),
-            v3d: ui.$('res-3d'), show3d: ui.$('res-3d-show'), info3d: ui.$('res-3d-info'), mode3d: ui.$('res-3d-mode'),
-            cmap: ui.$('res-3d-cmap'),
+            index: ui.$('res-index'), n: ui.$('res-n'), sw: ui.$('res-switch'), sub: ui.$('res-sub'),
+            v3d: ui.$('res-3d'), info3d: ui.$('res-3d-info'), mode3d: ui.$('res-3d-mode'),
             gamma: ui.$('res-3d-gamma'), gammaVal: ui.$('res-3d-gamma-val'), depth: ui.$('res-3d-depth'),
             depthLabel: ui.$('res-3d-depth-label'), depthVal: ui.$('res-3d-depth-val'), box: ui.$('res-3d-box'),
             slice3d: ui.$('res-3d-slice'), clip: ui.$('res-3d-clip'), clipAxis: ui.$('res-3d-clip-axis'),
@@ -107,10 +106,17 @@
                 self.fetchSlice(false, true);
             });
         }
-        if (e.show) {
-            e.show.addEventListener('click', function () {
-                if (app.viewer.has('result')) app.showView('result');
-                else self.fetchSlice(true, true);
+        // переключатель «Срез | 3D»: подсвечено то, что сейчас в просмотрщике
+        if (e.sw) {
+            ui.qsa('[data-res]', e.sw).forEach(function (b) {
+                b.addEventListener('click', function () {
+                    if (b.getAttribute('data-res') === '3d') self.show3d(true);
+                    else if (app.viewer.has('result')) app.showView('result');
+                    else self.fetchSlice(true, true);
+                });
+            });
+            app.viewer.on('view', function () {
+                self._renderSwitch();
             });
         }
         app.jobs.on('finished', function (job) {
@@ -131,9 +137,6 @@
         var on = function (el, ev, fn) {
             if (el) el.addEventListener(ev, fn);
         };
-        on(e.show3d, 'click', function () {
-            self.show3d(true);
-        });
         if (e.mode3d) {
             ui.qsa('[data-mode]', e.mode3d).forEach(function (b) {
                 b.addEventListener('click', function () {
@@ -141,13 +144,10 @@
                 });
             });
         }
-        if (e.cmap) {
-            S.vol3d.PALETTES.forEach(function (p) {
-                e.cmap.appendChild(ui.el('option', {value: p[0], text: p[1]}));
-            });
-        }
-        on(e.cmap, 'change', function () {
-            self._set3d({cmap: e.cmap.value});
+        // палитра — общая для срезов и 3D, выбирается у гистограммы просмотрщика
+        r.cmap = self.app.viewer.palette;
+        self.app.viewer.on('palette', function (name) {
+            self._set3d({cmap: name});
         });
         on(e.gamma, 'input', function () {
             self._set3d({gamma: parseFloat(e.gamma.value) || 1});
@@ -310,7 +310,7 @@
             var ds = m.downsample || 1, bin = m.binning || self.binning || 1, vox = m.voxel_mm;
             var names = PLANE[axis];
             app.viewer.show('result', img, {
-                kind: 'result', unit: '1/мм',
+                kind: 'result', unit: '1/мм', colormap: true, pixel_mm: vox ? vox * ds : null,
                 label: 'Готовый объём (копия ×' + bin + '): срез ' + axis + ' = ' + (m.i !== undefined ? m.i : i) + ' из ' +
                     (m.n || self.n[axis]) + (ds > 1 ? ' · уменьшен ×' + ds : ''),
                 coords: function (ix, iy) {
@@ -343,6 +343,22 @@
         ui.show(this.e.view, !!(st.resultDoc && this.n[this.axis]));
         this._renderControls();
         this._render3d();
+        this._renderSwitch();
+    };
+
+    StepResult.prototype._renderSwitch = function () {
+        var e = this.e;
+        if (!e.sw) return;
+        ui.show(e.sw, !!(this.st.resultDoc && this.n[this.axis]));
+        var cur = this.app.viewer.current();
+        var on = cur === 'result' ? 'slice' : cur === 'volume3d' ? '3d' : null;
+        ui.qsa('[data-res]', e.sw).forEach(function (b) {
+            var act = b.getAttribute('data-res') === on;
+            b.classList.toggle('active', act);
+            b.classList.toggle('btn-primary', act);
+            b.classList.toggle('btn-default', !act);
+            if (b.getAttribute('data-res') === '3d') b.disabled = !S.View3D;
+        });
     };
 
     StepResult.prototype._render3d = function () {
@@ -356,10 +372,6 @@
                 b.classList.toggle('btn-primary', on);
                 b.classList.toggle('btn-default', !on);
             });
-        }
-        if (e.cmap) {
-            e.cmap.value = r.cmap;
-            e.cmap.disabled = r.mode === 'iso';         // поверхность освещается, значение на ней одно — порог
         }
         if (e.gamma) {
             e.gamma.value = r.gamma;

@@ -12,30 +12,26 @@ ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 ENV HTTPS=on
 
-# Кэш apt и pip — в кэш-монтированиях BuildKit (docker compose v2 собирает через BuildKit): даже если слой
-# пересобирается, пакеты не скачиваются заново. В сам образ кэш не попадает.
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    rm -f /etc/apt/apt.conf.d/docker-clean && \
-    DEBIAN_FRONTEND=noninteractive apt-get update && \
+# Без RUN --mount (кэш BuildKit): на сервере docker-compose v1 собирает классическим сборщиком, он этот флаг
+# не знает. Слои apt и pip берутся из кэша слоёв, пока не меняются база, список пакетов или requirements.txt.
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends \
         pkg-config \
         apache2 \
         apache2-dev \
         libpq-dev \
-        git
+        git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Зависимости — до копирования кода: правка кода не трогает слои apt и pip.
 COPY requirements.txt /var/www/web/requirements.txt
 WORKDIR /var/www/web/
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Установить mod_wsgi скомпилированный против Python 3.12 (из pip, а не из apt)
 # apt-версия линкуется к системному Python и не видит наши пакеты
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install mod_wsgi && \
+RUN pip install --no-cache-dir mod_wsgi && \
     mod_wsgi-express install-module > /etc/apache2/mods-available/wsgi.load && \
     a2enmod wsgi
 

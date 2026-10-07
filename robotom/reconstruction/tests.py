@@ -651,7 +651,7 @@ class StorageRecordStudioButtonTest(StudioUsersMixin, TestCase):
                 self.assertEqual(response.context['studio_url'], '/studio/exp-1/')
                 self.assertContains(response, 'href="/studio/exp-1/"')
                 self.assertContains(response, u'Студия реконструкции')
-                self.assertContains(response, u'Перейти к реконструкции')
+                self.assertContains(response, u'Jupyter реконструкция')
 
     def test_no_button_for_guest(self):
         self.login('guest')
@@ -659,4 +659,30 @@ class StorageRecordStudioButtonTest(StudioUsersMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.context['studio_url'])
         self.assertNotContains(response, '/studio/')
-        self.assertContains(response, u'Перейти к реконструкции')
+        self.assertContains(response, u'Jupyter реконструкция')
+
+
+class StorageIndexStudioLinkTest(StudioUsersMixin, TestCase):
+    """«К реконструкции» в списке хранилища ведёт в студию тем, кому она доступна, остальным — на старую страницу."""
+
+    def get_index(self):
+        experiments = [{'_id': 'exp-1', 'specimen': 'sample', 'datetime': '07.10.2026 12:00:00',
+                        'experiment parameters': {'advanced': False, 'DARK': {}, 'EMPTY': {}, 'DATA': {}}}]
+        with mock.patch('storage.views.requests.post', return_value=_storage_answer(200, json.dumps(experiments))):
+            return self.client.get('/storage/')
+
+    def test_studio_link_for_studio_roles(self):
+        for name in ('res', 'exp', 'adm'):
+            with self.subTest(role=name):
+                self.login(name)
+                response = self.get_index()
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'href="/studio/exp-1/"')
+                self.assertContains(response, u'К реконструкции')
+
+    def test_legacy_link_for_guest(self):
+        self.login('guest')
+        response = self.get_index()
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '/studio/')
+        self.assertContains(response, u'К реконструкции')

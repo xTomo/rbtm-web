@@ -111,6 +111,7 @@ class ExperimentRecord:
 
         self.hdf_host = settings.STORAGE_HDF5_FILE.format(exp_id=self.experiment_id)
         self.recon_url = settings.RECONSTRUCTION_URL.format(exp_id=self.experiment_id)
+        self.studio_url = None          # ставит storage_view, если пользователю доступна студия
         raw_dt = record.get('datetime', '')
         # Убираем секунды из отображения: "DD.MM.YYYY HH:MM:SS" → "DD.MM.YYYY HH:MM"
         try:
@@ -231,6 +232,14 @@ def storage_view(request):
             total = len(records)
             for i, record in enumerate(records):
                 record.serial_number = total - i
+
+            # «К реконструкции» ведёт в студию тем, кому она доступна (ADM/EXP/RES), остальным — на старую страницу
+            if can_view_studio(request.user):
+                for record in records:
+                    try:
+                        record.studio_url = reverse('reconstruction:studio', kwargs={'exp_id': record.experiment_id})
+                    except NoReverseMatch:
+                        record.studio_url = None
 
             if len(records) == 0:
                 messages.error(request, u'Не найдено ни одной записи')

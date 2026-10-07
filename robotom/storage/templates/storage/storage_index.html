@@ -100,11 +100,19 @@
                                     {% endfor %}
                                 </td>
                                 <td>
-                                    <a href="{{ record.recon_url }}" target="_blank"
+                                    {% if record.studio_url %}
+                                    <a href="{{ record.studio_url }}" target="_blank"
                                        class="btn btn-xs btn-info"
-                                       title="Просмотр реконструкции">
+                                       title="Студия реконструкции">
                                         <span class="glyphicon glyphicon-eye-open"></span> К реконструкции
                                     </a>
+                                    {% else %}
+                                    <a href="{{ record.recon_url }}" target="_blank"
+                                       class="btn btn-xs btn-info"
+                                       title="Jupyter-реконструкция (студия доступна экспериментатору, исследователю и администратору)">
+                                        <span class="glyphicon glyphicon-eye-open"></span> К реконструкции
+                                    </a>
+                                    {% endif %}
                                 </td>
                                 <td class="col-nowrap">{{ record.datetime }}</td>
                                 <td class="col-nowrap">{{ record.data_angle_step }}&deg;</td>

@@ -639,7 +639,7 @@ class StorageRecordStudioButtonTest(StudioUsersMixin, TestCase):
         experiment = [{'_id': exp_id, 'specimen': 'sample',
                        'experiment parameters': {'advanced': False, 'DARK': {}, 'EMPTY': {}, 'DATA': {}}}]
         answers = [_storage_answer(200, json.dumps(experiment)), _storage_answer(200, '[]')]
-        with mock.patch('storage.views.requests.post', side_effect=answers):
+        with mock.patch('storage.views.requests.post', side_effect=answers),                 mock.patch('storage.views.requests.head', return_value=_storage_answer(404)):
             return self.client.get('/storage/storage_record_{}/'.format(exp_id))
 
     def test_button_for_studio_roles(self):
@@ -754,17 +754,33 @@ class StorageDeleteTest(StudioUsersMixin, TestCase):
         self.assertEqual(response.status_code, 403)
         delete.assert_not_called()
 
-    def test_trash_only_for_delete_roles(self):
+    def test_no_trash_in_list(self):
+        """Корзины в строке списка нет ни у кого: она стояла вплотную к значку скачивания HDF5."""
         experiments = [{'_id': 'exp-1', 'specimen': 'sample', 'datetime': '07.10.2026 12:00:00',
                         'experiment parameters': {'advanced': False, 'DARK': {}, 'EMPTY': {}, 'DATA': {}}}]
-        for name, visible in (('res', False), ('guest', False), ('exp', True), ('adm', True)):
+        for name in ('guest', 'exp', 'adm'):
             with self.subTest(role=name):
                 client = self.login(name, Client())
                 with mock.patch('storage.views.requests.post',
                                 return_value=_storage_answer(200, json.dumps(experiments))):
                     response = client.get('/storage/')
                 self.assertEqual(response.status_code, 200)
-                (self.assertContains if visible else self.assertNotContains)(response, 'deleteExperiment(this.id)')
+                self.assertNotContains(response, 'glyphicon-trash')
+                self.assertNotContains(response, 'delete_experiment_')
+
+    def test_delete_button_on_record_only_for_delete_roles(self):
+        experiment = [{'_id': 'exp-1', 'specimen': 'sample',
+                       'experiment parameters': {'advanced': False, 'DARK': {}, 'EMPTY': {}, 'DATA': {}}}]
+        for name, visible in (('res', False), ('guest', False), ('exp', True), ('adm', True)):
+            with self.subTest(role=name):
+                client = self.login(name, Client())
+                answers = [_storage_answer(200, json.dumps(experiment)), _storage_answer(200, '[]')]
+                with mock.patch('storage.views.requests.post', side_effect=answers),                         mock.patch('storage.views.requests.head', return_value=_storage_answer(404)):
+                    response = client.get('/storage/storage_record_exp-1/')
+                self.assertEqual(response.status_code, 200)
+                check = self.assertContains if visible else self.assertNotContains
+                check(response, 'id="del-open"')
+                check(response, 'action="/storage/delete_experiment_exp-1/"')
 
     def test_frames_downloading_requires_login(self):
         with mock.patch('storage.views.requests.post') as post:

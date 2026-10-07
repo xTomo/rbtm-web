@@ -1,258 +1,160 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
+    <link rel="stylesheet" href="{% static 'storage/css/frames_viewer.css' %}">
 
+    {% if to_show %}
+    <div class="container-fluid rec-page">
+        {# Шапка: название образца вместо UUID; дата, статус, режим, тэги, короткий id; действия справа #}
+        <div class="rec-head">
+            <div class="rec-title">
+                <h1>{% if info.specimen %}{{ info.specimen }}{% else %}Запись без названия{% endif %}</h1>
+                <div class="rec-meta">
+                    {% if info.datetime %}<span>{{ info.datetime }}</span>{% endif %}
+                    {% if info.is_finished %}
+                        <span class="label label-success" id="rec-status">завершён</span>
+                    {% else %}
+                        <span class="label label-warning" id="rec-status"
+                              title="Хранилище не отметило эксперимент завершённым: съёмка идёт или была прервана">не завершён</span>
+                    {% endif %}
+                    <span>{% if info.is_advanced %}продвинутый{% else %}стандартный{% endif %} режим</span>
+                    {% for tag in info.tags %}<span class="label label-default">{{ tag }}</span>{% endfor %}
+                    <span>id <code title="{{ record_id }}">{{ info.short_id }}</code>
+                        <a href="#" class="small" id="copy-id" data-id="{{ record_id }}">копировать</a></span>
+                </div>
+            </div>
+            <div class="rec-actions">
+                {% if studio_url %}
+                    <a href="{{ studio_url }}" class="btn btn-primary" id="studio-link">Студия реконструкции</a>
+                {% endif %}
+                <a href="{{ recon_url }}" class="btn btn-default" target="_blank"
+                   title="Прежняя страница реконструкции: ноутбук Jupyter">Jupyter реконструкция</a>
+                <a href="{{ info.hdf_host }}" class="btn btn-default" download id="hdf5-link"
+                   title="Исходные кадры эксперимента одним файлом HDF5">Скачать HDF5{% if hdf5_size %} ({{ hdf5_size }}){% endif %}</a>
+                {% if can_delete %}
+                    <button type="button" class="btn btn-link rec-danger" id="del-open">Удалить…</button>
+                {% endif %}
+            </div>
+        </div>
+        {% if can_delete %}
+            <form class="del-box" id="del-box" method="post"
+                  action="{% url 'storage:delete_experiment' record_id %}" data-index-url="{% url 'storage:index' %}">
+                {% csrf_token %}
+                <span>Удаление необратимо: хранилище сотрёт исходный HDF5 и все кадры. Для подтверждения введите
+                    {% if info.specimen %}название образца{% else %}id эксперимента{% endif %}
+                    <code>{% if info.specimen %}{{ info.specimen }}{% else %}{{ record_id }}{% endif %}</code>:</span>
+                <input class="form-control input-sm" name="confirm" id="del-name" autocomplete="off"
+                       data-expected="{% if info.specimen %}{{ info.specimen }}{% else %}{{ record_id }}{% endif %}">
+                <button type="submit" class="btn btn-danger btn-sm" id="del-go" disabled>Удалить эксперимент</button>
+                <button type="button" class="btn btn-default btn-sm" id="del-cancel">Отмена</button>
+            </form>
+        {% endif %}
+
+        {# Строка параметров вместо таблицы с двухэтажной шапкой; фактические числа кадров дописывает frames_viewer.js #}
+        <div class="rec-params" id="rec-params">
+            <span><b>Проекции</b> {{ info.data_step_count }} × {{ info.data_angle_step }}°<span id="p-range"></span>,
+                {{ info.data_count_per_step }} кадр. на шаг, {{ info.data_exposure }} с</span>
+            <span><b>Пустой пучок</b> {{ info.empty_count }} × {{ info.empty_exposure }} с<span id="p-inserts"></span></span>
+            <span><b>Темновые</b> {{ info.dark_count }} × {{ info.dark_exposure }} с</span>
+            <span id="p-source"></span>
+            <span id="p-detector"></span>
+            <span><b>Всего кадров</b> <span id="p-total">{{ frames_list|length }}</span></span>
+        </div>
+
+        {# Просмотрщик кадров: PNG хранилища по одному кадру по запросу #}
+        <div class="fv" id="fv">
+            <div class="fv-main">
+                <div class="fv-stage" id="fv-stage" tabindex="0">
+                    <img id="fv-img" alt="">
+                    <div class="fv-cap" id="fv-cap"></div>
+                    <div class="fv-msg" id="fv-msg"></div>
+                </div>
+                <div class="fv-note">Изображение — PNG хранилища: контраст растянут по каждому кадру отдельно, поэтому
+                    одинаковая яркость кадров ещё не значит, что пучок не менялся; кадр прорежен через 4 пикселя и
+                    сглажен медианным фильтром 3×3.</div>
+                <div class="fv-transport">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-default btn-sm" data-go="first" title="Первый кадр (Home)">&#x23EE;</button>
+                        <button type="button" class="btn btn-default btn-sm" data-go="-10" title="На 10 назад (PgUp, Shift+←)">−10</button>
+                        <button type="button" class="btn btn-default btn-sm" data-go="-1" title="Предыдущий (←)">&#x25C0;</button>
+                        <button type="button" class="btn btn-default btn-sm fv-play" id="fv-play" title="Пуск / пауза (пробел)">&#x25B6; пуск</button>
+                        <button type="button" class="btn btn-default btn-sm" data-go="1" title="Следующий (→)">&#x25B6;</button>
+                        <button type="button" class="btn btn-default btn-sm" data-go="10" title="На 10 вперёд (PgDn, Shift+→)">+10</button>
+                        <button type="button" class="btn btn-default btn-sm" data-go="last" title="Последний кадр (End)">&#x23ED;</button>
+                    </div>
+                    <select class="form-control input-sm fv-fps" id="fv-fps" title="Скорость проигрывания">
+                        <option value="2">2 кадра/с</option>
+                        <option value="5" selected>5 кадров/с</option>
+                        <option value="10">10 кадров/с</option>
+                    </select>
+                    <label class="small fv-num-label">кадр № <input class="form-control input-sm fv-num" id="fv-num"
+                                                                    type="number" min="0"></label>
+                    <label class="small fv-follow" id="fv-follow-wrap" title="Пока идёт съёмка: показывать каждый новый кадр">
+                        <input type="checkbox" id="fv-follow"> следить за последним кадром</label>
+                    <span class="fv-grow"></span>
+                    <div class="btn-group" id="fv-filter" role="group" aria-label="Какие кадры показывать"></div>
+                </div>
+                <div class="fv-slider">
+                    <input type="range" id="fv-slider" min="0" max="0" value="0">
+                    <canvas id="fv-band" height="8"></canvas>
+                    <div class="fv-legend" id="fv-legend"></div>
+                </div>
+            </div>
+            <div class="fv-side">
+                <div class="fv-box">
+                    <h4>Кадр <span id="fi-num"></span></h4>
+                    <dl class="fv-info" id="fv-info"></dl>
+                </div>
+                <div class="fv-box fv-keys small text-muted">
+                    <kbd>←</kbd> <kbd>→</kbd> по одному, <kbd>PgUp</kbd> <kbd>PgDn</kbd> по 10, <kbd>Home</kbd> <kbd>End</kbd>,
+                    <kbd>пробел</kbd> — пуск; <span id="fv-keys-filter"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="fv-below">
+            <div class="fv-chart-col">
+                <div class="fv-chart-wrap">
+                    <canvas id="fv-chart"></canvas>
+                    <div class="fv-tip" id="fv-tip"></div>
+                </div>
+                <div class="small text-muted">Параметры кадров по номеру кадра. Фон — режим кадра (тёмно-серый —
+                    темновые, голубой — пустой пучок, без фона — проекции); синяя вертикаль — текущий кадр; красные точки —
+                    отклонения от медианы своего режима. Щелчок — перейти к кадру.</div>
+            </div>
+            <div class="fv-dev-col">
+                <div class="fv-box">
+                    <h4>Отклонения <span class="text-muted" id="fv-dev-count"></span></h4>
+                    <ul class="fv-devs" id="fv-devs"></ul>
+                    <div class="small text-muted">Ток и напряжение — больше 2 % от медианы своего режима, экспозиция —
+                        больше 1 %, интервал до предыдущего кадра — больше чем в 3 раза.</div>
+                </div>
+            </div>
+        </div>
+
+        <details class="fv-table">
+            <summary>Таблица кадров (<span id="fv-table-count">{{ frames_list|length }}</span>)</summary>
+            <div class="fv-table-wrap">
+                <table class="fv-t">
+                    <thead><tr><th>#</th><th>Режим</th><th>Время</th><th>Интервал</th><th>Экспозиция</th><th>Заслонка</th>
+                        <th>Угол поворота</th><th>Ток</th><th>Напряжение</th><th>Модель детектора</th></tr></thead>
+                    <tbody id="fv-tbody"></tbody>
+                </table>
+            </div>
+        </details>
+    </div>
+
+    {{ frames_payload|json_script:"fv-frames" }}
+    {{ viewer_config|json_script:"fv-config" }}
+    <script src="{% static 'storage/js/frames_core.js' %}"></script>
+    <script src="{% static 'storage/js/frames_viewer.js' %}"></script>
+    <script src="{% static 'storage/js/storage_record.js' %}"></script>
+    {% else %}
     <div class="page-header" style="margin-left: 10px">
         <div class="container-fluid">
             <h1>Запись хранилища {{ record_id }}</h1>
         </div>
     </div>
-    {% if to_show %}
-        <div class="container-fluid">
-            <div class="panel panel-default">
-                <div class="panel-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-bordered">
-                            <thead>
-                            <tr>
-                                <th rowspan="2" style="vertical-align: middle">Образец</th>
-                                <th colspan="4" style="text-align: center">DATA</th>
-                                <th colspan="2" style="text-align: center">EMPTY</th>
-                                <th colspan="2" style="text-align: center">DARK</th>
-                            </tr>
-                            <tr>
-                                <th style="vertical-align: middle">Шаг угла</th>
-                                <th style="vertical-align: middle">Изображений на шаг</th>
-                                <th style="vertical-align: middle">Количество шагов</th>
-                                <th style="vertical-align: middle">Экспозиция</th>
-                                <th style="vertical-align: middle">Количество</th>
-                                <th style="vertical-align: middle">Экспозиция</th>
-                                <th style="vertical-align: middle">Количество</th>
-                                <th style="vertical-align: middle">Экспозиция</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr>
-                                <td>{{ info.specimen }}</td>
-                                <td>{{ info.data_angle_step }}&deg;</td>
-                                <td>{{ info.data_count_per_step }}</td>
-                                <td>{{ info.data_step_count }}</td>
-                                <td>{{ info.data_exposure }} с</td>
-                                <td>{{ info.empty_count }}</td>
-                                <td>{{ info.empty_exposure }} с</td>
-                                <td>{{ info.dark_count }}</td>
-                                <td>{{ info.dark_exposure }} с</td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="panel-footer">
-                    {% if studio_url %}
-                        <a href="{{ studio_url }}" class="btn btn-primary" id="studio-link">Студия реконструкции</a>
-                    {% endif %}
-                    <a href="{{ recon_url }}" class="btn btn-default" target="_blank"
-                       title="Прежняя страница реконструкции: ноутбук Jupyter">Jupyter реконструкция</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="container-fluid">
-            <div class="panel panel-default">
-                <div class="panel-heading">
-                    <h4>Список изображений эксперимента <small><a class="glyphicon glyphicon-chevron-down" href="#end"></a></small></h4>
-                </div>
-                <div class="panel-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-bordered">
-                            <thead>
-                            <tr>
-                                <th style="vertical-align: middle">#</th>
-                                <th style="vertical-align: middle">Режим</th>
-                                <th style="vertical-align: middle">Время</th>
-                                <th style="vertical-align: middle">Экспозиция</th>
-                                <th style="vertical-align: middle">Заслонка</th>
-                                <th style="vertical-align: middle">Угол поворота</th>
-                                <th style="vertical-align: middle">Ток</th>
-                                <th style="vertical-align: middle">Напряжение</th>
-                                <th style="vertical-align: middle">Модель детектора</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {% for frame in frames_list %}
-                                <tr class="paginated-content">
-                                    <td><a id="{{ frame.num }}" onClick="table_click(this.id)"
-                                           href="#">{{ frame.num }}</a></td>
-                                    <td>{{ frame.mode }}</td>
-                                    <td>{{ frame.date_time }}</td>
-                                    <td>{{ frame.exposure }} с</td>
-                                    <td>{% if frame.shutter_open %}Открыта{% else %}Закрыта{% endif %}</td>
-                                    <td>{{ frame.angle_position|floatformat:2 }}&deg;</td>
-                                    <td>{{ frame.current }} мА</td>
-                                    <td>{{ frame.voltage }} кВ</td>
-                                    <td>{{ frame.detector_model }}</td>
-                                    <td hidden>{{ frame.id }}</td>
-                                </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <a id="end"></a>
-            </div>
-        </div>
-
-        <div id="myModalBox" class="modal fade">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <!-- Заголовок модального окна -->
-                    <div class="modal-header">
-                        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">
-                            <span class="glyphicon glyphicon-remove"></span>
-                        </button>
-                        <h4 class="modal-title" id="ImageTitle">Изображение</h4>
-                    </div>
-                    <!-- Основной текст сообщения -->
-                    <div class="modal-body">
-                        <button type="button" class="btn btn-default pull-left prev" id="0"
-                                onClick="nav_click(this.id)">
-                            <i class="glyphicon glyphicon-chevron-left"></i>
-                        </button>
-                        <button type="button" class="btn btn-default pull-right next" id="1"
-                                onClick="nav_click(this.id)">
-                            <i class="glyphicon glyphicon-chevron-right"></i>
-                        </button>
-                        <div class="row">
-                            <div class="table-responsive">
-                                <table class="table">
-                                    <thead>
-                                    <tr>
-                                        <th style="vertical-align: middle">Режим</th>
-                                        <th style="vertical-align: middle">Время</th>
-                                        <th style="vertical-align: middle">Экспозиция</th>
-                                        <th style="vertical-align: middle">Заслонка</th>
-                                        <th style="vertical-align: middle">Угол поворота</th>
-                                        <th style="vertical-align: middle">Ток</th>
-                                        <th style="vertical-align: middle">Напряжение</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <tr>
-                                        <td id="Mode"></td>
-                                        <td id="DateTime"></td>
-                                        <td id="Exposure"></td>
-                                        <td id="Shutter"></td>
-                                        <td id="Angle"></td>
-                                        <td id="Current"></td>
-                                        <td id="Voltage"></td>
-                                    </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-xs-12" id="modal-body" align="center">
-
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Нижняя часть модального окна -->
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-default pull-left prev" id="0"
-                                onClick="nav_click(this.id)">
-                            <i class="glyphicon glyphicon-chevron-left"></i>
-                        </button>
-                        <button type="button" class="btn btn-default next" id="1" onClick="nav_click(this.id)">
-                            <i class="glyphicon glyphicon-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
     {% endif %}
-
-    <script type="text/javascript">
-        function get_id_by_number(number) {
-            return document.getElementById(number).parentNode.parentNode.childNodes[19].textContent;
-        }
-
-        function remove_image() {
-            var mod = document.getElementById('modal-body');
-            mod.removeChild(mod.lastElementChild);
-        }
-
-        function set_image(clicked_id) {
-            var img = document.createElement('img');
-            img.className = "img-responsive";
-            img.setAttribute('src', "/media/" + get_id_by_number(clicked_id) + ".png");
-            var mod_body = document.getElementById('modal-body');
-            mod_body.appendChild(img);
-
-            var mod_title = document.getElementById('ImageTitle');
-            mod_title.innerText = 'Изображение ' + clicked_id;
-
-            document.getElementById('Mode').innerText = document.getElementById(clicked_id).parentNode.parentNode.childNodes[3].textContent;
-            document.getElementById('DateTime').innerText = document.getElementById(clicked_id).parentNode.parentNode.childNodes[5].textContent;
-            document.getElementById('Exposure').innerText = document.getElementById(clicked_id).parentNode.parentNode.childNodes[7].textContent;
-            document.getElementById('Shutter').innerText = document.getElementById(clicked_id).parentNode.parentNode.childNodes[9].textContent;
-            document.getElementById('Angle').innerText = document.getElementById(clicked_id).parentNode.parentNode.childNodes[11].textContent;
-            document.getElementById('Current').innerText = document.getElementById(clicked_id).parentNode.parentNode.childNodes[13].textContent;
-            document.getElementById('Voltage').innerText = document.getElementById(clicked_id).parentNode.parentNode.childNodes[15].textContent;
-
-            var left_button = document.getElementsByClassName('prev')[0];
-            if (parseInt(clicked_id) > 0) {
-                left_button.id = parseInt(clicked_id) - 1;
-            }
-            else
-                left_button.id = {{ frames_list|length }} -1;
-            left_button = document.getElementsByClassName('prev')[1];
-            if (parseInt(clicked_id) > 0)
-                left_button.id = parseInt(clicked_id) - 1;
-            else
-                left_button.id = {{ frames_list|length }} -1;
-            var right_button = document.getElementsByClassName('next')[0];
-            if (parseInt(clicked_id) < {{ frames_list|length }} -1)
-                right_button.id = parseInt(clicked_id) + 1;
-            else
-                right_button.id = 0;
-            right_button = document.getElementsByClassName('next')[1];
-            if (parseInt(clicked_id) < {{ frames_list|length }} -1)
-                right_button.id = parseInt(clicked_id) + 1;
-            else
-                right_button.id = 0;
-        }
-
-        $(document).ready(function () {
-            $("#myModalBox").on('hidden.bs.modal', function () {
-                remove_image();
-            });
-
-            $.ajax({
-                url: '{% url 'storage:frames_downloading' record_id %}',
-                method: 'GET',
-                dataType: 'text',
-                success: function (data) {
-                    if (data && data.indexOf('ошибками') !== -1) {
-                        window.showToast(data, 'warning');
-                    } else {
-                        window.showToast('Изображения загружены успешно', 'success');
-                    }
-                },
-                error: function (jqXHR) {
-                    window.showToast('Ошибка загрузки изображений: ' + (jqXHR.responseText || 'нет ответа'), 'error');
-                }
-            });
-        });
-
-        function table_click(clicked_id) {
-            set_image(clicked_id);
-            $("#myModalBox").modal();
-        }
-
-        function nav_click(clicked_id) {
-            remove_image();
-            table_click(clicked_id);
-        }
-    </script>
 {% endblock content %}

@@ -70,8 +70,7 @@
                             <col style="width: 8%;">
                             <col style="width: 7%;">
                             <col style="width: 10%;">
-                            <col style="width: 4%;">
-                            <col style="width: 3%;">
+                            <col style="width: 7%;">
                         </colgroup>
                         <thead>
                         <tr>
@@ -83,7 +82,6 @@
                             <th class="col-nowrap">Шаг угла</th>
                             <th class="col-nowrap">Шагов</th>
                             <th class="col-nowrap">Экспозиция</th>
-                            <th></th>
                             <th></th>
                         </tr>
                         </thead>
@@ -125,15 +123,6 @@
                                         </a>
                                     </div>
                                 </td>
-                                <td>
-                                    {% if can_delete %}
-                                    <div style="cursor: pointer;" data-toggle="tooltip" data-placement="top"
-                                         title="Удалить эксперимент" onClick="deleteExperiment(this.id)"
-                                         id="{{ record.experiment_id }}" data-specimen="{{ record.specimen }}">
-                                        <span class="glyphicon glyphicon-trash" style="padding-top: 5px;"/>
-                                    </div>
-                                    {% endif %}
-                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>
@@ -146,7 +135,6 @@
         </div>
     {% endif %}
 
-   {% if can_delete %}{% csrf_token %}{% endif %}
    <script type="text/javascript">
         var storage_url = '{{ storage_url }}'
         var page_size = '{{ page_size }}'

@@ -7,7 +7,8 @@ import json
 
 from django.contrib import messages
 from django.core.files.storage import default_storage
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotFound
+from django.http import (HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotFound,
+                         JsonResponse)
 from django.shortcuts import render
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -41,7 +42,15 @@ def _safe_int(value, default=0):
         return default
 
 
-def _dedup_and_sort_frames(frames_list):
+def _safe_float(value):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if result == result else None        # NaN → None: json не пишет NaN
+
+
+def _dedup_and_sort_frames(frames_list, descending=True):
     """Сортирует кадры численно по номеру (а не лексикографически как строку)
     и убирает дубли документов Mongo.
 
@@ -66,8 +75,84 @@ def _dedup_and_sort_frames(frames_list):
                 continue
             seen_nums.add(num_key)
         unique_frames.append(frame)
-    unique_frames.sort(key=lambda f: _safe_int(f.num), reverse=True)
+    unique_frames.sort(key=lambda f: _safe_int(f.num), reverse=descending)
     return unique_frames
+
+
+def _frame_time(frame):
+    """Время кадра, секунды Unix: ``image_data.timestamp`` от драйверов, иначе строка ``datetime``
+    («ДД.ММ.ГГГГ ЧЧ:ММ:СС», точность — секунда); None — времени нет."""
+    seconds = _safe_float(frame.timestamp)
+    if seconds is not None:
+        return seconds
+    try:
+        return time.mktime(time.strptime(frame.date_time, '%d.%m.%Y %H:%M:%S'))
+    except (TypeError, ValueError):
+        return None
+
+
+def frame_payload(frame):
+    """Кадр для просмотрщика на странице записи (JSON): числа — числами, нет значения — None."""
+    exposure_ms = _safe_float(frame.exposure_ms)
+    return {
+        'id': frame.id,
+        'num': _safe_int(frame.num) if frame.num_known else None,
+        'mode': frame.mode,
+        'datetime': frame.date_time,
+        't': _frame_time(frame),
+        'exposure': exposure_ms / 1000.0 if exposure_ms is not None else None,
+        'shutter': frame.shutter_open if isinstance(frame.shutter_open, bool) else None,
+        'angle': _safe_float(frame.angle_position),
+        'current': _safe_float(frame.current),
+        'voltage': _safe_float(frame.voltage),
+        'detector': frame.detector_model,
+    }
+
+
+def _fetch_frames(experiment_id):
+    """Кадры эксперимента из хранилища, по возрастанию номера, без дублей. Ошибку хранилища — исключением."""
+    answer = requests.post(settings.STORAGE_FRAMES_INFO_HOST, json.dumps({'exp_id': experiment_id}),
+                           timeout=settings.TIMEOUT_DEFAULT)
+    if answer.status_code != 200:
+        raise RuntimeError(u'хранилище ответило {}'.format(answer.status_code))
+    return _dedup_and_sort_frames([FrameRecord(f) for f in json.loads(answer.content)], descending=False)
+
+
+def _fetch_experiment(experiment_id):
+    """Документ эксперимента из хранилища; None — эксперимента нет. Ошибку хранилища — исключением."""
+    answer = requests.post(settings.STORAGE_EXPERIMENTS_GET_HOST, json.dumps({'_id': experiment_id}),
+                           timeout=settings.TIMEOUT_DEFAULT)
+    if answer.status_code != 200:
+        raise RuntimeError(u'хранилище ответило {}'.format(answer.status_code))
+    found = json.loads(answer.content)
+    return found[0] if found else None
+
+
+def _hdf5_size(experiment_id):
+    """Размер HDF5 эксперимента в байтах — заголовок ответа nginx хранилища на HEAD (файл не читается);
+    None — не узнать (нет файла, хранилище не ответило за 3 с)."""
+    url = getattr(settings, 'STORAGE_HDF5_INTERNAL', None)
+    if not url:
+        return None
+    try:
+        answer = requests.head(url.format(exp_id=experiment_id), timeout=3)
+        if answer.status_code == 200:
+            return _safe_int(answer.headers.get('Content-Length'), None)
+    except Exception as e:
+        storage_logger.warning(u'Размер HDF5 {}: {}'.format(experiment_id, e))
+    return None
+
+
+def _format_size(size):
+    """Байты → «7,2 ГБ» / «640 МБ»."""
+    if size is None:
+        return ''
+    for unit, scale in ((u'ГБ', 1024 ** 3), (u'МБ', 1024 ** 2), (u'КБ', 1024)):
+        if size >= scale:
+            value = size / float(scale)
+            text = ('{:.1f}' if value < 100 else '{:.0f}').format(value)
+            return text.replace('.', ',') + u' ' + unit
+    return u'{} Б'.format(size)
 
 
 def is_active(user):
@@ -81,8 +166,11 @@ class ExperimentRecord:
         ep = record.get('experiment parameters', {})
         is_advanced = ep.get('advanced', False)
 
+        self.is_finished = bool(record.get('finished'))
+        self.is_advanced = bool(is_advanced)
         self.finished = u'Завершен' if record.get('finished') else u'Не завершен'
         self.advanced = u'Продвинутый' if is_advanced else u'Стандартный'
+        self.short_id = str(self.experiment_id)[:8]
 
         if is_advanced:
             # Продвинутый режим: плоская структура
@@ -152,6 +240,8 @@ class FrameRecord:
         self.horizontal_position = ""
         self.present = ""
         self.mode = ""
+        self.exposure_ms = None
+        self.timestamp = None
 
         if "_id" in frame:
             if "$oid" in frame['_id']:
@@ -174,7 +264,10 @@ class FrameRecord:
                     if "model" in frame["frame"]["image_data"]["detector"]:
                         self.detector_model = frame["frame"]["image_data"]["detector"]["model"]
                 if "exposure" in frame["frame"]["image_data"]:
-                    self.exposure = _ms_to_s(frame["frame"]["image_data"]["exposure"])
+                    self.exposure_ms = frame["frame"]["image_data"]["exposure"]
+                    self.exposure = _ms_to_s(self.exposure_ms)
+                if "timestamp" in frame["frame"]["image_data"]:
+                    self.timestamp = frame["frame"]["image_data"]["timestamp"]
             if "shutter" in frame["frame"]:
                 if "open" in frame["frame"]["shutter"]:
                     self.shutter_open = frame["frame"]["shutter"]["open"]
@@ -265,7 +358,6 @@ def storage_view(request):
         'pages': range(1, num_pages + 1),
         'storage_url': storage_url,
         'page_size': page_size,
-        'can_delete': can_delete_experiment(request.user),
     })
 
 
@@ -299,29 +391,18 @@ def storage_record_view(request, storage_record_id):
         to_show = False
 
     frames_list = []
-
-    try:
-        frame_info = json.dumps({"exp_id": storage_record_id})
-        frames = requests.post(settings.STORAGE_FRAMES_INFO_HOST, frame_info, timeout=settings.TIMEOUT_DEFAULT)
-        if frames.status_code == 200:
-            frames_info = json.loads(frames.content)
-            storage_logger.debug(u'Страница записи: Список изображений: {}'.format(frames_info))
-            frames_list = _dedup_and_sort_frames([FrameRecord(frame) for frame in frames_info])
-        else:
-            storage_logger.error(
-                u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(frames.status_code))
-            messages.error(request, u'Не удается получить список изображений. Ошибка: {}'.format(frames.status_code))
+    if to_show:
+        try:
+            frames_list = _fetch_frames(storage_record_id)
+        except Timeout as e:
+            storage_logger.error(u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(str(e)))
+            messages.error(request,
+                           u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
             to_show = False
-    except Timeout as e:
-        storage_logger.error(u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(str(e)))
-        messages.error(request,
-                       u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
-        to_show = False
-    except Exception as e:
-        storage_logger.error(u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(e))
-        messages.error(request,
-                       u'Не удается получить список изображений. Сервер хранилища не отвечает. Попробуйте позже.')
-        to_show = False
+        except Exception as e:
+            storage_logger.error(u'Страница записи: Не удается получить список изображений. Ошибка: {}'.format(e))
+            messages.error(request, u'Не удается получить список изображений: {}'.format(e))
+            to_show = False
 
     recon_url = settings.RECONSTRUCTION_URL.format(exp_id=storage_record_id)
 
@@ -333,18 +414,84 @@ def storage_record_view(request, storage_record_id):
         except NoReverseMatch:
             pass
 
+    viewer_config = {
+        'expId': storage_record_id,
+        'finished': bool(record and record.is_finished),
+        'framesUrl': reverse('storage:frames_json', kwargs={'storage_record_id': storage_record_id}),
+        'pngUrl': reverse('storage:frame_png', kwargs={'storage_record_id': storage_record_id,
+                                                       'frame_id': 'FRAMEID'}),
+        'pollSeconds': 10,
+    }
     return render(request, 'storage/storage_record.html', {
         'record_id': storage_record_id,
         'recon_url': recon_url,
         'studio_url': studio_url,
-        'caption': 'Запись хранилища ' + str(storage_record_id),
+        'caption': (record.specimen if record and record.specimen else u'Запись хранилища ' + str(storage_record_id)),
         'to_show': to_show,
         'info': record,
         'frames_list': frames_list,
+        'frames_payload': [frame_payload(f) for f in frames_list],
+        'viewer_config': viewer_config,
+        'hdf5_size': _format_size(_hdf5_size(storage_record_id)) if to_show else '',
+        'can_delete': can_delete_experiment(request.user),
     })
 
 
-# TODO: route w/o user check?
+def _frames_json_error(text, status=502):
+    return JsonResponse({'error': text}, status=status, json_dumps_params={'ensure_ascii': False})
+
+
+@login_required
+@user_passes_test(is_active)
+def frames_json(request, storage_record_id):
+    """Кадры эксперимента и признак «съёмка завершена» — для живого обновления страницы записи, пока идёт съёмка."""
+    try:
+        experiment = _fetch_experiment(storage_record_id)
+        if experiment is None:
+            return _frames_json_error(u'Эксперимент не найден', 404)
+        frames = _fetch_frames(storage_record_id)
+    except Timeout:
+        return _frames_json_error(u'Хранилище не отвечает')
+    except Exception as e:
+        storage_logger.error(u'Список кадров {}: {}'.format(storage_record_id, e))
+        return _frames_json_error(u'Не удается получить список кадров: {}'.format(e))
+    response = JsonResponse({'finished': bool(experiment.get('finished')),
+                             'frames': [frame_payload(f) for f in frames]})
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
+PNG_BROWSER_CACHE_SECONDS = 7 * 24 * 3600
+
+
+@login_required
+@user_passes_test(is_active)
+def frame_png(request, storage_record_id, frame_id):
+    """PNG одного кадра для просмотрщика. Из ``media/`` сайта, если его туда уже скопировал прежний
+    ``frames_downloading``; иначе — один запрос к nginx хранилища, без записи на диск сайта. Готовый PNG не меняется —
+    браузер кэширует его на неделю. 404 — PNG ещё не построен (хранилище строит его после приёма кадра)."""
+    cached = os.path.join(settings.MEDIA_ROOT, frame_id + '.png')
+    if os.path.exists(cached):
+        with open(cached, 'rb') as f:
+            content = f.read()
+    else:
+        try:
+            answer = requests.get(settings.STORAGE_FRAMES_PNG.format(exp_id=storage_record_id, frame_id=frame_id),
+                                  timeout=20)
+        except Exception as e:
+            storage_logger.error(u'PNG кадра {} / {}: {}'.format(storage_record_id, frame_id, e))
+            return HttpResponse(u'Хранилище не отвечает', status=502, content_type='text/plain; charset=utf-8')
+        if answer.status_code == 404:
+            return HttpResponseNotFound(u'Изображение ещё не готово', content_type='text/plain; charset=utf-8')
+        if answer.status_code != 200:
+            return HttpResponse(u'Хранилище ответило {}'.format(answer.status_code), status=502,
+                                content_type='text/plain; charset=utf-8')
+        content = answer.content
+    response = HttpResponse(content, content_type='image/png')
+    response['Cache-Control'] = 'private, max-age={}, immutable'.format(PNG_BROWSER_CACHE_SECONDS)
+    return response
+
+
 @login_required
 @user_passes_test(is_active)
 def frames_downloading(request, storage_record_id):

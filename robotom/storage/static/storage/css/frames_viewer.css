@@ -1,0 +1,89 @@
+/* Страница записи хранилища: шапка, строка параметров, просмотрщик кадров (версия 1 — PNG хранилища). */
+
+.rec-page { padding-top: 10px; padding-bottom: 30px; }
+
+/* шапка */
+.rec-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.rec-title { flex: 1; min-width: 0; }
+.rec-title h1 { margin: 0 0 4px; font-size: 26px; font-weight: 500; overflow-wrap: anywhere; }
+.rec-meta { color: #555; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.rec-meta code { font-size: 12px; background: #f5f5f5; color: #555; }
+.rec-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.rec-danger, .rec-danger:hover, .rec-danger:focus { color: #a94442; }
+.rec-params { display: flex; flex-wrap: wrap; gap: 4px 26px; padding: 8px 14px; background: #f7f7f7;
+    border: 1px solid #e3e3e3; border-radius: 4px; margin-bottom: 14px; }
+.rec-params b { font-weight: 600; }
+.rec-params > span:empty { display: none; }
+.del-box { display: none; margin: -2px 0 12px; padding: 10px 14px; border: 1px solid #ebccd1; background: #f2dede;
+    color: #a94442; border-radius: 4px; gap: 10px; align-items: center; flex-wrap: wrap; }
+.del-box.open { display: flex; }
+.del-box input { width: 320px; max-width: 100%; }
+
+/* просмотрщик */
+.fv { display: flex; gap: 16px; align-items: flex-start; }
+.fv-main { flex: 1; min-width: 0; }
+.fv-side { width: 300px; flex: none; display: flex; flex-direction: column; gap: 12px; }
+/* PNG хранилища — 504×288 px с осями и шкалой; показываем вписанным по ширине, не крупнее ×2 */
+.fv-stage { position: relative; background: #f5f5f5; border: 1px solid #ddd; border-radius: 3px; outline: none;
+    min-height: 300px; display: flex; align-items: center; justify-content: center; padding: 30px 8px 8px; }
+.fv-stage:focus { border-color: #66afe9; }
+/* высота ограничена окном: ползунок и кнопки под кадром видны без прокрутки */
+.fv-stage img { display: block; width: 100%; max-width: 1008px; height: auto; aspect-ratio: 504 / 288;
+    max-height: calc(100vh - 330px); object-fit: contain; }
+.fv-cap { position: absolute; left: 8px; top: 5px; font-size: 13px; color: #333; font-weight: 600; }
+.fv-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 80%; text-align: center;
+    color: #8a6d3b; background: #fcf8e3; border: 1px solid #faebcc; border-radius: 4px; padding: 8px 14px; }
+.fv-note { font-size: 12px; color: #777; margin-top: 3px; }
+
+.fv-transport { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.fv-transport .form-control { width: auto; display: inline-block; }
+.fv-num-label, .fv-follow { margin: 0; font-weight: normal; white-space: nowrap; }
+.fv-num { width: 80px !important; }
+.fv-grow { flex: 1; }
+.fv-play { min-width: 74px; }
+#fv-filter kbd { font-size: 10px; padding: 0 3px; background: #777; }
+#fv-filter .btn.active kbd { background: #337ab7; }
+.fv-slider { margin-top: 6px; }
+.fv-slider input[type=range] { width: 100%; margin: 0; display: block; }
+#fv-band { display: block; width: 100%; height: 8px; margin-top: 2px; border-radius: 2px; }
+.fv-legend { display: flex; gap: 14px; font-size: 12px; color: #555; margin-top: 4px; flex-wrap: wrap; }
+.fv-sw { display: inline-block; width: 12px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.fv-new { margin-left: 4px; }
+
+.fv-box { border: 1px solid #ddd; border-radius: 4px; padding: 10px 12px; }
+.fv-box h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.fv-keys kbd { font-size: 11px; padding: 1px 4px; }
+dl.fv-info { display: grid; grid-template-columns: 92px 1fr; gap: 3px 8px; margin: 0; font-size: 13px; }
+dl.fv-info dt { color: #777; font-weight: normal; }
+dl.fv-info dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fv-warn { color: #a94442; font-weight: 700; }
+
+/* график и отклонения */
+.fv-below { display: flex; gap: 16px; align-items: flex-start; margin-top: 14px; }
+.fv-chart-col { flex: 1; min-width: 0; }
+.fv-dev-col { width: 300px; flex: none; }
+.fv-chart-wrap { position: relative; }
+#fv-chart { display: block; width: 100%; cursor: crosshair; }
+.fv-tip { position: absolute; pointer-events: none; background: rgba(255, 255, 255, .95); border: 1px solid #ccc;
+    border-radius: 3px; padding: 2px 7px; font-size: 12px; display: none; white-space: nowrap; }
+.fv-devs { list-style: none; margin: 0 0 6px; padding: 0; font-size: 13px; max-height: 260px; overflow: auto; }
+.fv-devs li { padding: 3px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+.fv-devs li:hover { background: #f5f8fb; }
+.fv-devs li.fv-dev-other { color: #888; }
+.fv-devs b { color: #a94442; }
+
+/* таблица кадров под раскрытием */
+details.fv-table { margin-top: 14px; }
+details.fv-table summary { cursor: pointer; font-size: 15px; padding: 6px 0; }
+.fv-table-wrap { max-height: 420px; overflow: auto; border: 1px solid #ddd; }
+table.fv-t { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.fv-t th, table.fv-t td { padding: 4px 8px; border-bottom: 1px solid #eee; text-align: left; white-space: nowrap; }
+table.fv-t th { position: sticky; top: 0; background: #f7f7f7; }
+table.fv-t tr:hover td { background: #f5f8fb; cursor: pointer; }
+table.fv-t td.fv-warn { background: #fdf3f3; }
+table.fv-t tr.fv-cur td { background: #e8f1fa; }
+
+@media (max-width: 991px) {
+    .fv, .fv-below { flex-direction: column; }
+    .fv-side, .fv-dev-col { width: 100%; }
+}

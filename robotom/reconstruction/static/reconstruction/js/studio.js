@@ -6,6 +6,7 @@
  *   api.js       — запросы, каналы «последний выигрывает», уведомления об ошибках;
  *   ui.js        — помощники DOM, модальные окна;
  *   viewer.js    — просмотрщик (canvas, окно/уровень, гистограмма, масштаб/панорама);
+ *   volume3d.js  — 3D-вид готового объёма (WebGL2) внутри просмотрщика (вид «3D», шаг 5);
  *   overlay.js   — SVG-наложение (рамка, линия);
  *   thumbstrip.js — лента миниатюр углов;
  *   steps.js     — статусы шагов (derive — чистая функция);
@@ -27,7 +28,7 @@
 
     var VIEW_TITLES = {
         envelope: 'Огибающая', sample: 'Угол', sinogram: 'Синограмма', slice: 'Срез', diff: '0° − 180°',
-        compare: 'Сравнение', result: 'Готовый объём'
+        compare: 'Сравнение', result: 'Готовый объём', volume3d: '3D'
     };
 
     function initialState(config) {
@@ -199,6 +200,8 @@
                         app.fov.sinogram();
                     } else if (key === 'result') {
                         app.result.fetchSlice(true, true);
+                    } else if (key === 'volume3d') {
+                        app.result.show3d(true);
                     }
                 });
             });
@@ -225,7 +228,7 @@
             var key = b.getAttribute('data-view');
             var has = app.viewer.has(key);
             var can = has || (key === 'slice' && app.ready()) || (key === 'sinogram' && st.overview === 'ready') ||
-                (key === 'sample' && !!st.thumbsStack) || (key === 'result' && st.result === 'ready');
+                (key === 'sample' && !!st.thumbsStack) || ((key === 'result' || key === 'volume3d') && st.result === 'ready');
             b.disabled = !can;
             b.classList.toggle('active', key === cur);
             var text = VIEW_TITLES[key] || key;

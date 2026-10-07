@@ -5,6 +5,9 @@
  * (dir + '/' + result.volume.file) и ссылки на него и его .hx — через старую раздачу статики (config.full_volume_url +
  * full[].rel из ответа сервиса; сервис полный объём не отдаёт), файлы (ссылки api_base + results/<id>/file/<имя>),
  * история запусков; срезы копии ×4 по осям z/y/x с ползунком — GET results/<id>/slice?axis&i.
+ * Объёмный вид (вид «3D», S.View3D): GET results/<id>/volume3d — копия, уменьшенная до ≤ 320³ вокселей, uint8;
+ * загружается по первому запросу и после нового результата; плоскость текущего среза рисуется в 3D; окно — своё у
+ * вида, при первом показе берётся окно среза, если его меняли. Настройки рендера живут здесь (this.r3d).
  * После завершения задачи — обновить. */
 (function (root) {
     'use strict';
@@ -16,6 +19,15 @@
     var PLANE = {z: ['x', 'y'], y: ['x', 'z'], x: ['y', 'z']};
     var RINGS = {off: 'выкл', weak: 'слабо', medium: 'средне', strong: 'сильно'};
     var ANGLES = {first_180: 'первые 180°', full_halves: 'все полуобороты (усреднение)'};
+    // ось сечения → ось 3D-вида (0 — x, 1 — y, 2 — z)
+    var AXIS3D = {x: 0, y: 1, z: 2};
+    // общий ползунок «Глубина»/«Порог» по режиму рендера (как в сегментаторе): какой параметр, диапазон, подпись
+    var DEPTH_ROWS = {
+        soft: {key: 'atten', label: 'Глубина', min: 0.005, max: 0.2, step: 0.005, digits: 3,
+            title: 'Насколько далеко луч пробивает объём: меньше — видно глубже и ярче, больше — только поверхность'},
+        iso: {key: 'iso', label: 'Порог', min: 0, max: 1, step: 0.01, percent: true,
+            title: 'Где проходит оболочка — долей окна контраста (едет вместе с окном)'}
+    };
 
     /** Ссылки на полный объём: [{name, href, size}] по ответу results/<id> (full: [{name, rel, size}]) и префиксу
      *  раздачи статики base; без префикса или без файлов — []. */
@@ -35,8 +47,21 @@
         this.id = app.config.exp_id;
         this.e = {
             info: ui.$('res-info'), view: ui.$('res-view'), axes: ui.$('res-axes'), slider: ui.$('res-slider'),
-            index: ui.$('res-index'), n: ui.$('res-n'), show: ui.$('res-show'), sub: ui.$('res-sub')
+            index: ui.$('res-index'), n: ui.$('res-n'), show: ui.$('res-show'), sub: ui.$('res-sub'),
+            v3d: ui.$('res-3d'), show3d: ui.$('res-3d-show'), info3d: ui.$('res-3d-info'), mode3d: ui.$('res-3d-mode'),
+            gamma: ui.$('res-3d-gamma'), gammaVal: ui.$('res-3d-gamma-val'), depth: ui.$('res-3d-depth'),
+            depthLabel: ui.$('res-3d-depth-label'), depthVal: ui.$('res-3d-depth-val'), box: ui.$('res-3d-box'),
+            slice3d: ui.$('res-3d-slice'), clip: ui.$('res-3d-clip'), clipAxis: ui.$('res-3d-clip-axis'),
+            clipFlip: ui.$('res-3d-flip'), clipPos: ui.$('res-3d-clip-pos')
         };
+        this.view3d = null;         // S.View3D — создаётся при первом показе
+        this.vol3d = null;          // {run_id, meta, shape} загруженного объёма
+        this.r3d = S.View3D ? S.View3D.defaults() : null;
+        this.ch3d = this.api.channel({
+            onBusy: function (b) {
+                app.viewer.setBusy('result3d', b, 'Объём для 3D…');
+            }
+        });
         this.axis = 'z';
         this.index = {z: null, y: null, x: null};
         this.n = {z: 0, y: 0, x: 0};
@@ -93,8 +118,127 @@
                 if (ok && (app.viewer.current() === 'result' || app.viewer.has('result'))) {
                     self.fetchSlice(app.viewer.current() === 'result', true);
                 }
+                if (ok && app.viewer.has('volume3d')) self.show3d(app.viewer.current() === 'volume3d');
             });
         });
+        this._bind3d();
+    };
+
+    StepResult.prototype._bind3d = function () {
+        var self = this, e = this.e, r = this.r3d;
+        if (!r) return;
+        var on = function (el, ev, fn) {
+            if (el) el.addEventListener(ev, fn);
+        };
+        on(e.show3d, 'click', function () {
+            self.show3d(true);
+        });
+        if (e.mode3d) {
+            ui.qsa('[data-mode]', e.mode3d).forEach(function (b) {
+                b.addEventListener('click', function () {
+                    self._set3d({mode: b.getAttribute('data-mode')});
+                });
+            });
+        }
+        on(e.gamma, 'input', function () {
+            self._set3d({gamma: parseFloat(e.gamma.value) || 1});
+        });
+        on(e.depth, 'input', function () {
+            var row = DEPTH_ROWS[r.mode];
+            if (!row) return;
+            var p = {};
+            p[row.key] = parseFloat(e.depth.value);
+            self._set3d(p);
+        });
+        on(e.box, 'change', function () {
+            self._set3d({box: e.box.checked});
+        });
+        on(e.slice3d, 'change', function () {
+            self._set3d({slice: self._slicePlane()});
+        });
+        // при включении и смене оси остаётся дальняя от глаза половина: срезанная грань видна сразу; ⇄ — другая
+        var facing = function (axis) {
+            return self.view3d ? self.view3d.farSide(axis, r.clip.pos) : r.clip.side;
+        };
+        on(e.clip, 'change', function () {
+            self._set3d({clip: e.clip.checked ? {enabled: true, side: facing(r.clip.axis)} : {enabled: false}});
+        });
+        on(e.clipAxis, 'change', function () {
+            var axis = parseInt(e.clipAxis.value, 10) || 0;
+            self._set3d({clip: {axis: axis, side: facing(axis)}});
+        });
+        on(e.clipFlip, 'click', function () {
+            self._set3d({clip: {side: -r.clip.side}});
+        });
+        on(e.clipPos, 'input', function () {
+            self._set3d({clip: {pos: (parseInt(e.clipPos.value, 10) || 0) / 1000}});
+        });
+    };
+
+    /** Изменить настройки 3D-вида (this.r3d) и передать их виду. */
+    StepResult.prototype._set3d = function (patch) {
+        var r = this.r3d;
+        Object.keys(patch).forEach(function (k) {
+            if (k === 'clip') r.clip = Object.assign({}, r.clip, patch.clip);
+            else r[k] = patch[k];
+        });
+        if (this.view3d) this.view3d.set(patch);
+        this._render3d();
+    };
+
+    /** Плоскость текущего среза в вокселях 3D-объёма или null (выключено, нет объёма или среза). */
+    StepResult.prototype._slicePlane = function () {
+        if (!this.vol3d || (this.e.slice3d && !this.e.slice3d.checked)) return null;
+        var i = this.index[this.axis];
+        if (i === null || i === undefined || !this.n[this.axis]) return null;
+        return {axis: AXIS3D[this.axis], pos: S.vol3d.slicePosition(i, this.vol3d.meta.downsample || 1)};
+    };
+
+    StepResult.prototype._syncSlicePlane = function () {
+        if (this.view3d && this.vol3d) this.view3d.set({slice: this._slicePlane()});
+    };
+
+    /** Показать объём в 3D: запросить (если ещё нет или результат новее) и выбрать вид при select. */
+    StepResult.prototype.show3d = function (select) {
+        var self = this, app = this.app, st = this.st, id = this.id;
+        if (!this.r3d || !st.resultDoc) return;
+        if (!this.view3d) {
+            this.view3d = new S.View3D(ui.$('sv-stage'), {before: app.viewer.svg});
+            this.view3d.set(this.r3d);
+        }
+        var v3 = this.view3d;
+        if (!v3.supported()) {
+            ui.toast('3D-вид недоступен: ' + (v3.error || 'нет WebGL2') + '.', 'error', 10000);
+            return;
+        }
+        var runId = st.resultDoc.result && st.resultDoc.result.run_id;
+        if (this.vol3d && this.vol3d.run_id === runId && app.viewer.has('volume3d')) {
+            if (select) app.showView('volume3d');
+            return;
+        }
+        this.ch3d.run(function (signal) {
+            return self.api.getBinary('results/' + id + '/volume3d', {max_side: v3.maxSide()},
+                {signal: signal, what: 'Объём для 3D'});
+        }, true).then(function (img) {
+            if (S.api.isStale(img)) return;
+            var m = img.meta || {};
+            self.vol3d = {run_id: m.run_id || runId, meta: m, shape: [img.k, img.h, img.w]};
+            v3.setVolume(img);
+            v3.set({slice: self._slicePlane()});
+            var first = !app.viewer.has('volume3d');
+            app.viewer.show('volume3d', img, {
+                kind: 'volume3d', unit: '1/мм', external: v3, hint: v3.hint,
+                label: 'Готовый объём в 3D: ' + img.k + ' × ' + img.h + ' × ' + img.w + ', в ' + (m.binning || '?') +
+                    ' раз меньше полного по каждой оси' +
+                    (m.voxel_mm ? ', воксель ' + core.fmtNum(m.voxel_mm * 1000, 3) + ' мкм' : '')
+            }, {select: !!select});
+            // при первом показе — окно среза, если его меняли (материал виден так же)
+            var rv = app.viewer.get('result');
+            if (first && rv && rv.win && rv.win.user && app.viewer.current() === 'volume3d') {
+                app.viewer.setWindow(rv.win.lo, rv.win.hi, true);
+            }
+            self._render3d();
+        }, function () { /* показано */ });
     };
 
     /** Promise<boolean> — есть ли результат. */
@@ -141,6 +285,7 @@
         var self = this, app = this.app, id = this.id;
         if (!this.st.resultDoc || !this.n[this.axis]) return;
         var axis = this.axis, i = this.index[axis];
+        this._syncSlicePlane();
         this.ch.run(function (signal) {
             return self.api.getBinary('results/' + id + '/slice', {axis: axis, i: i}, {signal: signal, what: 'Срез результата'});
         }, now).then(function (img) {
@@ -185,6 +330,46 @@
         }
         ui.show(this.e.view, !!(st.resultDoc && this.n[this.axis]));
         this._renderControls();
+        this._render3d();
+    };
+
+    StepResult.prototype._render3d = function () {
+        var e = this.e, r = this.r3d, st = this.st;
+        ui.show(e.v3d, !!(r && st.resultDoc && this.n[this.axis]));
+        if (!r) return;
+        if (e.mode3d) {
+            ui.qsa('[data-mode]', e.mode3d).forEach(function (b) {
+                var on = b.getAttribute('data-mode') === r.mode;
+                b.classList.toggle('active', on);
+                b.classList.toggle('btn-primary', on);
+                b.classList.toggle('btn-default', !on);
+            });
+        }
+        if (e.gamma) {
+            e.gamma.value = r.gamma;
+            ui.text(e.gammaVal, core.fmtNum(r.gamma, 2));
+        }
+        var row = DEPTH_ROWS[r.mode];
+        if (e.depth) {
+            e.depth.disabled = !row;
+            if (row) {
+                e.depth.min = row.min;
+                e.depth.max = row.max;
+                e.depth.step = row.step;
+                e.depth.value = r[row.key];
+            }
+            e.depth.title = row ? row.title : '«Максимум» не использует ни глубину, ни порог';
+            ui.text(e.depthLabel, row ? row.label : 'Глубина');
+            ui.text(e.depthVal, !row ? '—' : row.percent ? Math.round(r[row.key] * 100) + ' %' :
+                core.fmtNum(r[row.key], row.digits));
+        }
+        if (e.box) e.box.checked = !!r.box;
+        if (e.clip) e.clip.checked = !!r.clip.enabled;
+        if (e.clipAxis) e.clipAxis.value = String(r.clip.axis);
+        if (e.clipPos) e.clipPos.value = Math.round(r.clip.pos * 1000);
+        var v = this.vol3d;
+        ui.text(e.info3d, v ? v.shape.join(' × ') + ' (копия ×' + (v.meta.source_binning || '?') +
+            (v.meta.downsample > 1 ? ', уменьшена ещё в ' + v.meta.downsample + ' раза' : '') + ')' : '');
     };
 
     StepResult.prototype._renderDoc = function (el, doc) {

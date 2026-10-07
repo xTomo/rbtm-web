@@ -94,6 +94,12 @@
 .st-res-ctl { display: flex; align-items: center; gap: 6px; }
 .st-res-index { width: 76px; height: 24px; padding: 2px 5px; }
 .st-res-slider { width: 100%; margin: 6px 0 2px; }
+.st-res-3d .st-btns { align-items: center; }
+.st-res-3d .st-seg { margin: 4px 0 2px; }
+.st-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.st-checks label, .st-res-3d .st-grid-row label { font-weight: normal; font-size: 12px; margin: 0; }
+.st-res-3d .st-grid-row select { flex: 0 1 90px; height: 24px; padding: 1px 4px; }
+.sv-gl { cursor: grab; touch-action: none; }
 
 .btn.st-busy::after { content: ' …'; }
 

@@ -22,6 +22,8 @@
         ready: 'готово', canceling: 'отмена…', canceled: 'отменена', error: 'ошибка'
     };
     var FOV_VIEWS = ['envelope', 'sample', 'sinogram'];
+    // пока съёмка идёт (409 acquiring) — повтор запроса обзора раз в столько мс
+    var ACQUIRING_RETRY_MS = 60000;
 
     function roiOf(r) {
         return r ? {x0: r.x0, x1: r.x1, y0: r.y0, y1: r.y1} : null;
@@ -61,29 +63,46 @@
 
     // --- запуск -----------------------------------------------------------------------------------------------
 
-    /** Сведения и обзор скана; Promise — обзор применён (или не получен). */
+    /** Сведения и обзор скана; Promise — обзор применён (или не получен). Пока съёмка эксперимента идёт, сервис
+     *  не открывает его HDF5 (409 acquiring): студия пишет об этом и повторяет запрос раз в ACQUIRING_RETRY_MS;
+     *  после завершения — обзор и восстановление сессии, как при открытии страницы. */
     StepFov.prototype.start = function () {
         var self = this, app = this.app, api = this.api, id = this.id;
         app.set({overview: 'loading'});
         app.viewer.placeholder('envelope', 'Загрузка обзора скана… (первый раз — несколько секунд)');
         app.viewer.select('envelope');
         app.thumbs.message('Миниатюры углов появятся после обзора.');
-        api.getJSON('scans/' + id + '/info', null, {what: 'Сведения о скане'}).then(function (info) {
+        api.getJSON('scans/' + id + '/info', null, {what: 'Сведения о скане', expect: ['acquiring']}).then(function (info) {
             self.st.info = info;
             if (info.pixel_size && !self.st.pixelSize) self.st.pixelSize = info.pixel_size;
             self._renderInfo();
             self._renderSize();
             self._renderPs();
             app.bus.emit('info', info);
-        }, function () {
-            ui.text(self.e.info, 'Сведения о скане не получены.');
+        }, function (err) {
+            ui.text(self.e.info, err && err.code === 'acquiring' ? 'Съёмка эксперимента ещё идёт.' :
+                'Сведения о скане не получены.');
         });
-        return api.getJSON('scans/' + id + '/overview', null, {what: 'Обзор скана'}).then(function (ov) {
+        return api.getJSON('scans/' + id + '/overview', null, {what: 'Обзор скана', expect: ['acquiring']}).then(function (ov) {
             self._applyOverview(ov);
             self._loadEnvelope();
             self._prefetch();
             return ov;
         }, function (err) {
+            if (err && err.code === 'acquiring') {
+                app.set({overview: 'acquiring'});
+                app.viewer.placeholder('envelope', 'Съёмка эксперимента ещё идёт: пока она не закончится, студия не ' +
+                    'открывает его файл — чтение во время записи может сорвать запись кадра. Проверка раз в минуту, ' +
+                    'обзор появится сам.');
+                app.thumbs.message('');
+                clearTimeout(self._acqTimer);
+                self._acqTimer = setTimeout(function () {
+                    self.start().then(function (ov) {
+                        if (ov) self.restoreSession();
+                    });
+                }, ACQUIRING_RETRY_MS);
+                return null;
+            }
             app.set({overview: 'error'});
             app.viewer.placeholder('envelope', 'Обзор скана не получен: ' + S.api.describe(err));
             app.thumbs.message('');

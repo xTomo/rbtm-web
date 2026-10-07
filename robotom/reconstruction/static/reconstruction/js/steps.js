@@ -33,6 +33,7 @@
         var out = {};
 
         if (s.overview === 'loading') out.fov = st('running', null, 'обзор скана');
+        else if (s.overview === 'acquiring') out.fov = st('running', 'съёмка идёт', 'студия откроет скан после её завершения');
         else if (s.load === 'loading') out.fov = st('running', null, 'загрузка области');
         else if (s.overview === 'error') out.fov = st('error', null, 'обзор скана не получен');
         else if (s.load === 'error') out.fov = st('error', null, 'загрузка области не удалась');

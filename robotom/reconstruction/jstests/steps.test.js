@@ -128,3 +128,11 @@ test('session: ошибки, означающие потерю сессии', ()
     assert.ok(!is({status: 409, code: 'not_ready'}));
     assert.ok(!is(null));
 });
+
+test('steps: идущая съёмка — шаг 1 «съёмка идёт», а не ошибка', () => {
+    const s = {overview: 'acquiring', roiEdited: false, load: 'none', roiDirty: false, axis: 'none', ringsChosen: false,
+        smoothingChosen: false, denoiseChosen: false, runEdited: false, job: null, result: 'none'};
+    const f = S.steps.derive(s).fov;
+    assert.equal(f.code, 'running');
+    assert.equal(f.text, 'съёмка идёт');
+});

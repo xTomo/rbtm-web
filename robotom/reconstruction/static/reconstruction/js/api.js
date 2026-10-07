@@ -53,6 +53,8 @@
                 return 'область ещё не загружена (состояние сессии: ' + (b.state || '?') + ')';
             case 'cancelled':
                 return 'операция отменена';
+            case 'acquiring':
+                return 'съёмка эксперимента ещё идёт — студия откроет скан после её завершения';
             default:
                 if (err.code) return err.code;
                 return 'ошибка сервера: HTTP ' + err.status;

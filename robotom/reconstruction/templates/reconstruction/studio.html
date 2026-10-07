@@ -315,6 +315,11 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                                 <button type="button" class="btn btn-default" data-mode="iso"
                                         title="Оболочка по порогу, освещённая со стороны глаза">Поверхность</button>
                             </div>
+                            <div class="st-grid-row">
+                                <label for="res-3d-cmap">Палитра</label>
+                                <select id="res-3d-cmap" class="form-control input-sm"
+                                        title="inferno, viridis, magma, plasma, cividis — яркость растёт монотонно, ложных границ нет (cividis различима и при дальтонизме); jet привычна, но рисует границы на голубом и жёлтом, которых в данных нет"></select>
+                            </div>
                             <div class="st-grid-row st-slider" title="Меньше 1 — светлее полутона, яркое не пережигается">
                                 <label for="res-3d-gamma">Гамма</label>
                                 <input id="res-3d-gamma" type="range" class="st-range" min="0.3" max="2" step="0.05" value="1">

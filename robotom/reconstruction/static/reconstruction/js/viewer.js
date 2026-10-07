@@ -29,7 +29,8 @@
      * desc вида: {kind, unit, label, aspect (высота пикселя / ширина, по умолчанию 1),
      *            coords(ix, iy) → строка координат для строки состояния или null,
      *            inside(ix, iy) → false — точка не данные (промежуток мозаики): без значения под курсором,
-     *            external — внешний вид (см. заголовок), hint — подсказка в строке состояния для него}
+     *            external — внешний вид (см. заголовок), hint — подсказка в строке состояния для него,
+     *            autoPercentiles — [нижний, верхний] перцентили авто-окна, по умолчанию 0,5 и 99,5}
      */
     function Viewer(stage, opts) {
         core.Emitter.call(this);
@@ -99,7 +100,8 @@
         v.range = core.dataRange(v.hist);
         var keep = v.win && v.win.user && v.kind === desc.kind && !opts.resetWindow;
         if (!keep) {
-            var w = core.autoWindow(v.hist);
+            var ap = desc.autoPercentiles;
+            var w = core.autoWindow(v.hist, ap && ap[0], ap && ap[1]);
             v.win = {lo: w[0], hi: w[1], user: false};
         }
         v.kind = desc.kind;
@@ -137,7 +139,10 @@
         if (this._ext && this._ext !== ext) this._ext.activate(false);
         this._ext = ext;
         this.canvas.classList.toggle('hidden', !!ext);
-        if (ext) ext.activate(true);
+        if (ext) {
+            ext.activate(true);
+            if (v.win) ext.setWindow(v.win.lo, v.win.hi);     // не ждать первого кадра (_draw)
+        }
         if (v && v.img) {
             if (v.fit || !v.xf) this._fitView(v);
             this.msg.classList.add('hidden');
@@ -260,7 +265,8 @@
     Viewer.prototype.autoWindow = function () {
         var v = this.views[this.key];
         if (!v || !v.img) return;
-        var w = core.autoWindow(v.hist);
+        var ap = v.desc && v.desc.autoPercentiles;
+        var w = core.autoWindow(v.hist, ap && ap[0], ap && ap[1]);
         this.setWindow(w[0], w[1], false);
     };
 
@@ -565,6 +571,8 @@
             if (root.document.activeElement !== this.inLo) this.inLo.value = core.fmtValue(v.win.lo);
             if (root.document.activeElement !== this.inHi) this.inHi.value = core.fmtValue(v.win.hi);
             this.unit.textContent = v.desc && v.desc.unit ? v.desc.unit : '';
+            var ap = (v.desc && v.desc.autoPercentiles) || [0.5, 99.5];
+            this.autoBtn.title = 'Окно по персентилям ' + core.fmtNum(ap[0], 2) + ' и ' + core.fmtNum(ap[1], 2) + ' %';
         }
         this.draw();
     };

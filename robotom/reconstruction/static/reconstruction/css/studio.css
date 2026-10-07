@@ -100,6 +100,10 @@
 .st-checks label, .st-res-3d .st-grid-row label { font-weight: normal; font-size: 12px; margin: 0; }
 .st-res-3d .st-grid-row select { flex: 0 1 90px; height: 24px; padding: 1px 4px; }
 .sv-gl { cursor: grab; touch-action: none; }
+.sv-cbar { position: absolute; right: 10px; top: 34px; height: 180px; display: flex; gap: 6px; pointer-events: none; }
+.sv-cbar-grad { width: 14px; height: 100%; border: 1px solid #888; image-rendering: auto; }
+.sv-cbar-labels { display: flex; flex-direction: column; justify-content: space-between; margin: -7px 0;
+    color: #ddd; font-size: 11px; line-height: 14px; text-shadow: 0 0 3px #000; white-space: nowrap; }
 
 .btn.st-busy::after { content: ' …'; }
 

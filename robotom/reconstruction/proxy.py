@@ -23,6 +23,7 @@
 | GET          | ``jobs``, ``jobs/<id>``, ``jobs/<id>/log``                            | нет    |
 | POST         | ``jobs/<id>/cancel``                                                  | да     |
 | GET          | ``results/<exp>``, ``results/<exp>/slice``, ``results/<exp>/file/<имя>`` | нет |
+| GET          | ``results/<exp>/volume3d`` (уменьшенный объём uint8 для 3D-вида)      | нет    |
 | GET          | ``results/<exp>/recipes/<run>`` (рецепт запуска: ``current`` или из истории; ``?download=1`` — файлом) | нет |
 
 ``<exp>`` — как ``auth.EXP_ID_RE`` сервиса (буквы, цифры, «.», «_», «-», без «..»), ``<sid>`` и ``<id>`` задачи —
@@ -107,7 +108,7 @@ RULES = (
     _rule('POST', r'jobs/{id}/cancel', run=True, audit=True),
 
     _rule('GET', r'results/{exp}'),
-    _rule('GET', r'results/{exp}/slice'),
+    _rule('GET', r'results/{exp}/(?:slice|volume3d)'),
     _rule('GET', r'results/{exp}/file/{name}'),
     _rule('GET', r'results/{exp}/recipes/[A-Za-z0-9_-]{{1,64}}'),
 )

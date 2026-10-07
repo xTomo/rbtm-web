@@ -6,6 +6,10 @@
  * тот же. Масштаб колесом вокруг курсора, панорама перетаскиванием, двойной щелчок — вписать.
  * Гистограмма с двумя ручками окна. Значение под курсором — в физических единицах вида.
  *
+ * Внешний вид (desc.external — объект с activate(on), setWindow(lo, hi), fit(), например S.View3D): изображение
+ * хранится здесь ради гистограммы и окна, а рисует и обрабатывает мышь он сам (свой canvas поверх); 2D-холст на это
+ * время скрыт, масштаб и панорама просмотрщика не работают, в строке состояния — desc.hint.
+ *
  * События: 'transform' (xf) — изменилось преобразование текущего вида; 'view' (key) — сменился вид;
  * 'image' (key) — у вида новое изображение (или вид удалён); 'window' (lo, hi) — окно. */
 (function (root) {
@@ -24,7 +28,8 @@
     /**
      * desc вида: {kind, unit, label, aspect (высота пикселя / ширина, по умолчанию 1),
      *            coords(ix, iy) → строка координат для строки состояния или null,
-     *            inside(ix, iy) → false — точка не данные (промежуток мозаики): без значения под курсором}
+     *            inside(ix, iy) → false — точка не данные (промежуток мозаики): без значения под курсором,
+     *            external — внешний вид (см. заголовок), hint — подсказка в строке состояния для него}
      */
     function Viewer(stage, opts) {
         core.Emitter.call(this);
@@ -55,6 +60,7 @@
         this._busy = {};
         this._pan = null;
         this._lastPointer = null;
+        this._ext = null;           // внешний вид текущего вида (desc.external) или null
         this.hist = opts.hist ? new Histogram(opts.hist, this) : null;
         this._bind();
         this._resize();
@@ -127,6 +133,11 @@
     };
 
     Viewer.prototype._activate = function (v) {
+        var ext = v && v.img && v.desc && v.desc.external || null;
+        if (this._ext && this._ext !== ext) this._ext.activate(false);
+        this._ext = ext;
+        this.canvas.classList.toggle('hidden', !!ext);
+        if (ext) ext.activate(true);
         if (v && v.img) {
             if (v.fit || !v.xf) this._fitView(v);
             this.msg.classList.add('hidden');
@@ -181,6 +192,10 @@
     };
 
     Viewer.prototype.fit = function () {
+        if (this._ext) {
+            this._ext.fit();
+            return;
+        }
         var v = this.views[this.key];
         if (!v || !v.img) return;
         this._fitView(v);
@@ -189,7 +204,7 @@
 
     Viewer.prototype.oneToOne = function () {
         var v = this.views[this.key];
-        if (!v || !v.img) return;
+        if (!v || !v.img || this._ext) return;
         var c = this._lastPointer || {x: this.W / 2, y: this.H / 2};
         v.xf = core.oneToOne(v.xf, c.x, c.y);
         v.fit = false;
@@ -284,6 +299,11 @@
         ctx.clearRect(0, 0, c.width, c.height);
         var v = this.views[this.key];
         if (!v || !v.img || !v.xf) return;
+        if (this._ext) {
+            this._ext.setWindow(v.win.lo, v.win.hi);
+            v.dirty = false;
+            return;
+        }
         if (v.dirty) this._render(v);
         var d = this.dpr, xf = v.xf;
         // сглаживание — только при уменьшении; при увеличении видны пиксели
@@ -319,7 +339,7 @@
         var self = this, stage = this.stage;
 
         stage.addEventListener('wheel', function (e) {
-            if (!self.xf()) return;
+            if (!self.xf() || self._ext) return;
             e.preventDefault();
             var r = stage.getBoundingClientRect();
             var dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
@@ -328,7 +348,7 @@
         }, {passive: false});
 
         stage.addEventListener('pointerdown', function (e) {
-            if (!self.xf()) return;
+            if (!self.xf() || self._ext) return;
             if (e.button !== 0 && e.button !== 1) return;
             if (e.target && e.target.closest && e.target.closest('[data-handle]')) return;   // ручки наложения
             // без preventDefault для левой кнопки: иначе поле ввода не теряет фокус и не шлёт change;
@@ -378,6 +398,7 @@
         });
         stage.addEventListener('dblclick', function (e) {
             if (e.target && e.target.closest && e.target.closest('[data-handle]')) return;
+            if (self._ext) return;          // внешний вид сам обрабатывает двойной щелчок
             self.fit();
         });
 
@@ -397,8 +418,12 @@
     Viewer.prototype._refreshReadout = function () {
         if (!this.readout) return;
         var v = this.views[this.key], p = this._lastPointer;
-        var hint = v && v.img ? this.hint : '';
+        var hint = v && v.img ? (this._ext ? v.desc.hint || '' : this.hint) : '';
         this.readout.classList.toggle('sv-hint', true);
+        if (this._ext) {
+            this.readout.textContent = hint;
+            return;
+        }
         if (!v || !v.img || !v.xf || !p) {
             this.readout.textContent = hint;
             return;

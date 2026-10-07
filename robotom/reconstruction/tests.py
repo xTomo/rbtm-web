@@ -43,6 +43,7 @@ VIEW_REQUESTS = (
     ('get', 'jobs/' + SID + '/log'),
     ('get', 'results/exp-1'),
     ('get', 'results/exp-1/slice'),
+    ('get', 'results/exp-1/volume3d'),
     ('get', 'results/exp-1/file/obj.4.raw'),
     ('get', 'results/exp-1/recipes/current'),
     ('get', 'results/exp-1/recipes/367236ad4c65411f8b29343d207c24e7'),
@@ -414,6 +415,8 @@ class ApiWhitelistTest(StudioUsersMixin, ServiceMockMixin, TestCase):
             ('patch', 'sessions/' + SID),
             ('post', 'results/exp-1'),
             ('post', 'results/exp-1/recipes/current'),
+            ('post', 'results/exp-1/volume3d'),
+            ('get', 'results/exp-1/volume3d/x'),
         ))
 
     def test_api_root_reverse(self):

@@ -798,6 +798,16 @@
         });
     };
 
+    /** Время ISO 8601 → «14:05» (местное); сегодняшняя дата не пишется, другая — «07.10 14:05». */
+    core.fmtTime = function (iso, now) {
+        var d = new Date(iso);
+        if (!iso || isNaN(d.getTime())) return '';
+        var t = d.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+        var n = now ? new Date(now) : new Date();
+        if (d.toDateString() === n.toDateString()) return t;
+        return d.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'}) + ' ' + t;
+    };
+
     /** Число из поля ввода: допускает запятую и пробелы; пустое или мусор — NaN. */
     core.parseNum = function (str) {
         if (typeof str === 'number') return str;

@@ -117,6 +117,7 @@
             });
             app.viewer.on('view', function () {
                 self._renderSwitch();
+                self._render3d();           // настройки 3D видны только на 3D-виде
             });
         }
         app.jobs.on('finished', function (job) {
@@ -363,7 +364,7 @@
 
     StepResult.prototype._render3d = function () {
         var e = this.e, r = this.r3d, st = this.st;
-        ui.show(e.v3d, !!(r && st.resultDoc && this.n[this.axis]));
+        ui.show(e.v3d, !!(r && st.resultDoc && this.n[this.axis] && this.app.viewer.current() === 'volume3d'));
         if (!r) return;
         if (e.mode3d) {
             ui.qsa('[data-mode]', e.mode3d).forEach(function (b) {
@@ -434,6 +435,23 @@
         if (parts.length) row('Рецепт', parts.join(' · '));
         el.appendChild(dl);
 
+        if (r.warnings && r.warnings.length) {
+            var ul = ui.el('ul', {class: 'st-warnings'});
+            r.warnings.forEach(function (w) {
+                ul.appendChild(ui.el('li', {text: w}));
+            });
+            el.appendChild(ul);
+        }
+
+        // путь, файлы и прежние запуски — под раскрытием: нужны редко, а переключатель «Срез объёма | 3D»
+        // и ось среза должны быть на виду
+        var self = this, nFiles = (doc.files || []).length + (doc.history || []).length;
+        var more = ui.el('details', {class: 'st-res-more'}, [ui.el('summary', {text: 'Файлы и прежние запуски' +
+            (nFiles ? ' (' + nFiles + ')' : '')})]);
+        if (this._moreOpen) more.open = true;
+        more.addEventListener('toggle', function () {
+            self._moreOpen = more.open;
+        });
         // путь к полному объёму (скачивается как раньше, мимо сервиса)
         if (vol.file) {
             var path = String(doc.dir || '').replace(/\/+$/, '') + '/' + vol.file;
@@ -453,8 +471,8 @@
                     done();
                 }
             });
-            el.appendChild(ui.el('div', {class: 'st-label', text: 'Полный объём:'}));
-            el.appendChild(ui.el('div', {class: 'input-group input-group-sm st-path-group'}, [
+            more.appendChild(ui.el('div', {class: 'st-label', text: 'Полный объём:'}));
+            more.appendChild(ui.el('div', {class: 'input-group input-group-sm st-path-group'}, [
                 inp, ui.el('span', {class: 'input-group-btn'}, [copy])
             ]));
             var links = fullVolumeLinks(doc, this.app.config.full_volume_url);
@@ -466,41 +484,34 @@
                     ful.appendChild(ui.el('li', null, [a, ui.el('span', {class: 'text-muted', text: ' ' +
                         core.fmtBytes(f.size)})]));
                 });
-                el.appendChild(ful);
+                more.appendChild(ful);
             }
-        }
-
-        if (r.warnings && r.warnings.length) {
-            var ul = ui.el('ul', {class: 'st-warnings'});
-            r.warnings.forEach(function (w) {
-                ul.appendChild(ui.el('li', {text: w}));
-            });
-            el.appendChild(ul);
         }
 
         var files = doc.files || [];
         if (files.length) {
-            el.appendChild(ui.el('div', {class: 'st-label', text: 'Файлы:'}));
+            more.appendChild(ui.el('div', {class: 'st-label', text: 'Файлы:'}));
             var fl = ui.el('ul', {class: 'st-files'});
             files.forEach(function (f) {
                 var a = ui.el('a', {href: api.url('results/' + id + '/file/' + encodeURIComponent(f.name)), text: f.name,
                     download: f.name});
                 fl.appendChild(ui.el('li', null, [a, ui.el('span', {class: 'text-muted', text: ' ' + core.fmtBytes(f.size)})]));
             });
-            el.appendChild(fl);
+            more.appendChild(fl);
         }
 
         var hist = doc.history || [];
         if (hist.length) {
-            el.appendChild(ui.el('div', {class: 'st-label', text: 'Прежние запуски:'}));
+            more.appendChild(ui.el('div', {class: 'st-label', text: 'Прежние запуски:'}));
             var hl = ui.el('ul', {class: 'st-history'});
             hist.forEach(function (h) {
                 hl.appendChild(ui.el('li', {text: core.fmtDate(h.created) + ' · запуск ' + String(h.run_id || '').slice(0, 8) +
                     (h.recipe_sha256 ? ' · рецепт ' + String(h.recipe_sha256).slice(0, 8) : '') +
                     (h.has_recipe ? '' : ' (без рецепта)')}));
             });
-            el.appendChild(hl);
+            more.appendChild(hl);
         }
+        el.appendChild(more);
     };
 
     StepResult.prototype._renderControls = function () {

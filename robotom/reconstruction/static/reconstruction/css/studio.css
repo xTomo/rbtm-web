@@ -100,6 +100,16 @@
 .st-checks label, .st-res-3d .st-grid-row label { font-weight: normal; font-size: 12px; margin: 0; }
 .st-res-3d .st-grid-row select { flex: 0 1 90px; height: 24px; padding: 1px 4px; }
 .sv-gl { cursor: grab; touch-action: none; }
+/* значок «?» и его карточка (help.js) */
+.st-help { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+    margin-left: 4px; border: 1px solid #bbb; border-radius: 50%; background: #fff; color: #777;
+    font: 600 10px/1 sans-serif; vertical-align: 1px; cursor: help; user-select: none; }
+.st-help:hover, .st-help:focus, .st-help.st-help-on { border-color: #337ab7; color: #337ab7; outline: none; }
+.st-help:focus-visible { box-shadow: 0 0 0 2px rgba(51, 122, 183, 0.35); }
+.st-help-pop { position: fixed; z-index: 1070; max-width: 320px; padding: 7px 10px; background: #fff;
+    color: #333; border: 1px solid #ccc; border-radius: 3px; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+    font-size: 12px; line-height: 1.45; white-space: pre-line; pointer-events: none; }
+.st-help-pop.st-pinned { pointer-events: auto; }
 .st-res-switch { margin: 6px 0 8px; }
 .sv-scalebar { position: absolute; left: 12px; bottom: 12px; pointer-events: none; color: #fff;
     font-size: 12px; line-height: 14px; text-shadow: 0 0 3px #000, 0 0 2px #000; }
@@ -216,8 +226,14 @@
 .ov-frame.ov-tile.ov-sel { stroke: #5cb85c; stroke-width: 2.5px; }
 .ov-label2 { fill: #e8e8e8; font-size: 11px; }
 
-/* лента углов */
+/* лента углов: на видах результата и сравнения свёрнута в строку (класс на #studio, studio.js foldThumbs) */
 .st-thumbs-wrap { margin-top: 6px; }
+.st-thumbs-toggle { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
+.st-thumbs-toggle::before { content: '▾ '; color: #999; }
+.st-thumbs-folded .st-thumbs-toggle::before { content: '▸ '; }
+.st-thumbs-toggle:hover { color: #333; }
+.st-thumbs-folded #st-thumbs { display: none; }
+.st-thumbs-folded .sv-stage { height: calc(100vh - 230px); }
 .st-thumbs { display: flex; gap: 4px; overflow-x: auto; min-height: 76px; padding-bottom: 4px; align-items: flex-start; }
 .st-thumb {
     flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; padding: 2px; line-height: 1;
@@ -230,15 +246,35 @@
 .st-thumb.st-thumb-sel { box-shadow: 0 0 0 2px #337ab7; }
 .st-thumbs-msg { padding: 6px; font-size: 12px; }
 
-/* панель задачи */
-.st-job-panel { margin-top: 8px; }
-.st-job-panel > .panel-heading { padding: 5px 10px; font-weight: 600; }
-.st-job-panel > .panel-body { padding: 8px 10px; }
-.st-job-head { margin-bottom: 4px; }
-.st-job-stage { font-size: 12px; }
-.st-job-info { font-size: 12px; margin: 2px 0 4px; }
+/* задача: строка статуса в шапке (jobs.js _renderHead) и подробности в шаге 4 (_renderStep) */
+.st-job-head { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; max-width: 60%;
+    padding: 2px 10px; border: 1px solid #ccc; border-radius: 12px; background: #f7f7f7; font-size: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; align-self: center; }
+.st-job-head:hover, .st-job-head:focus { border-color: #337ab7; outline: none; }
+.st-jh-running { border-color: #9cbbe0; background: #eef4fa; color: #23527c; }
+.st-jh-queued { color: #777; }
+.st-jh-done { border-color: #a6d3a6; background: #eef7ee; color: #2b672b; }
+.st-jh-error { border-color: #e1a9a8; background: #fbeeee; color: #a94442; }
+.st-jh-canceled { color: #777; }
+.st-jh-bar { flex: 0 0 120px; height: 6px; border-radius: 3px; background: #d6e3f1; overflow: hidden; }
+.st-jh-fill { display: block; height: 100%; background: #337ab7; }
+.st-jh-text { overflow: hidden; text-overflow: ellipsis; }
+.st-jh-link { text-decoration: underline; }
+.st-rj-head { margin-bottom: 3px; }
+.st-rj-time { margin: 2px 0; }
+.st-rj-show { padding: 0 2px; vertical-align: baseline; }
+.st-rj-error { margin: 4px 0; padding: 5px 8px; font-size: 12px; }
+.st-rj-more > summary, .st-job-others > summary, .st-res-more > summary {
+    display: list-item; font-size: 12px; color: #777; cursor: pointer; user-select: none; }
+.st-res-more { margin: 4px 0 2px; }
 .st-job-btns { margin: 4px 0; }
 .st-job-others { margin-top: 6px; }
+/* вкладки видов: две группы с подписями */
+.st-tabs { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.st-tab-group { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: #999; margin-left: 4px; }
+.st-tab-group:first-child { margin-left: 0; }
+.sv-pal-off { opacity: 0.55; }
+.sv-pal-note { font-size: 11px; color: #a94442; }
 .st-job-list { margin: 2px 0 0; font-size: 12px; width: auto; }
 .st-job-list > tbody > tr { cursor: pointer; }
 .st-job-list > tbody > tr > td { padding: 2px 8px 2px 0; border-top: none; max-width: none; }

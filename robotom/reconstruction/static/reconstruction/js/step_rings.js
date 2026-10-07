@@ -22,7 +22,6 @@
         this.app = app;
         this.st = app.state;
         this.group = ui.$('rings-group');
-        this.note = ui.$('rings-note');
         if (this.group) {
             ui.qsa('[data-rings]', this.group).forEach(function (b) {
                 b.addEventListener('click', function () {
@@ -51,9 +50,9 @@
                 b.classList.toggle('btn-primary', on);
                 b.classList.toggle('btn-default', !on);
                 b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                b.title = NOTES[b.getAttribute('data-rings')] || '';   // что делает пресет — подсказкой кнопки
             });
         }
-        ui.text(this.note, NOTES[cur] || '');
     };
 
     S.StepRings = StepRings;

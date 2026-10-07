@@ -562,8 +562,6 @@
         this._drag = false;
         container.classList.add('sv-hist');
         this.plot = el('div', 'sv-hist-plot');
-        this.plot.title = 'Ось — окно и по 20 % его ширины с каждой стороны: отпустите ручку у края, ось раздвинется. ' +
-            'Двойной щелчок — весь диапазон данных / снова по окну. Полоса внизу — палитра окна';
         this.canvas = el('canvas');
         this.hLo = el('div', 'sv-hh sv-hh-lo');
         this.hHi = el('div', 'sv-hh sv-hh-hi');
@@ -590,6 +588,16 @@
         ctl.appendChild(this.unit);
         ctl.appendChild(this.autoBtn);
         ctl.appendChild(this._buildPalette());
+        var help = el('span', 'st-help');
+        help.tabIndex = 0;
+        help.setAttribute('role', 'button');
+        help.setAttribute('aria-label', 'Пояснение: гистограмма');
+        help.setAttribute('data-help', 'Ось гистограммы — окно и по 20 % его ширины с каждой стороны: отпустите ' +
+            'ручку у края — ось раздвинется, и ручку можно тянуть дальше. Двойной щелчок по гистограмме — весь ' +
+            'диапазон данных, ещё раз — снова по окну.\nПолоса внизу — палитра: каким цветом рисуется значение над ' +
+            'ней. Палитра действует на срезы и 3D; проекции и 0° − 180° всегда серые.');
+        help.textContent = '?';
+        ctl.appendChild(help);
         container.appendChild(this.plot);
         container.appendChild(ctl);
 
@@ -627,9 +635,7 @@
         var wrap = el('div', 'sv-pal');
         var btn = this.palBtn = el('button', 'btn btn-default btn-xs sv-pal-btn');
         btn.type = 'button';
-        btn.title = 'Палитра срезов и 3D (проекции и 0° − 180° — серые). inferno, viridis, magma, plasma, cividis — ' +
-            'яркость растёт монотонно, ложных границ нет; jet привычна, но рисует границы на голубом и жёлтом, ' +
-            'которых в данных нет';
+        btn.title = 'Палитра срезов и 3D';
         this.palSwatch = el('canvas', 'sv-pal-swatch');
         this.palSwatch.width = 48;
         this.palSwatch.height = 10;
@@ -649,6 +655,16 @@
             name.textContent = p[1];
             item.appendChild(sw);
             item.appendChild(name);
+            if (p[0] === 'jet') {
+                // яркость jet немонотонна: на голубом и жёлтом глаз видит границы, которых в данных нет
+                var note = el('span', 'sv-pal-note');
+                note.textContent = 'ложные границы';
+                item.appendChild(note);
+                item.title = 'Яркость jet меняется немонотонно: на голубом и жёлтом видны границы, которых в данных нет';
+            } else if (p[0] !== 'gray') {
+                item.title = 'Яркость растёт монотонно — ложных границ нет' +
+                    (p[0] === 'cividis' ? '; различима и при дальтонизме' : '');
+            }
             item.addEventListener('click', function () {
                 viewer.setPalette(p[0]);
                 self._closeMenu();
@@ -688,13 +704,18 @@
         root.document.removeEventListener('keydown', this._esc);
     };
 
+    /** Кнопка палитры: выбранная палитра; на серых видах (проекции, 0° − 180°) — приглушена, с серым образцом. */
     Histogram.prototype._renderPalette = function () {
-        var name = this.viewer.palette;
-        paintSwatch(this.palSwatch, name);
+        var name = this.viewer.palette, v = this.v;
+        var off = !!(v && v.img) && this.viewer.paletteName(v) === 'gray' && name !== 'gray';
+        paintSwatch(this.palSwatch, off ? 'gray' : name);
         var p = core.PALETTES.filter(function (x) {
             return x[0] === name;
         })[0];
         this.palName.textContent = p ? p[1] : name;
+        this.palBtn.classList.toggle('sv-pal-off', off);
+        this.palBtn.title = off ? 'Палитра ' + (p ? p[1] : name) + ' действует на срезы и 3D; этот вид всегда серый' :
+            'Палитра срезов и 3D';
     };
 
     /** Ось: окно ± 20 % (или весь диапазон данных); во время перетаскивания ручки не меняется. */

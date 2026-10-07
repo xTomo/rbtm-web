@@ -8,7 +8,7 @@
 - asset_version — добавляется к URL статики (?v=...): Apache кэширует JS на год.
 
 Разметка шагов и просмотрщика — здесь, поведение — static/reconstruction/js/*.js (window.Studio, без сборки;
-порядок подключения важен: core → api → ui → viewer → volume3d → overlay → thumbstrip → steps → session → jobs → step_fov →
+порядок подключения важен: core → api → ui → help → viewer → volume3d → overlay → thumbstrip → steps → session → jobs → step_fov →
 step_axis → step_rings → step_smoothing → step_denoise → compare → step_run → step_result → studio).
 {% endcomment %}
 {% block content %}
@@ -26,6 +26,7 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
               title="Загрузка области и запуск реконструкции доступны экспериментатору и администратору">только просмотр</span>
         <button id="st-recipes" type="button" class="btn btn-default btn-xs st-recipes-open"
                 title="Рецепты запусков: посмотреть, скачать, загрузить из файла, применить к шагам, запустить как есть">Рецепты</button>
+        <div id="st-job" class="st-job-head hidden" role="button" tabindex="0"></div>
     </div>
 
     <div class="row st-row">
@@ -113,7 +114,9 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             <input id="axis-row" type="number" class="form-control input-sm" step="1">
                         </div>
                         <div class="st-grid-row st-nudge" title="Столбец оси на строке превью, пиксели кадра">
-                            <label for="axis-center">Центр, px</label>
+                            <label for="axis-center">Центр, px<span class="st-help" tabindex="0" role="button"
+                                    aria-label="Пояснение: клавиши оси"
+                                    data-help="На срезе: ← → — центр ±¼ px (с Shift ±1), ↑ ↓ — наклон ±0,01° (с Shift ±0,1°).&#10;Наклон проверяйте срезами у верха и низа рамки.">?</span></label>
                             <button type="button" class="btn btn-default btn-xs" data-nudge="center" data-step="-1">−1</button>
                             <button type="button" class="btn btn-default btn-xs" data-nudge="center" data-step="-0.25">−¼</button>
                             <input id="axis-center" type="number" class="form-control input-sm" step="0.25">
@@ -128,8 +131,6 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             <button type="button" class="btn btn-default btn-xs" data-nudge="tilt" data-step="0.01">+0,01</button>
                             <button type="button" class="btn btn-default btn-xs" data-nudge="tilt" data-step="0.1">+0,1</button>
                         </div>
-                        <div class="st-note text-muted">На срезе: ← → — центр ±¼ px (с Shift ±1), ↑ ↓ — наклон ±0,01°
-                            (с Shift ±0,1°). Наклон проверяйте срезами у верха и низа рамки.</div>
                         <div class="st-btns">
                             <button id="axis-slice" type="button" class="btn btn-default btn-sm"
                                     title="Срез строки превью при найденной оси">Срез</button>
@@ -156,13 +157,14 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             <button type="button" class="btn btn-default" data-rings="medium">Средне</button>
                             <button type="button" class="btn btn-default" data-rings="strong">Сильно</button>
                         </div>
-                        <div id="rings-note" class="st-note text-muted"></div>
                         <div class="st-btns">
                             <button type="button" class="btn btn-default btn-sm" data-compare="rings"
-                                    title="Фрагмент среза 1:1 при всех пресетах колец (с текущим сглаживанием) — вид «Сравнение»">Сравнить кольца</button>
+                                    title="Фрагмент 1:1 при всех пресетах колец">Сравнить кольца</button>
                         </div>
 
-                        <div class="st-sub st-sep">Сглаживание проекций:</div>
+                        <div class="st-sub st-sep">Сглаживание проекций:<span class="st-help" tabindex="0" role="button"
+                                aria-label="Пояснение: сглаживание проекций"
+                                data-help="Каждая проекция сглаживается гауссом σ (по желанию — деблюринг тем же ядром). Мельче ~2σ детали уходят вместе с шумом: на шумных сканах там и нет сигнала.&#10;«Подобрать σ» сравнивает срезы по чётным и нечётным углам — у них один объект и независимый шум — и берёт σ с наименьшей ошибкой. Фрагмент — видимая часть увеличенного «Превью среза» или квадрат 512 с краями. Шум на плитках сравнения считается так же.&#10;Обзорный срез уменьшен усреднением (обычно в 3 раза) и занижает шум и тонкие кольца — судите по фрагменту 1:1 (вид «Сравнение»).">?</span></div>
                         <div class="btn-group btn-group-sm st-seg" id="sm-toggle" role="group" aria-label="Сглаживание проекций">
                             <button type="button" class="btn btn-default" data-smooth="off">Выкл</button>
                             <button type="button" class="btn btn-default" data-smooth="on">Вкл</button>
@@ -188,41 +190,32 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                                 <input id="sm-strength" type="range" class="st-range">
                                 <span id="sm-strength-val" class="st-range-val"></span>
                             </div>
-                            <div id="sm-deblur-note" class="st-note text-muted"></div>
                         </details>
                         <div class="st-btns">
                             <button type="button" class="btn btn-default btn-sm" id="sm-auto"
-                                    title="Оценить ошибку среза при σ 0…4 (текущие кольца и деблюринг) по двум половинам углов и включить лучшую σ. Фрагмент — видимая часть увеличенного «Среза» или квадрат 512 с краями">Подобрать σ</button>
+                                    title="Выбрать σ с наименьшей ошибкой среза и включить её">Подобрать σ</button>
                             <button type="button" class="btn btn-default btn-sm" data-compare="sigma"
-                                    title="Фрагмент среза 1:1 без сглаживания и при σ 1, 1,5, 2, 2,5, 3, 4 (текущие кольца и деблюринг) — вид «Сравнение»">Сравнить σ</button>
+                                    title="Фрагмент 1:1 при σ от 0 до 4">Сравнить σ</button>
                         </div>
                         <div id="sm-auto-note" class="st-note"></div>
 
-                        <div class="st-sub st-sep">Шумоподавление после реконструкции (TV 3D):</div>
+                        <div class="st-sub st-sep">Шумоподавление после реконструкции (TV 3D):<span class="st-help"
+                                tabindex="0" role="button" aria-label="Пояснение: TV 3D"
+                                data-help="TV выравнивает гладкие области и оставляет края резкими — в отличие от сглаживания, которое размывает всё. Лучше вместе со сглаживанием проекций σ 1 без деблюра.&#10;Сила — в долях шума среза: 2–3σ обычно достаточно, при 4σ и больше мелкие детали начинают сливаться.&#10;Задача дольше на несколько минут (оценка — в шаге 4).">?</span></div>
                         <div class="btn-group btn-group-sm st-seg" id="tv-toggle" role="group" aria-label="Шумоподавление TV 3D">
                             <button type="button" class="btn btn-default" data-tv="off">Выкл</button>
                             <button type="button" class="btn btn-default" data-tv="on">Вкл</button>
                         </div>
-                        <div class="st-grid-row st-slider" title="Вес TV в долях σ шума среза (0,5…5; по умолчанию 2): больше — чище, но мелкие детали сливаются">
+                        <div class="st-grid-row st-slider" title="Вес TV в долях шума среза; по умолчанию 2σ">
                             <label for="tv-strength">сила</label>
                             <input id="tv-strength" type="range" class="st-range" min="0.5" max="5" step="0.5" value="2">
                             <span id="tv-strength-val" class="st-range-val"></span>
                         </div>
                         <div class="st-btns">
                             <button type="button" class="btn btn-default btn-sm" data-compare="tv"
-                                    title="Фрагмент среза 1:1 без TV и с силой 1, 2, 3, 4σ (текущие кольца и сглаживание) — вид «Сравнение»">Сравнить TV</button>
+                                    title="Фрагмент 1:1 без TV и при 1–4σ">Сравнить TV</button>
                         </div>
                         <div id="tv-hint" class="st-note text-warning"></div>
-                        <div class="st-note text-muted">TV выравнивает гладкие области и оставляет края резкими — в
-                            отличие от сглаживания, которое размывает всё. Лучше вместе со сглаживанием проекций σ 1
-                            без деблюра. Сила — в долях шума среза: 2–3σ обычно достаточно, при 4σ и больше мелкие
-                            детали начинают сливаться. Задача дольше на несколько минут (оценка — в шаге 4).</div>
-                        <div class="st-note text-muted">Каждая проекция сглаживается гауссом σ (по желанию — деблюринг
-                            тем же ядром). Мельче ~2σ детали уходят вместе с шумом: на шумных сканах там и нет сигнала.
-                            «Подобрать σ» сравнивает срезы по чётным и нечётным углам — у них один объект и независимый
-                            шум — и берёт σ с наименьшей ошибкой. Шум на плитках сравнения считается так же. Обзорный
-                            срез уменьшен усреднением (обычно ×3) и занижает шум и тонкие кольца — судите по фрагменту
-                            1:1 (вид «Сравнение»).</div>
 
                         <div id="cmp-panel" class="st-cmp hidden">
                             <div id="cmp-info" class="st-note"></div>
@@ -230,9 +223,9 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                                 <button id="cmp-show" type="button" class="btn btn-default btn-xs">Показать</button>
                                 <button id="cmp-large" type="button" class="btn btn-default btn-xs"
                                         title="Одна плитка на весь вид (Enter или пробел); ← → — листать варианты">Крупно</button>
+                                <span class="st-help" tabindex="0" role="button" aria-label="Пояснение: сравнение"
+                                      data-help="Щелчок по плитке — выбрать вариант.&#10;Enter или пробел — крупно, ← → — листать варианты на том же месте, Esc — мозаика.">?</span>
                             </div>
-                            <div class="st-note text-muted">Щелчок по плитке — выбрать вариант. Enter или пробел —
-                                крупно, ← → — листать варианты на том же месте, Esc — мозаика.</div>
                         </div>
                     </div>
                 </div>
@@ -258,7 +251,9 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             <button type="button" class="btn btn-default" data-angles="full_halves"
                                     title="Все полные полуобороты с усреднением: меньше шума, нужна точная ось">Все полуобороты</button>
                         </div>
-                        <div class="st-sub">Копии с биннингом:</div>
+                        <div class="st-sub">Копии с биннингом:<span class="st-help" tabindex="0" role="button"
+                                aria-label="Пояснение: копии с биннингом"
+                                data-help="Можно выбрать несколько. Полный объём пишется всегда; копия ×b — среднее по кубу b×b×b.&#10;Шаг 5 показывает срезы копии с наибольшим биннингом.">?</span></div>
                         <div class="btn-group btn-group-sm st-seg" id="run-binning" role="group" aria-label="Копии с биннингом">
                             <button type="button" class="btn btn-default" data-binning="2"
                                     title="Копия, уменьшенная в 2 раза по каждой оси (объём в 8 раз меньше полного)">×2</button>
@@ -267,8 +262,6 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             <button type="button" class="btn btn-default" data-binning="8"
                                     title="Копия, уменьшенная в 8 раз по каждой оси (объём в 512 раз меньше полного)">×8</button>
                         </div>
-                        <div class="st-note text-muted">Можно выбрать несколько. Полный объём пишется всегда; копия ×b —
-                            среднее по кубу b×b×b. Шаг 5 показывает срезы копии с наибольшим биннингом.</div>
                         <div id="run-estimate" class="st-estimate"></div>
                         <div class="st-btns">
                             <button id="run-btn" type="button" class="btn btn-primary btn-sm">Запустить</button>
@@ -284,14 +277,14 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                         <span class="st-status st-s-none">—</span>
                     </div>
                     <div class="panel-body">
-                        <div id="res-info"></div>
                         <div id="res-switch" class="btn-group btn-group-sm st-seg st-res-switch hidden" role="group"
                              aria-label="Что показывать">
                             <button type="button" class="btn btn-default" data-res="slice"
-                                    title="Срез копии с биннингом — ось и номер ниже">Срез</button>
+                                    title="Срез копии с биннингом — ось и номер ниже">Срез объёма</button>
                             <button type="button" class="btn btn-default" data-res="3d"
                                     title="Весь объём в 3D: копия, уменьшенная до ≤ 320³ вокселей (рисует видеокарта этого компьютера)">3D</button>
                         </div>
+                        <div id="res-info"></div>
                         <div id="res-view" class="st-res-view hidden">
                             <div id="res-sub" class="st-sub"
                                  title="Копия объёма, уменьшенная в b раз по каждой оси (среднее по кубу b×b×b)">Срезы копии с биннингом:</div>
@@ -307,7 +300,9 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             <input id="res-slider" type="range" class="st-res-slider" min="0" max="0" step="1">
                         </div>
                         <div id="res-3d" class="st-res-3d hidden">
-                            <div class="st-sub st-sep">Объёмный вид: <span id="res-3d-info" class="text-muted"></span></div>
+                            <div class="st-sub st-sep">Объёмный вид: <span id="res-3d-info" class="text-muted"></span><span
+                                    class="st-help" tabindex="0" role="button" aria-label="Пояснение: объёмный вид"
+                                    data-help="Окно контраста и палитра — у гистограммы под просмотрщиком, общие со срезами (в «Поверхности» палитры нет). Рёбра рамки подписаны длинами в мм, оранжевая плоскость — срез, выбранный выше.&#10;Мышь: перетаскивание — поворот, Shift или правая кнопка — сдвиг, колесо — масштаб, двойной щелчок — исходный вид.">?</span></div>
                             <div class="btn-group btn-group-xs st-seg" id="res-3d-mode" role="group" aria-label="Рендер">
                                 <button type="button" class="btn btn-default" data-mode="soft"
                                         title="Максимум вдоль луча, ослабленный пройденным веществом: читается глубина">Мягкий</button>
@@ -345,10 +340,6 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                             </div>
                             <input id="res-3d-clip-pos" type="range" class="st-res-slider" min="0" max="1000" step="1"
                                    value="500" title="Положение плоскости разреза">
-                            <div class="st-note text-muted">Окно контраста и палитра — у гистограммы под
-                                просмотрщиком, общие со срезами (в «Поверхности» палитры нет). Рамка подписана длинами
-                                рёбер в мм. Мышь: перетаскивание — поворот, Shift или правая кнопка — сдвиг, колесо —
-                                масштаб, двойной щелчок — исходный вид.</div>
                         </div>
                     </div>
                 </div>
@@ -359,7 +350,9 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
         <!-- просмотрщик -->
         <div class="col-md-9 st-right">
             <div class="st-toolbar">
-                <div class="btn-group btn-group-xs" id="sv-tabs" role="group" aria-label="Вид">
+                <div id="sv-tabs" class="st-tabs" role="group" aria-label="Вид">
+                    <span class="st-tab-group">Подготовка</span>
+                    <div class="btn-group btn-group-xs">
                     <button type="button" class="btn btn-default" data-view="envelope"
                             title="Огибающая max(−ln T) по углам выборки обзора: где объект на детекторе; на ней задаётся рамка">Огибающая</button>
                     <button type="button" class="btn btn-default" data-view="sample"
@@ -367,15 +360,19 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                     <button type="button" class="btn btn-default" data-view="sinogram"
                             title="Синограмма строки превью по 90 углам">Синограмма</button>
                     <button type="button" class="btn btn-default" data-view="slice"
-                            title="Превью: срез строки превью по загруженной области при текущей оси и кольцах (не готовый объём)">Срез</button>
+                            title="Превью: срез строки превью по загруженной области при текущей оси и кольцах (не готовый объём)">Превью среза</button>
                     <button type="button" class="btn btn-default" data-view="diff"
                             title="Кадр 0° минус отражённый кадр 180°: при верной оси контуры гасятся">0° − 180°</button>
                     <button type="button" class="btn btn-default" data-view="compare"
-                            title="Фрагмент среза 1:1 при разных кольцах или σ (кнопки «Сравнить…» в шаге 3): щелчок по плитке — выбрать, Enter — крупно">Сравнение</button>
+                            title="Фрагмент среза 1:1 при разных кольцах, σ или TV (кнопки «Сравнить…» в шаге 3): щелчок по плитке — выбрать, Enter — крупно">Сравнение</button>
+                    </div>
+                    <span class="st-tab-group">Результат</span>
+                    <div class="btn-group btn-group-xs">
                     <button type="button" class="btn btn-default" data-view="result"
-                            title="Срез готового объёма последнего запуска (копия ×4). Есть после реконструкции; ось и номер среза — в шаге 5">Готовый объём</button>
+                            title="Срез готового объёма последнего запуска (копия с наибольшим биннингом); ось и номер среза — в шаге 5">Срез объёма</button>
                     <button type="button" class="btn btn-default" data-view="volume3d"
                             title="Готовый объём целиком в 3D (копия, уменьшенная до ≤ 320³ вокселей); настройки — в шаге 5">3D</button>
+                    </div>
                 </div>
                 <div class="btn-group btn-group-xs" role="group" aria-label="Масштаб">
                     <button id="sv-fit" type="button" class="btn btn-default" title="Вписать (двойной щелчок)">Вписать</button>
@@ -387,13 +384,9 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
             <div id="sv-hist"></div>
 
             <div class="st-thumbs-wrap">
-                <div class="st-sub">Углы выборки обзора: щелчок — кадр угла; красная рамка — объект выходит за рамку на этом угле</div>
+                <button id="st-thumbs-toggle" type="button" class="st-sub st-thumbs-toggle"
+                        title="Свернуть / развернуть ленту углов">Углы выборки обзора: щелчок — кадр угла; красная рамка — объект выходит за рамку на этом угле</button>
                 <div id="st-thumbs" class="st-thumbs"></div>
-            </div>
-
-            <div class="panel panel-default st-job-panel">
-                <div class="panel-heading">Задача реконструкции</div>
-                <div class="panel-body" id="job-panel"></div>
             </div>
         </div>
     </div>
@@ -402,6 +395,7 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
 <script src="{% static 'reconstruction/js/core.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/api.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/ui.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/help.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/viewer.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/volume3d.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/overlay.js' %}?v={{ asset_version }}"></script>

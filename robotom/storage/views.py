@@ -7,15 +7,16 @@ import json
 
 from django.contrib import messages
 from django.core.files.storage import default_storage
-from django.http import HttpResponseBadRequest, HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotFound
 from django.shortcuts import render
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.urls import NoReverseMatch, reverse
+from django.views.decorators.http import require_POST
 
 from requests.exceptions import Timeout
 from robotom.utils import force_https
-from reconstruction.views import can_view_studio
+from reconstruction.views import can_run_studio, can_view_studio
 
 
 storage_logger = logging.getLogger('storage_logger')
@@ -264,6 +265,7 @@ def storage_view(request):
         'pages': range(1, num_pages + 1),
         'storage_url': storage_url,
         'page_size': page_size,
+        'can_delete': can_delete_experiment(request.user),
     })
 
 
@@ -343,6 +345,8 @@ def storage_record_view(request, storage_record_id):
 
 
 # TODO: route w/o user check?
+@login_required
+@user_passes_test(is_active)
 def frames_downloading(request, storage_record_id):
     try:
         frame_request = json.dumps({"exp_id": storage_record_id})
@@ -424,10 +428,48 @@ def frames_downloading(request, storage_record_id):
     return HttpResponse(u'Изображения получены успешно', content_type='text/plain')
 
 
-# TODO: route w/o user check?
+def can_delete_experiment(user):
+    """Удаление эксперимента (хранилище стирает его папку вместе с HDF5): ADM или EXP — те же роли, что запускают
+    реконструкцию."""
+    return can_run_studio(user)
+
+
+def _experiment_specimen(experiment_id):
+    """Название образца эксперимента из хранилища: строка; None — эксперимента нет."""
+    answer = requests.post(settings.STORAGE_EXPERIMENTS_GET_HOST, json.dumps({'_id': experiment_id}),
+                           timeout=settings.TIMEOUT_DEFAULT)
+    if answer.status_code != 200:
+        raise RuntimeError(u'хранилище ответило {}'.format(answer.status_code))
+    found = json.loads(answer.content)
+    if not found:
+        return None
+    return found[0].get('specimen') or ''
+
+
+@require_POST
+@login_required
 def delete_experiment(request, experiment_id):
+    """Удалить эксперимент: только POST (с CSRF), только ADM/EXP, с подтверждением — в поле ``confirm`` название
+    образца (у эксперимента без названия — его id), сверяется с хранилищем. Раньше удалял любой GET без входа."""
+    user = request.user.get_username()
+    if not can_delete_experiment(request.user):
+        storage_logger.warning(u'Удаление эксперимента {}: отказано пользователю {}'.format(experiment_id, user))
+        return HttpResponseForbidden(u'Удалять эксперименты может только экспериментатор или администратор.',
+                                     content_type='text/plain')
     try:
-        storage_logger.debug(u'Удаление эксперимента: {}'.format(experiment_id))
+        specimen = _experiment_specimen(experiment_id)
+    except Exception as e:
+        storage_logger.error(u'Удаление эксперимента {}: не удалось проверить название: {}'.format(experiment_id, e))
+        return HttpResponseBadRequest(u'Не удается удалить эксперимент: хранилище не отвечает.',
+                                      content_type='text/plain')
+    if specimen is None:
+        return HttpResponseNotFound(u'Эксперимент не найден.', content_type='text/plain')
+    expected = (specimen or experiment_id).strip()
+    if request.POST.get('confirm', '').strip() != expected:
+        return HttpResponseBadRequest(u'Название образца введено неверно — эксперимент не удалён.',
+                                      content_type='text/plain')
+    try:
+        storage_logger.info(u'Удаление эксперимента {} ({}) пользователем {}'.format(experiment_id, specimen, user))
         response = requests.delete(settings.STORAGE_EXPERIMENTS_HOST + '/' + experiment_id, timeout=settings.TIMEOUT_DEFAULT)
 
         if response.status_code == 200:

@@ -18,20 +18,34 @@ $(".pagination").find("li").find("a").click(function () {
     showPage(parseInt($(this).text()))
 });
 
+/* Удаление эксперимента: хранилище стирает его папку вместе с HDF5, восстановить нельзя. Подтверждение — вводом
+ * названия образца (у эксперимента без названия — его id); сервер сверяет его с хранилищем. Запрос — POST с CSRF;
+ * кнопка есть только у экспериментатора и администратора (сервер проверяет роль сам). */
 function deleteExperiment(experiment_id) {
-    if (confirm("Вы действительно хотите удалить эксперимент? Его невозможно будет восстановить.")) {
-        $.ajax({
-            url: storage_url + 'delete_experiment_' + experiment_id + '/',
-            method: 'GET',
-            dataType: 'text',
-            success: function () {
-                window.showToast('Эксперимент успешно удалён', 'success');
-                var row = document.getElementById('id' + experiment_id);
-                if (row) { row.parentNode.removeChild(row); }
-            },
-            error: function () {
-                window.showToast('Не удалось удалить эксперимент', 'error');
-            }
-        });
+    var btn = document.getElementById(experiment_id);
+    var specimen = (btn && btn.getAttribute('data-specimen')) || '';
+    var expected = specimen || experiment_id;
+    var typed = prompt('Удалить эксперимент «' + expected + '»?\n\nХранилище сотрёт его вместе с HDF5, ' +
+        'восстановить будет нельзя.\nДля подтверждения введите ' + (specimen ? 'название образца' : 'id эксперимента') +
+        ':\n' + expected);
+    if (typed === null) return;
+    if (typed.trim() !== expected.trim()) {
+        window.showToast('Название введено неверно — эксперимент не удалён', 'error');
+        return;
     }
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+    $.ajax({
+        url: storage_url + 'delete_experiment_' + experiment_id + '/',
+        method: 'POST',
+        data: {confirm: typed.trim(), csrfmiddlewaretoken: csrf ? csrf.value : ''},
+        dataType: 'text',
+        success: function () {
+            window.showToast('Эксперимент удалён', 'success');
+            var row = document.getElementById('id' + experiment_id);
+            if (row) { row.parentNode.removeChild(row); }
+        },
+        error: function (xhr) {
+            window.showToast('Не удалось удалить эксперимент: ' + (xhr.responseText || xhr.status), 'error');
+        }
+    });
 }

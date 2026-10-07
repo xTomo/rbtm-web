@@ -1,10 +1,15 @@
-/* Студия реконструкции — панель задачи реконструкции.
+/* Студия реконструкции — задача реконструкции: строка статуса в шапке (#st-job) и подробности в шаге 4 (#run-job).
  *
  * При открытии страницы — GET jobs?exp_id=<id>&limit=5: идущая задача показывается сразу (браузер можно было
  * закрыть). Опрос GET jobs/<id> раз в 1,5 с (при скрытой вкладке — 5 с), прогресс и стадия, «Отменить»
- * (POST jobs/<id>/cancel), ошибка — текст и «Лог» (GET jobs/<id>/log, текст в модальном окне).
+ * (POST jobs/<id>/cancel), ошибка — первая строка, полный текст под «Подробно» и «Лог» (GET jobs/<id>/log).
+ * Шапка: «в очереди», «стадия · 42 % · прошло … · ≈ … осталось» с полосой, «✓ Готово 14:32 (7 мин) · Показать»,
+ * «✕ Ошибка 14:32 · Лог», «Отменена 14:32»; законченная задача видна сутки. Остаток — по оценке шага 4,
+ * запомненной при запуске (setEstimate); экстраполировать по progress нельзя — доли стадий в нём заданы
+ * константами (reconengine/pipeline.py) и не пропорциональны времени.
  *
- * События: 'job' (doc) — состояние задачи; 'finished' (doc) — задача перешла в конечное состояние. */
+ * События: 'job' (doc) — состояние задачи; 'finished' (doc) — задача перешла в конечное состояние; 'open'
+ * ('step' | 'result') — щелчок по статусу: раскрыть шаг 4 или показать результат. */
 (function (root) {
     'use strict';
     var S = root.Studio = root.Studio || {};
@@ -56,8 +61,9 @@
         var self = this;
         this.app = app;
         this.api = app.api;
-        this.el = S.ui.$('job-panel');
+        this.head = S.ui.$('st-job');
         this.mini = S.ui.$('run-job');
+        this.est = {};                  // id задачи → оценка времени при запуске, с
         this.job = null;
         this.recent = [];
         this._timer = null;
@@ -163,50 +169,184 @@
         }, function () { /* показано */ });
     };
 
+    // --- оценка времени при запуске ------------------------------------------------------------------------
+    // Оценка шага 4 считается для текущих настроек, а их после запуска можно менять — поэтому она запоминается в
+    // момент запуска по id задачи (и в localStorage: переживает перезагрузку страницы).
+
+    var EST_KEY = 'studio.jobEstimate.';
+
+    JobPanel.prototype.setEstimate = function (jobId, totalS) {
+        if (!jobId || !(totalS > 0)) return;
+        this.est[jobId] = totalS;
+        try {
+            if (root.localStorage) root.localStorage.setItem(EST_KEY + jobId, String(totalS));
+        } catch (e) { /* приватный режим — только в памяти */ }
+        this.render();
+    };
+
+    JobPanel.prototype.estimateOf = function (jobId) {
+        if (!jobId) return null;
+        if (this.est[jobId] > 0) return this.est[jobId];
+        try {
+            var v = root.localStorage ? parseFloat(root.localStorage.getItem(EST_KEY + jobId)) : NaN;
+            if (v > 0) {
+                this.est[jobId] = v;
+                return v;
+            }
+        } catch (e) { /* нет доступа */ }
+        return null;
+    };
+
+    /** Сколько осталось, с: оценка при запуске − прошло со старта (без ожидания в очереди); null — оценки нет
+     *  или задача не началась; отрицательное — идёт дольше оценки. */
+    function remaining(job, estS, now) {
+        if (!(estS > 0) || !job || !job.started) return null;
+        var e = elapsed(job, now);
+        return e === null ? null : estS - e;
+    }
+
+    /** Строка «прошло … · осталось ≈ …» для идущей задачи. */
+    function timeText(job, estS, now) {
+        var e = elapsed(job, now);
+        if (e === null || !job.started) return '';
+        var s = 'прошло ' + core.fmtDuration(e);
+        var r = remaining(job, estS, now);
+        if (r === null) return s;
+        if (r >= 0) return s + ' · ≈ ' + core.fmtDuration(r) + ' осталось';
+        return s + ' · дольше оценки на ' + core.fmtDuration(-r);
+    }
+
+    /** Строка статуса в шапке: {state, text, action} или null — показывать нечего (нет задач; закончена больше
+     *  суток назад). action: 'step' — раскрыть шаг 4, 'result' — показать результат. */
+    function headState(job, estS, now) {
+        if (!job) return null;
+        now = now || Date.now();
+        var st = job.status;
+        if (st === 'queued') return {state: 'queued', text: 'В очереди · ждёт GPU', action: 'step'};
+        if (isActive(st)) {
+            var frac = core.isNum(job.progress) ? job.progress : null;
+            var parts = [stageText(job.stage) || statusText(st)];
+            if (frac !== null) parts.push(Math.round(frac * 100) + ' %');
+            var t = timeText(job, estS, now);
+            if (t) parts.push(t);
+            if (job.cancel_requested) parts.push('запрошена отмена');
+            return {state: 'running', text: parts.join(' · '), frac: frac, action: 'step'};
+        }
+        var fin = Date.parse(job.finished || '');
+        if (!isNaN(fin) && now - fin > 24 * 3600 * 1000) return null;
+        var when = job.finished ? ' ' + core.fmtTime(job.finished) : '';
+        var dur = elapsed(job, now);
+        if (st === 'done') {
+            return {state: 'done', text: '✓ Готово' + when + (dur !== null ? ' (' + core.fmtDuration(dur) + ')' : ''),
+                action: 'result'};
+        }
+        if (st === 'error' || st === 'interrupted') {
+            return {state: 'error', text: '✕ ' + (st === 'error' ? 'Ошибка' : 'Прервана') + when, action: 'step'};
+        }
+        return {state: 'canceled', text: 'Отменена' + when, action: 'step'};
+    }
+
     // --- отрисовка ------------------------------------------------------------------------------------------
 
     JobPanel.prototype.render = function () {
-        this._renderPanel();
-        this._renderMini();
+        this._renderHead();
+        this._renderStep();
     };
 
     function badge(status) {
-        var e = S.ui.el('span', {class: 'label label-' + (STATUS_CLS[status] || 'default'), text: statusText(status)});
-        return e;
+        return S.ui.el('span', {class: 'label label-' + (STATUS_CLS[status] || 'default'), text: statusText(status)});
     }
 
-    JobPanel.prototype._renderPanel = function () {
-        var el = this.el, ui = S.ui, self = this;
+    /** Строка статуса в шапке страницы: видна на любом шаге; щелчок — к подробностям или к результату. */
+    JobPanel.prototype._renderHead = function () {
+        var el = this.head, ui = S.ui, self = this;
+        if (!el) return;
+        ui.clear(el);
+        var h = headState(this.job, this.estimateOf(this.job && this.job.id));
+        ui.show(el, !!h);
+        if (!h) return;
+        el.className = 'st-job-head st-jh-' + h.state;
+        if (h.state === 'running') {
+            var bar = ui.el('span', {class: 'st-jh-bar'}, [ui.el('span', {class: 'st-jh-fill'})]);
+            bar.firstChild.style.width = Math.round((h.frac || 0) * 100) + '%';
+            el.appendChild(bar);
+        }
+        el.appendChild(ui.el('span', {class: 'st-jh-text', text: h.text}));
+        if (h.action === 'result') el.appendChild(ui.el('span', {class: 'st-jh-link', text: ' · Показать'}));
+        if (h.state === 'error') el.appendChild(ui.el('span', {class: 'st-jh-link', text: ' · Лог'}));
+        var job = this.job;
+        el.title = (job.user ? 'запустил ' + job.user + ' · ' : '') + 'создана ' + core.fmtDate(job.created) +
+            (h.action === 'result' ? ' — щелчок: срез готового объёма' : ' — щелчок: подробности в шаге 4');
+        if (!el._bound) {
+            el._bound = true;
+            el.addEventListener('click', function (e) {
+                var hs = headState(self.job, self.estimateOf(self.job && self.job.id));
+                if (!hs) return;
+                if (e.target.closest('.st-jh-link') && hs.state === 'error') {
+                    self.showLog();
+                    return;
+                }
+                self.emit('open', hs.action);
+            });
+            el.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    el.click();
+                }
+            });
+        }
+    };
+
+    /** Подробности в шаге 4: статус, полоса, время, кнопки, ошибка, предупреждения, прежние задачи. */
+    JobPanel.prototype._renderStep = function () {
+        var el = this.mini, ui = S.ui, self = this;
         if (!el) return;
         ui.clear(el);
         var job = this.job;
         if (!job) {
-            el.appendChild(ui.el('p', {class: 'text-muted', text: 'Задач реконструкции по этому скану не было.'}));
+            ui.hide(el);
             return;
         }
-        var active = isActive(job.status);
-        var head = ui.el('div', {class: 'st-job-head'}, [
-            badge(job.status),
-            ' ',
-            ui.el('span', {class: 'st-job-stage', text: active ? stageText(job.stage) : ''}),
+        ui.show(el);
+        var active = isActive(job.status), estS = this.estimateOf(job.id);
+        var head = ui.el('div', {class: 'st-rj-head'}, [
+            ui.el('span', {text: 'Задача: '}), badge(job.status),
+            active && job.stage ? ui.el('span', {class: 'text-muted', text: ' ' + stageText(job.stage)}) : null,
             job.cancel_requested && active ? ui.el('span', {class: 'text-warning', text: ' · запрошена отмена'}) : null
         ]);
+        head.title = (job.user ? 'запустил ' + job.user + ' · ' : '') + 'создана ' + core.fmtDate(job.created);
         el.appendChild(head);
         if (active) {
-            var bar = ui.el('div', {class: 'progress st-progress'});
+            var bar = ui.el('div', {class: 'progress st-progress st-progress-sm'});
             el.appendChild(bar);
             var frac = job.status === 'queued' ? null : (core.isNum(job.progress) ? job.progress : null);
             ui.progress(bar, frac, frac === null ? (job.status === 'queued' ? 'в очереди' : '') : undefined);
+            var t = timeText(job, estS);
+            if (t) {
+                el.appendChild(ui.el('div', {class: 'st-rj-time text-muted',
+                    text: t + (remaining(job, estS) !== null ? ' (по оценке при запуске)' : '')}));
+            }
+        } else if (job.status === 'done') {
+            var dur = elapsed(job);
+            var show = ui.el('button', {type: 'button', class: 'btn btn-link btn-xs st-rj-show', text: 'Показать результат'});
+            show.addEventListener('click', function () {
+                self.emit('open', 'result');
+            });
+            el.appendChild(ui.el('div', {class: 'st-rj-time'}, [
+                'Готово ' + core.fmtDate(job.finished) + (dur !== null ? ' · считалась ' + core.fmtDuration(dur) : ''),
+                ' ', show
+            ]));
+        } else if (job.finished) {
+            el.appendChild(ui.el('div', {class: 'st-rj-time text-muted', text: 'Завершена ' + core.fmtDate(job.finished)}));
         }
-        var dur = elapsed(job);
-        var info = [];
-        if (job.user) info.push('запустил ' + job.user);
-        info.push('создана ' + core.fmtDate(job.created));
-        if (dur !== null && job.started) info.push((active ? 'идёт ' : 'длилась ') + core.fmtDuration(dur));
-        if (job.finished && !active) info.push('завершена ' + core.fmtDate(job.finished));
-        el.appendChild(ui.el('div', {class: 'st-job-info text-muted', text: info.join(' · ')}));
         if (job.error && (job.status === 'error' || job.status === 'interrupted')) {
-            el.appendChild(ui.el('pre', {class: 'st-error', text: job.error}));
+            var first = String(job.error).split('\n')[0];
+            el.appendChild(ui.el('div', {class: 'alert alert-danger st-rj-error', text: first}));
+            if (String(job.error).indexOf('\n') >= 0) {
+                el.appendChild(ui.el('details', {class: 'st-rj-more'}, [
+                    ui.el('summary', {text: 'Подробно'}), ui.el('pre', {class: 'st-error', text: job.error})
+                ]));
+            }
         }
         if (job.warnings && job.warnings.length) {
             var ul = ui.el('ul', {class: 'st-warnings'});
@@ -253,37 +393,20 @@
                 tb.appendChild(tr);
             });
             tbl.appendChild(tb);
-            el.appendChild(ui.el('div', {class: 'st-job-others'}, [
-                ui.el('div', {class: 'text-muted small', text: 'Прежние задачи:'}), tbl
-            ]));
-        }
-    };
-
-    JobPanel.prototype._renderMini = function () {
-        var el = this.mini, ui = S.ui;
-        if (!el) return;
-        ui.clear(el);
-        var job = this.job;
-        if (!job) {
-            ui.hide(el);
-            return;
-        }
-        ui.show(el);
-        var active = isActive(job.status);
-        el.appendChild(ui.el('div', null, [
-            ui.el('span', {text: 'Задача: '}), badge(job.status),
-            active && job.stage ? ui.el('span', {class: 'text-muted', text: ' ' + stageText(job.stage)}) : null
-        ]));
-        if (active) {
-            var bar = ui.el('div', {class: 'progress st-progress st-progress-sm'});
-            el.appendChild(bar);
-            var frac = job.status === 'queued' ? null : (core.isNum(job.progress) ? job.progress : null);
-            ui.progress(bar, frac);
+            var det = ui.el('details', {class: 'st-job-others'}, [
+                ui.el('summary', {text: 'Прежние задачи (' + others.length + ')'}), tbl
+            ]);
+            if (this._othersOpen) det.open = true;
+            det.addEventListener('toggle', function () {
+                self._othersOpen = det.open;
+            });
+            el.appendChild(det);
         }
     };
 
     S.jobs = {
         ACTIVE: ACTIVE, STATUS: STATUS, STAGE: STAGE, isActive: isActive, pollDelay: pollDelay,
-        statusText: statusText, stageText: stageText, elapsed: elapsed, JobPanel: JobPanel
+        statusText: statusText, stageText: stageText, elapsed: elapsed, remaining: remaining, timeText: timeText,
+        headState: headState, JobPanel: JobPanel
     };
 })(typeof window !== 'undefined' ? window : globalThis);

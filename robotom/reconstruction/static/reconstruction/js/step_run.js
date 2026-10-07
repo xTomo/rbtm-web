@@ -14,6 +14,13 @@
     var SESSION_EXPECT = ['not_found', 'taken_over', 'forbidden', 'not_ready'];
     var TIME_SOURCE = {jobs: 'по последним задачам', preview: 'по превью, с запасом'};
 
+    /** Оценка времени задачи, с: реконструкция + подготовка + TV 3D (ответ sessions/<sid>/estimate); null — нет. */
+    function estimateTotal(est) {
+        var t = est && est.time, dn = est && est.denoise;
+        if (!t || !core.isNum(t.recon_s)) return null;
+        return t.recon_s + (core.isNum(t.prepare_s) ? t.prepare_s : 0) + (dn && core.isNum(dn.s) ? dn.s : 0);
+    }
+
     function StepRun(app) {
         var self = this;
         this.app = app;
@@ -197,6 +204,8 @@
                 })
                 .then(function (job) {
                     self.starting = false;
+                    // оценка — для настроек в момент запуска: по ней шапка считает, сколько осталось
+                    app.jobs.setEstimate(job.id, estimateTotal(self.st.estimate));
                     app.jobs.track(job);
                     ui.toast('Задача поставлена в очередь. Страницу можно закрыть — задача продолжится.', 'success');
                     self._renderButtons();
@@ -283,7 +292,7 @@
         var t = est.time, dn = est.denoise;
         var tvS = dn && core.isNum(dn.s) ? dn.s : 0;
         if (t && core.isNum(t.recon_s)) {
-            var total = t.recon_s + (core.isNum(t.prepare_s) ? t.prepare_s : 0) + tvS;
+            var total = estimateTotal(est);
             row('Время', '≈ ' + core.fmtDuration(total) + ' (' + (TIME_SOURCE[t.source] || t.source || '') + ')');
         } else {
             row('Время', 'оценится после превью среза', 'text-muted');
@@ -312,5 +321,6 @@
         ui.show(e.hint, !!why);
     };
 
+    StepRun.estimateTotal = estimateTotal;
     S.StepRun = StepRun;
 })(typeof window !== 'undefined' ? window : globalThis);

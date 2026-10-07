@@ -82,6 +82,43 @@ test('jobs: активность, интервал опроса, длитель�
     assert.equal(J.stageText('unknown_stage'), 'unknown_stage');
 });
 
+test('jobs: строка статуса в шапке — состояния, остаток по оценке при запуске, сутки после конца', () => {
+    const J = S.jobs;
+    const t0 = Date.parse('2026-10-07T12:00:00Z');
+    const run = {status: 'running', stage: 'recon', progress: 0.42, started: '2026-10-07T12:00:00Z',
+        created: '2026-10-07T11:59:00Z'};
+    // остаток — оценка минус прошло со старта (очередь не считается)
+    assert.equal(J.remaining(run, 600, t0 + 190e3), 410);
+    assert.equal(J.remaining(run, null, t0 + 190e3), null);
+    assert.equal(J.remaining({status: 'queued'}, 600, t0), null);
+    let h = J.headState(run, 600, t0 + 190e3);
+    assert.equal(h.state, 'running');
+    assert.equal(h.action, 'step');
+    assert.equal(h.frac, 0.42);
+    assert.match(h.text, /^реконструкция срезов · 42 % · прошло 3 мин 10 с · ≈ 6 мин 50 с осталось$/);
+    assert.match(J.headState(run, 100, t0 + 190e3).text, /дольше оценки на 1 мин 30 с$/);
+    assert.match(J.headState(run, null, t0 + 190e3).text, /прошло 3 мин 10 с$/);
+    assert.equal(J.headState({status: 'queued'}, null, t0).state, 'queued');
+    const done = {status: 'done', started: '2026-10-07T12:00:00Z', finished: '2026-10-07T12:07:40Z'};
+    h = J.headState(done, 600, t0 + 3600e3);
+    assert.equal(h.state, 'done');
+    assert.equal(h.action, 'result');
+    assert.match(h.text, /^✓ Готово .+ \(7 мин 40 с\)$/);
+    assert.equal(J.headState(done, 600, t0 + 25 * 3600e3), null);   // больше суток — не показывать
+    assert.equal(J.headState({status: 'error', finished: '2026-10-07T12:01:00Z'}, null, t0 + 60e3).state, 'error');
+    assert.equal(J.headState({status: 'interrupted', finished: '2026-10-07T12:01:00Z'}, null, t0).state, 'error');
+    assert.equal(J.headState({status: 'canceled', finished: '2026-10-07T12:01:00Z'}, null, t0).state, 'canceled');
+    assert.equal(J.headState(null), null);
+});
+
+test('steps: процент идущей задачи в статусе шага 4', () => {
+    const d = S.steps.derive;
+    const s = {overview: 'ready', roiEdited: false, load: 'ready', roiDirty: false, axis: 'checked', ringsChosen: true,
+        smoothingChosen: false, denoiseChosen: false, runEdited: true, result: 'none'};
+    assert.equal(d(Object.assign({}, s, {job: {status: 'running', progress: 0.416}})).run.text, 'идёт 42 %');
+    assert.equal(d(Object.assign({}, s, {job: {status: 'queued'}})).run.text, 'в очереди');
+});
+
 test('session: ошибки, означающие потерю сессии', () => {
     const is = S.SessionCtl.isSessionError;
     assert.ok(is({status: 410, code: 'taken_over'}));

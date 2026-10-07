@@ -54,7 +54,11 @@
         else out.rings = st('auto', null, 'кольца и сглаживание по умолчанию');
 
         var js = s.job && s.job.status;
-        if (ACTIVE_JOB.indexOf(js) >= 0) out.run = st('running', null, 'задача реконструкции');
+        var pct = s.job && js === 'running' && typeof s.job.progress === 'number' ? Math.round(s.job.progress * 100) : null;
+        if (ACTIVE_JOB.indexOf(js) >= 0) {
+            out.run = st('running', js === 'queued' ? 'в очереди' : pct !== null ? 'идёт ' + pct + ' %' : null,
+                'задача реконструкции');
+        }
         else if (stale) out.run = st('stale', null, staleHint);
         else if (js === 'error' || js === 'interrupted') out.run = st('error', null, 'последняя задача не выполнена');
         else if (!ready) out.run = st('none');
@@ -79,7 +83,7 @@
             var head = p.querySelector('.panel-heading');
             if (head) {
                 head.addEventListener('click', function (e) {
-                    if (e.target.closest('a, button, input, label')) return;
+                    if (e.target.closest('a, button, input, label, .st-help')) return;
                     p.classList.toggle('st-collapsed');
                 });
             }

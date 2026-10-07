@@ -80,7 +80,7 @@
         this.e = {
             toggle: ui.$('sm-toggle'), sigma: ui.$('sm-sigma'), sigmaVal: ui.$('sm-sigma-val'), deblur: ui.$('sm-deblur'),
             strengthRow: ui.$('sm-strength-row'), strength: ui.$('sm-strength'), strengthLabel: ui.$('sm-strength-label'),
-            strengthVal: ui.$('sm-strength-val'), note: ui.$('sm-deblur-note'), auto: ui.$('sm-auto'),
+            strengthVal: ui.$('sm-strength-val'), auto: ui.$('sm-auto'),
             autoNote: ui.$('sm-auto-note')
         };
         var self = this;
@@ -202,7 +202,10 @@
             ui.enable(e.auto, !this.autoRunning && this._canAuto(),
                 this.autoRunning ? 'Подбор идёт' : 'Нужны загруженная область и ось');
         }
-        ui.text(e.autoNote, autoText(this.autoRes));
+        // на виду — первая фраза (σ и ошибка), пояснения про минимум — в подсказке строки
+        var at = autoText(this.autoRes), cut = at.indexOf('. ');
+        ui.text(e.autoNote, cut > 0 ? at.slice(0, cut + 1) + ' …' : at);
+        if (e.autoNote) e.autoNote.title = cut > 0 ? at.slice(cut + 2) : '';
         segment(e.toggle, 'data-smooth', on ? 'on' : 'off');
         if (e.sigma) {
             e.sigma.value = sm.sigma;
@@ -227,7 +230,12 @@
         }
         ui.text(e.strengthLabel, wiener ? 'β' : 'вес');
         ui.text(e.strengthVal, wiener ? core.fmtNum(sm.balance, 4) : core.fmtFixed(sm.amount, 1));
-        ui.text(e.note, NOTES[sm.deblur] || '');
+        // пояснения к деблюру — подсказками кнопок (отдельной строки под ними больше нет)
+        if (e.deblur) {
+            ui.qsa('[data-deblur]', e.deblur).forEach(function (b) {
+                b.title = NOTES[b.getAttribute('data-deblur')] || '';
+            });
+        }
     };
 
     StepSmoothing.BALANCES = BALANCES;

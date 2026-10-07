@@ -11,7 +11,8 @@
  *   thumbstrip.js — лента миниатюр углов;
  *   steps.js     — статусы шагов (derive — чистая функция);
  *   session.js   — интерактивная сессия recon-service;
- *   jobs.js      — панель задачи;
+ *   jobs.js      — задача реконструкции: строка статуса в шапке и подробности в шаге 4;
+ *   help.js      — значки «?» с подсказками (data-help);
  *   step_*.js    — шаги (step_rings + step_smoothing — шаг 3 «Артефакты»);
  *   compare.js   — сравнение вариантов колец и сглаживания на фрагменте среза (вид «Сравнение»);
  *   recipes.js   — окно «Рецепты»: посмотреть, скачать, из файла, применить к шагам, запустить как есть.
@@ -27,8 +28,8 @@
     var core = S.core, ui = S.ui;
 
     var VIEW_TITLES = {
-        envelope: 'Огибающая', sample: 'Угол', sinogram: 'Синограмма', slice: 'Срез', diff: '0° − 180°',
-        compare: 'Сравнение', result: 'Готовый объём', volume3d: '3D'
+        envelope: 'Огибающая', sample: 'Угол', sinogram: 'Синограмма', slice: 'Превью среза', diff: '0° − 180°',
+        compare: 'Сравнение', result: 'Срез объёма', volume3d: '3D'
     };
 
     function initialState(config) {
@@ -99,6 +100,12 @@
             st.row = r;
             app.bus.emit('row', r, source, changed);
         };
+        /** Размер пикселя детектора, мм (правка пользователя или из скана) — для масштабной шкалы; null — неизвестен. */
+        app.pixelMm = function () {
+            var st = app.state;
+            var v = st.pixelUser || (st.pixelSize ? st.pixelSize.value_mm : null);
+            return v > 0 ? v : null;
+        };
         app.showView = function (key) {
             app.viewer.select(key);
         };
@@ -123,6 +130,7 @@
             app.overlay.clear();
             app.bus.emit('view', key);
             renderTabs(app);
+            foldThumbs(app, key);
         });
         app.viewer.on('image', function () {
             renderTabs(app);
@@ -137,12 +145,20 @@
             renderTabs(app);
         });
         app.jobs.on('job', function (job) {
-            app.set({job: {id: job.id, status: job.status}});
+            app.set({job: {id: job.id, status: job.status, progress: job.progress}});
         });
         app.jobs.on('finished', function (job) {
             if (job.status === 'done') ui.toast('Реконструкция завершена, результат опубликован.', 'success', 8000);
             else if (job.status === 'canceled') ui.toast('Задача реконструкции отменена.', 'info');
-            else ui.toast('Реконструкция не выполнена: ' + S.jobs.statusText(job.status) + ' — см. панель задачи.', 'error', 10000);
+            else ui.toast('Реконструкция не выполнена: ' + S.jobs.statusText(job.status) + ' — подробности в шаге 4.', 'error', 10000);
+        });
+        // щелчок по строке статуса в шапке: подробности — шаг 4, готовый результат — шаг 5 и срез объёма
+        app.jobs.on('open', function (action) {
+            var name = action === 'result' ? 'result' : 'run';
+            app.stepsView.expand(name, true);
+            var panel = ui.$('step-' + name);
+            if (panel && panel.scrollIntoView) panel.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+            if (action === 'result') app.result.fetchSlice(true, true);
         });
         bindToolbar(app);
 
@@ -206,6 +222,13 @@
                 });
             });
         }
+        var thumbsToggle = ui.$('st-thumbs-toggle');
+        if (thumbsToggle) {
+            thumbsToggle.addEventListener('click', function () {
+                var studio = ui.$('studio');
+                if (studio) studio.classList.toggle('st-thumbs-folded');
+            });
+        }
         var fit = ui.$('sv-fit'), one = ui.$('sv-one');
         if (fit) {
             fit.addEventListener('click', function () {
@@ -217,6 +240,15 @@
                 app.viewer.oneToOne();
             });
         }
+    }
+
+    // виды, на которых миниатюры углов не нужны: лента сворачивается в строку, место отдаётся просмотрщику
+    var THUMBS_FOLDED = {result: true, volume3d: true, compare: true};
+
+    /** Свернуть ленту углов на видах результата и сравнения (щелчок по строке — раскрыть до смены вида). */
+    function foldThumbs(app, key) {
+        var studio = ui.$('studio');
+        if (studio) studio.classList.toggle('st-thumbs-folded', !!THUMBS_FOLDED[key]);
     }
 
     /** Вкладки видов: доступна — есть изображение (или его можно запросить). */

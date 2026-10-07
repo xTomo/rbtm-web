@@ -156,9 +156,9 @@
 
     /** Описание вида проекции (огибающая, кадр угла): значения −ln T, координаты полного кадра. */
     StepFov.prototype._projDesc = function (label) {
-        var bin = this.st.bin;
+        var bin = this.st.bin, ps = this.app.pixelMm();
         return {
-            kind: 'proj', unit: '−ln T', label: label,
+            kind: 'proj', unit: '−ln T', label: label, pixel_mm: ps ? ps * bin : null,
             coords: function (ix, iy) {
                 return 'кадр x ' + (ix * bin) + ', y ' + (iy * bin) + (bin > 1 ? ' (пиксель ×' + bin + ')' : '');
             }

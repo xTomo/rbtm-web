@@ -666,26 +666,34 @@
         }, function () {});
     };
 
-    /** Режим компенсации смещения; после смены — авто-ось и срез пересчитываются (событие 'motion'). */
-    StepFov.prototype._setMotion = function (mode) {
+    /** Режим компенсации смещения; после смены — авто-ось и срез пересчитываются (событие 'motion').
+     *  Promise — сведения о смещении после смены (или прежние, если менять нечего); ошибка — reject. */
+    StepFov.prototype.setMotion = function (mode) {
         var self = this, app = this.app, sid = app.sid();
-        if (!sid || this.motionBusy || !app.config.can_run || (this.motion && this.motion.mode === mode)) return;
+        if (!sid || this.motionBusy || !app.config.can_run || (this.motion && this.motion.mode === mode)) {
+            return Promise.resolve(this.motion);
+        }
         this.motionBusy = true;
         this._renderMotion();
         var what = 'Компенсация смещения';
-        this.api.postJSON('sessions/' + sid + '/motion', {mode: mode},
+        return this.api.postJSON('sessions/' + sid + '/motion', {mode: mode},
             {expect: ['not_found', 'taken_over', 'forbidden', 'not_ready'], what: what}).then(function (m) {
             self.motionBusy = false;
-            if (sid !== app.sid()) return;
+            if (sid !== app.sid()) return m;
             self.motion = m;
             self._renderMotion();
             app.bus.emit('motion', m);
+            return m;
         }, function (err) {
             self.motionBusy = false;
             self._renderMotion();
-            if (app.session.handleError(err)) return;
-            if (!err || err.code !== 'not_ready') app.api.report(err, what);
+            if (!app.session.handleError(err) && (!err || err.code !== 'not_ready')) app.api.report(err, what);
+            throw err;
         });
+    };
+
+    StepFov.prototype._setMotion = function (mode) {
+        this.setMotion(mode).catch(function () { /* показано */ });
     };
 
     StepFov.prototype._renderMotion = function () {

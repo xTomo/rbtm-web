@@ -12,7 +12,8 @@
  *   session.js   — интерактивная сессия recon-service;
  *   jobs.js      — панель задачи;
  *   step_*.js    — шаги (step_rings + step_smoothing — шаг 3 «Артефакты»);
- *   compare.js   — сравнение вариантов колец и сглаживания на фрагменте среза (вид «Сравнение»).
+ *   compare.js   — сравнение вариантов колец и сглаживания на фрагменте среза (вид «Сравнение»);
+ *   recipes.js   — окно «Рецепты»: посмотреть, скачать, из файла, применить к шагам, запустить как есть.
  *
  * События шины app.bus: 'state' (patch) — изменились поля состояния; 'info' — сведения о скане; 'roi' (roi,
  * источник); 'row' (строка, источник, изменилась ли); 'view' (вид); 'load-start', 'loaded' (сессия), 'lost' —
@@ -152,6 +153,7 @@
         app.compare = new S.Compare(app);
         app.run = new S.StepRun(app);
         app.result = new S.StepResult(app);
+        app.recipes = new S.RecipesPanel(app);
         app.set({});
         renderTabs(app);
 

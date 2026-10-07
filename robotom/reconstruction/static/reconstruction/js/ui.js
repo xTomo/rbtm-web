@@ -97,7 +97,8 @@
 
     /**
      * Модальное окно. opts: title, body (строка или узел), pre (текст моноширинным), buttons: [{text, cls,
-     * value}], large. Возвращает Promise значения нажатой кнопки (Esc, крестик, фон — null).
+     * value}], large, handle (объект: в него кладётся close(value) — закрыть окно из кода). Возвращает Promise
+     * значения нажатой кнопки (Esc, крестик, фон — null).
      */
     ui.modal = function (opts) {
         return new Promise(function (resolve) {
@@ -139,6 +140,7 @@
                     close(null);
                 }
             }
+            if (opts.handle) opts.handle.close = close;
             var buttons = opts.buttons || [{text: 'Закрыть', cls: 'btn-default', value: null}];
             var first = null;
             buttons.forEach(function (b) {

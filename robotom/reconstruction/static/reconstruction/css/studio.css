@@ -222,3 +222,16 @@
 /* модальные окна */
 .st-modal .modal-dialog { margin-top: 70px; }
 .st-log { max-height: 65vh; overflow: auto; font-size: 11px; white-space: pre; margin: 0; }
+
+/* окно «Рецепты» (recipes.js) */
+.st-recipes-open { margin-left: 8px; vertical-align: middle; }
+.st-recipes-runs { padding-left: 18px; margin: 2px 0 8px; font-size: 12px; }
+.st-recipes-runs li { margin: 3px 0; }
+.st-recipes-btns { margin-left: 4px; }
+.st-recipes-file { margin-bottom: 4px; }
+.st-recipes-fileout { margin-top: 6px; font-size: 12px; }
+.st-recipe-dl dt { width: 110px; }
+.st-recipe-dl dd { margin-left: 116px; }
+.st-recipe-plan { font-size: 12px; }
+.st-recipe-plan td, .st-recipe-plan th { vertical-align: top; padding-right: 10px; }
+.st-recipe-warn { padding: 6px 10px; margin-bottom: 8px; font-size: 12px; }

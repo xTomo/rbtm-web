@@ -23,9 +23,11 @@
 | GET          | ``jobs``, ``jobs/<id>``, ``jobs/<id>/log``                            | нет    |
 | POST         | ``jobs/<id>/cancel``                                                  | да     |
 | GET          | ``results/<exp>``, ``results/<exp>/slice``, ``results/<exp>/file/<имя>`` | нет |
+| GET          | ``results/<exp>/recipes/<run>`` (рецепт запуска: ``current`` или из истории; ``?download=1`` — файлом) | нет |
 
 ``<exp>`` — как ``auth.EXP_ID_RE`` сервиса (буквы, цифры, «.», «_», «-», без «..»), ``<sid>`` и ``<id>`` задачи —
-32 шестнадцатеричные цифры (uuid4 hex), ``<имя>`` — один сегмент пути. Остальное (в том числе другой метод для
+32 шестнадцатеричные цифры (uuid4 hex), ``<имя>`` — один сегмент пути, ``<run>`` — id запуска как в сервисе
+(``publish.safe_run_id``: латиница, цифры, «_», «-», до 64 символов). Остальное (в том числе другой метод для
 известного пути) — 404 JSON ``{"error": ...}``.
 
 Пересылка: общий на процесс ``requests.Session`` (пул соединений), тот же метод, query как есть (с повторами
@@ -107,6 +109,7 @@ RULES = (
     _rule('GET', r'results/{exp}'),
     _rule('GET', r'results/{exp}/slice'),
     _rule('GET', r'results/{exp}/file/{name}'),
+    _rule('GET', r'results/{exp}/recipes/[A-Za-z0-9_-]{{1,64}}'),
 )
 
 

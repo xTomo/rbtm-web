@@ -65,3 +65,39 @@ test('edgeLabelPlacement: три подписи у ближнего угла, с
         assert.ok(Math.hypot(q.x - cx, q.y - cy) > 20, 'не в центре рамки');
     }
 });
+
+test('tickStep / tickEdges: деления 1–2–5 мм на трёх рёбрах из ближнего угла, каждое пятое длиннее', () => {
+    const V = S.vol3d;
+    // a82d2e0a в 3D: 216 × 216 × 269 вокселей по 72 мкм → длинное ребро 19,4 мм → шаг 1 мм (≤ 20 делений)
+    assert.equal(V.tickStep(269 * 0.072, 20), 1);
+    assert.equal(V.tickStep(9, 20), 0.5);
+    assert.equal(V.tickStep(0.9, 20), 0.05);
+    assert.equal(V.tickStep(150, 20), 10);
+    const dims = [216, 216, 269], vmm = 0.072;
+    const t = V.tickEdges(dims, vmm, [1, 0, 1], 1);
+    // делений на ребре: floor(длина / 1 мм) + 1 → x: 15 + 1, y: 15 + 1, z: 19 + 1
+    const nTicks = t.length / 6;
+    assert.equal(nTicks, 16 + 16 + 20);
+    // первое деление ребра x: из (0, 0, nz) наружу вдоль +z (угол z = 1)
+    assert.deepEqual(Array.from(t.subarray(0, 3)), [0, 0, 269]);
+    assert.ok(t[5] > 269);
+    // деление 5 мм длиннее деления 1 мм
+    const len = (k) => Math.abs(t[k * 6 + 5] - t[k * 6 + 2]);
+    assert.ok(len(5) > len(1) * 2);
+    // шаг вдоль x: 1 мм = 13,89 вокселя
+    assert.ok(Math.abs(t[6] - 1 / vmm) < 1e-4);
+    // деления ребра z — вдоль x наружу (угол x = 1 → +x)
+    const zFirst = 32 * 6;
+    assert.equal(t[zFirst], 216);
+    assert.ok(t[zFirst + 3] > 216);
+    assert.equal(V.tickEdges(dims, null, [0, 0, 0], 1).length, 0);
+});
+
+test('nearCorner: угол, ближайший к камере, — тот же, что у подписей рёбер', () => {
+    const V = S.vol3d;
+    const dims = [100, 80, 120];
+    const fm = V.frameMatrices(dims, V.defaultCamera(dims, 1.5), 1.5);
+    const c = V.nearCorner(dims, fm.mvp);
+    const depth = (cc) => V.m4.apply(fm.mvp, [cc[0] * 100, cc[1] * 80, cc[2] * 120])[2];
+    for (const i of [0, 1]) for (const j of [0, 1]) for (const k of [0, 1]) assert.ok(depth(c) <= depth([i, j, k]));
+});

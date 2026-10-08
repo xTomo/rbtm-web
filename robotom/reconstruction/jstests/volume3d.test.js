@@ -126,6 +126,17 @@ test('colorbarTicks: середина шкалы с учётом гаммы', ()
     close(V.colorbarTicks(-1, 1, 0.5)[1].value, -1 + 2 * 0.25);
 });
 
+test('clipFromSlice: разрез проходит через центр выбранного среза, доля стороны по своей оси', () => {
+    // 3D-объём 96 × 241 × 241 (z, y, x), без доп. уменьшения: срез z = 48 → (48,5)/96
+    close(V.clipFromSlice(2, 48, 1, [96, 241, 241]).pos, 48.5 / 96);
+    assert.equal(V.clipFromSlice(2, 48, 1, [96, 241, 241]).axis, 2);
+    // срез y = 120 копии, 3D уменьшен ещё в 2 раза: (120,5)/2 из 120 вокселей по y
+    close(V.clipFromSlice(1, 120, 2, [48, 120, 121]).pos, 60.25 / 120);
+    // x — сторона nx
+    close(V.clipFromSlice(0, 10, 1, [5, 6, 40]).pos, 10.5 / 40);
+    assert.equal(V.clipFromSlice(0, 1000, 1, [5, 6, 40]).pos, 1);
+});
+
 test('slicePosition и контуры: срез i копии — центр плоскости в вокселях 3D-объёма', () => {
     assert.equal(V.slicePosition(5, 2), 2.75);
     assert.equal(V.slicePosition(0, 1), 0.5);

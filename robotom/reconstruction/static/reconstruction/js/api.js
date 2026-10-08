@@ -124,8 +124,13 @@
         if (opts.signal) init.signal = opts.signal;
         if (method !== 'GET' && method !== 'HEAD') {
             headers['X-CSRFToken'] = this.config.csrf_token || '';
-            headers['Content-Type'] = 'application/json';
-            init.body = JSON.stringify(opts.body === undefined ? {} : opts.body);
+            if (opts.rawBody !== undefined) {           // тело как есть (HTML-оболочка 3D-вида)
+                headers['Content-Type'] = opts.contentType || 'text/plain; charset=utf-8';
+                init.body = opts.rawBody;
+            } else {
+                headers['Content-Type'] = 'application/json';
+                init.body = JSON.stringify(opts.body === undefined ? {} : opts.body);
+            }
         }
         var url = this.url(path, opts.params);
         return Promise.resolve().then(function () {
@@ -194,6 +199,11 @@
     /** POST с телом JSON и бинарным ответом (стопка фрагментов сравнения). */
     Api.prototype.postBinary = function (path, body, opts) {
         return this.request(path, Object.assign({}, opts, {method: 'POST', body: body, kind: 'binary'}));
+    };
+    /** POST с телом-текстом (contentType) и ответом JSON. */
+    Api.prototype.postText = function (path, text, contentType, params, opts) {
+        return this.request(path, Object.assign({}, opts, {method: 'POST', rawBody: text, contentType: contentType,
+            params: params, kind: 'json'}));
     };
     Api.prototype.getText = function (path, params, opts) {
         return this.request(path, Object.assign({}, opts, {method: 'GET', params: params, kind: 'text'}));

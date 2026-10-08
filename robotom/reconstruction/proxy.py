@@ -25,6 +25,7 @@
 | GET          | ``results/<exp>``, ``results/<exp>/slice``, ``results/<exp>/file/<имя>`` | нет |
 | GET          | ``results/<exp>/volume3d`` (уменьшенный объём uint8 для 3D-вида)      | нет    |
 | GET          | ``results/<exp>/recipes/<run>`` (рецепт запуска: ``current`` или из истории; ``?download=1`` — файлом) | нет |
+| POST         | ``results/<exp>/view3d-html`` (сохранить 3D-вид в HTML в каталог результата) | да |
 
 ``<exp>`` — как ``auth.EXP_ID_RE`` сервиса (буквы, цифры, «.», «_», «-», без «..»), ``<sid>`` и ``<id>`` задачи —
 32 шестнадцатеричные цифры (uuid4 hex), ``<имя>`` — один сегмент пути, ``<run>`` — id запуска как в сервисе
@@ -111,6 +112,7 @@ RULES = (
     _rule('GET', r'results/{exp}/(?:slice|volume3d)'),
     _rule('GET', r'results/{exp}/file/{name}'),
     _rule('GET', r'results/{exp}/recipes/[A-Za-z0-9_-]{{1,64}}'),
+    _rule('POST', r'results/{exp}/view3d-html', run=True, audit=True),
 )
 
 

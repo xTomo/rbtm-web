@@ -232,6 +232,13 @@ test('clampRoi/clampRow/sameRoi/cropBytes/clampSlices', () => {
     assert.deepEqual(core.clampSlices(NaN, NaN, roi), [100, 200]);
 });
 
+test('roiDiffText: что изменилось в рамке после загрузки', () => {
+    const loaded = {x0: 1850, x1: 2760, y0: 1704, y1: 2044};
+    assert.equal(core.roiDiffText(loaded, {x0: 1857, x1: 2759, y0: 1704, y1: 2044}), 'x0 1850 → 1857, x1 2760 → 2759');
+    assert.equal(core.roiDiffText(loaded, Object.assign({}, loaded)), '');
+    assert.equal(core.roiDiffText(null, loaded), '');
+});
+
 test('roiToImage/roiFromImage: туда и обратно без потерь, в том числе не кратное bin', () => {
     const W = 5056, H = 2968;
     const roi = {x0: 1001, x1: 4003, y0: 7, y1: 2961};

@@ -304,7 +304,7 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                         <div id="res-3d" class="st-res-3d hidden">
                             <div class="st-sub st-sep">Объёмный вид: <span id="res-3d-info" class="text-muted"></span><span
                                     class="st-help" tabindex="0" role="button" aria-label="Пояснение: объёмный вид"
-                                    data-help="Окно контраста и палитра — у гистограммы под просмотрщиком, общие со срезами (в «Поверхности» палитры нет). Рёбра рамки подписаны длинами в мм, оранжевая плоскость — срез, выбранный выше.&#10;Мышь: перетаскивание — поворот, Shift или правая кнопка — сдвиг, колесо — масштаб, двойной щелчок — исходный вид.">?</span></div>
+                                    data-help="Окно контраста и палитра — у гистограммы под просмотрщиком, общие со срезами (в «Поверхности» палитры нет). Рёбра рамки подписаны длинами в мм, оранжевая плоскость — срез, выбранный выше; разрез идёт по нему же: ось и номер — переключателем z/y/x и ползунком срезов.&#10;Мышь: перетаскивание — поворот, Shift или правая кнопка — сдвиг, колесо — масштаб, двойной щелчок — исходный вид.">?</span></div>
                             <div class="btn-group btn-group-xs st-seg" id="res-3d-mode" role="group" aria-label="Рендер">
                                 <button type="button" class="btn btn-default" data-mode="soft"
                                         title="Максимум вдоль луча, ослабленный пройденным веществом: читается глубина">Мягкий</button>
@@ -330,18 +330,14 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
                                         id="res-3d-slice" type="checkbox" checked> плоскость среза</label>
                             </div>
                             <div class="st-grid-row">
-                                <label title="Срезать часть объёма и заглянуть внутрь"><input id="res-3d-clip"
-                                        type="checkbox"> Разрез</label>
-                                <select id="res-3d-clip-axis" class="form-control input-sm" title="Плоскость разреза перпендикулярна оси">
-                                    <option value="2">по z</option>
-                                    <option value="1">по y</option>
-                                    <option value="0">по x</option>
-                                </select>
+                                <label title="Срезать объём по срезу, выбранному выше (ось z/y/x и номер — тем же ползунком), и заглянуть внутрь"><input
+                                        id="res-3d-clip" type="checkbox"> Разрез по выбранному срезу</label>
                                 <button id="res-3d-flip" type="button" class="btn btn-default btn-xs"
                                         title="Оставить другую половину">⇄</button>
                             </div>
-                            <input id="res-3d-clip-pos" type="range" class="st-res-slider" min="0" max="1000" step="1"
-                                   value="500" title="Положение плоскости разреза">
+                            <button id="res-3d-save" type="button" class="btn btn-default btn-xs hidden"
+                                    title="Отдельный HTML-файл с этим объёмом и управлением (режим, окно, палитра, разрез, поворот мышью): открывается в браузере без сайта. Сохраняется в папку результата на сервере и скачивается."><span
+                                    class="glyphicon glyphicon-save"></span> Сохранить 3D в HTML</button>
                         </div>
                     </div>
                 </div>
@@ -400,6 +396,7 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
 <script src="{% static 'reconstruction/js/help.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/viewer.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/volume3d.js' %}?v={{ asset_version }}"></script>
+<script src="{% static 'reconstruction/js/export3d.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/overlay.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/thumbstrip.js' %}?v={{ asset_version }}"></script>
 <script src="{% static 'reconstruction/js/steps.js' %}?v={{ asset_version }}"></script>

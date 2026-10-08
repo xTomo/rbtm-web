@@ -195,7 +195,6 @@
             if (cfg.legacy_url) legacy.href = cfg.legacy_url;
             ui.show(legacy, !!cfg.legacy_url);
         }
-        ui.show(ui.$('st-sep'), !!(cfg.storage_url && cfg.legacy_url));
         ui.show(ui.$('st-readonly'), !cfg.can_run);
         if (root.document.title !== undefined) root.document.title = 'Студия реконструкции ' + title;
     }

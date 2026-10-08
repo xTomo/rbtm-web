@@ -18,9 +18,11 @@ step_axis → step_rings → step_smoothing → step_denoise → compare → ste
 <div id="studio" class="container-fluid st-studio">
     <div class="st-head">
         <h4 class="st-title">Студия реконструкции: <span id="st-title">{{ exp_id }}</span> <small id="st-expid"></small></h4>
+        <a id="st-storage-link" class="btn btn-default btn-xs hidden" href="#" target="_blank"
+           title="Страница записи хранилища (в новой вкладке): все кадры съёмки — проекции, пустой пучок, темновые; параметры кадров, скачать HDF5"><span
+                class="glyphicon glyphicon-film"></span> Исходные кадры</a>
         <div class="st-links">
-            <a id="st-storage-link" class="hidden" href="#">Запись хранилища</a><span id="st-sep" class="hidden"> · </span><a
-                id="st-legacy-link" class="hidden" href="#" title="Прежняя страница реконструкции: ноутбук Jupyter">Jupyter реконструкция</a>
+            <a id="st-legacy-link" class="hidden" href="#" title="Прежняя страница реконструкции: ноутбук Jupyter">Jupyter реконструкция</a>
         </div>
         <span id="st-readonly" class="label label-default hidden"
               title="Загрузка области и запуск реконструкции доступны экспериментатору и администратору">только просмотр</span>

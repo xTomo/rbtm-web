@@ -236,20 +236,62 @@
 
     /** Где подписать длины рёбер: угол рамки, ближний к камере (наименьшая глубина), и три его ребра — середина ребра
      *  на экране (CSS px, W × H), сдвинутая на 14 px от центра рамки наружу. → [{x, y}] для осей x, y, z. */
+    function nearCorner(dims, mvp) {
+        var best = null;
+        [0, 1].forEach(function (i) {
+            [0, 1].forEach(function (j) {
+                [0, 1].forEach(function (k) {
+                    var z = m4.apply(mvp, [i * dims[0], j * dims[1], k * dims[2]])[2];
+                    if (!best || z < best.z) best = {c: [i, j, k], z: z};
+                });
+            });
+        });
+        return best.c;
+    }
+
+    /** Шаг делений, мм: из ряда 1–2–5, чтобы на самом длинном ребре было не больше maxTicks делений. */
+    function tickStep(lengthMm, maxTicks) {
+        var raw = lengthMm / Math.max(1, maxTicks || 20);
+        var p = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+        var steps = [1, 2, 5, 10];
+        for (var i = 0; i < steps.length; i++) {
+            if (steps[i] * p >= raw - 1e-12) return steps[i] * p;
+        }
+        return 10 * p;
+    }
+
+    /** Деления на трёх рёбрах из угла corner ([0|1] по осям): шаг step мм от нуля оси, каждое пятое — длиннее.
+     *  Засечка — отрезок наружу от рамки, перпендикулярно ребру (у рёбер x и y — вдоль z, у ребра z — вдоль x).
+     *  → Float32Array вершин (по 2 на засечку), в вокселях. */
+    function tickEdges(dims, voxelMm, corner, step) {
+        var out = [];
+        if (!(voxelMm > 0) || !(step > 0)) return new Float32Array(0);
+        var size = Math.max(dims[0], dims[1], dims[2]);
+        var minor = size * 0.012, major = size * 0.028;
+        [0, 1, 2].forEach(function (a) {
+            var t = a === 2 ? 0 : 2;                         // направление засечки
+            var dir = corner[t] ? 1 : -1;                    // наружу от рамки
+            var base = [corner[0] * dims[0], corner[1] * dims[1], corner[2] * dims[2]];
+            var stepVox = step / voxelMm;
+            var n = Math.floor(dims[a] / stepVox + 1e-9);
+            for (var k = 0; k <= n; k++) {
+                var p = base.slice();
+                p[a] = k * stepVox;
+                var q = p.slice();
+                q[t] += dir * (k % 5 === 0 ? major : minor);
+                out.push(p[0], p[1], p[2], q[0], q[1], q[2]);
+            }
+        });
+        return new Float32Array(out);
+    }
+
     function edgeLabelPlacement(dims, mvp, W, H) {
         var toScreen = function (p) {
             var q = m4.apply(mvp, p);
             return {x: (q[0] + 1) / 2 * W, y: (1 - q[1]) / 2 * H, z: q[2]};
         };
-        var best = null;
-        [0, 1].forEach(function (i) {
-            [0, 1].forEach(function (j) {
-                [0, 1].forEach(function (k) {
-                    var c = [i * dims[0], j * dims[1], k * dims[2]], s = toScreen(c);
-                    if (!best || s.z < best.s.z) best = {c: c, s: s};
-                });
-            });
-        });
+        var nc = nearCorner(dims, mvp);
+        var best = {c: [nc[0] * dims[0], nc[1] * dims[1], nc[2] * dims[2]]};
         var center = toScreen([dims[0] / 2, dims[1] / 2, dims[2] / 2]);
         return [0, 1, 2].map(function (a) {
             var mid = best.c.slice();
@@ -274,7 +316,8 @@
         jet: core.jet, paletteTable: core.paletteTable, PALETTES: core.PALETTES, colorbarTicks: colorbarTicks,
         m4: m4, extents: extents, fitDistance: fitDistance, defaultCamera: defaultCamera, eyePosition: eyePosition,
         frameMatrices: frameMatrices, orbit: orbit, pan: pan, zoom: zoom, texWindow: texWindow,
-        slicePosition: slicePosition, clipFromSlice: clipFromSlice, boxEdges: boxEdges, edgeLabelPlacement: edgeLabelPlacement, planeEdges: planeEdges, axesEdges: axesEdges, MODES: MODES,
+        slicePosition: slicePosition, clipFromSlice: clipFromSlice, boxEdges: boxEdges, edgeLabelPlacement: edgeLabelPlacement, nearCorner: nearCorner, tickStep: tickStep, tickEdges: tickEdges,
+        planeEdges: planeEdges, axesEdges: axesEdges, MODES: MODES,
         FOVY: FOVY
     };
 
@@ -465,6 +508,10 @@
             stage.insertBefore(d, opts.before || null);
             return d;
         });
+        this.tickNote = root.document.createElement('div');
+        this.tickNote.className = 'sv-tick-note hidden';
+        stage.insertBefore(this.tickNote, opts.before || null);
+        this._tickCorner = null;
         var gl = null;
         try {
             gl = this.canvas.getContext('webgl2', {antialias: true, premultipliedAlpha: false,
@@ -628,6 +675,12 @@
             for (var i = 0; i < arr.length; i++) parts.push(arr[i]);
         };
         if (o.box) push(boxEdges(d), [0.65, 0.65, 0.65, 0.7]);
+        this._tickStep = null;
+        if (o.box && this.vol.voxel_mm > 0 && this._tickCorner) {
+            var vmm = this.vol.voxel_mm;
+            this._tickStep = tickStep(Math.max(d[0], d[1], d[2]) * vmm, 20);
+            push(tickEdges(d, vmm, this._tickCorner, this._tickStep), [0.85, 0.85, 0.85, 0.9]);
+        }
         if (o.slice && o.slice.pos >= 0 && o.slice.pos <= d[o.slice.axis]) {
             push(planeEdges(d, o.slice.axis, o.slice.pos), [1.0, 0.62, 0.1, 0.95]);
         }
@@ -673,6 +726,7 @@
             this.edgeLabels.forEach(function (el) {
                 el.classList.add('hidden');
             });
+            this.tickNote.classList.add('hidden');
         }
         if (on) {
             this._resize();
@@ -740,6 +794,11 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         var v = this.vol, o = this.opts, d = v.dims;
         var fm = frameMatrices(d, this.cam, W / H);
+        var nc = nearCorner(d, fm.mvp);
+        if (!this._tickCorner || nc.join() !== this._tickCorner.join()) {
+            this._tickCorner = nc;
+            this._lines();
+        }
         var tw = this.win ? texWindow(this.win[0], this.win[1], v.scale, v.offset) : [0, 1];
 
         // объём: задние грани коробки — луч от глаза (или от передней грани) до них
@@ -800,6 +859,11 @@
         labels.forEach(function (el) {
             el.classList.toggle('hidden', !on);
         });
+        this.tickNote.classList.toggle('hidden', !(on && this._tickStep));
+        if (on && this._tickStep) {
+            this.tickNote.textContent = 'деления на рёбрах — ' + core.fmtNum(this._tickStep, 3) + ' мм, длинные — ' +
+                core.fmtNum(this._tickStep * 5, 3) + ' мм';
+        }
         if (!on) return;
         var place = edgeLabelPlacement(v.dims, mvp, this.stage.clientWidth, this.stage.clientHeight);
         place.forEach(function (p, a) {

@@ -650,14 +650,7 @@
             ui.progress(e.progress, st.loadStage === 'queued' ? null : st.loadProgress,
                 [stage, pct, sec !== null ? sec + ' с' : ''].filter(Boolean).join(' · '));
         }
-        var dirtyText = '';
-        if (st.load === 'ready' && st.roiDirty) {
-            dirtyText = 'Рамка изменена после загрузки — шаги 2–4 устарели. Загрузите область заново (или верните рамку).';
-        } else if (st.load === 'lost') {
-            dirtyText = 'Сессия закрыта — загрузите область снова.';
-        }
-        ui.show(e.dirty, !!dirtyText);
-        ui.text(e.dirty, dirtyText);
+        this._renderDirty();
         var msg = this.loadMsg;
         if (!msg && st.load === 'ready' && st.loadedRoi && !st.roiDirty) {
             var r = st.loadedRoi;
@@ -670,6 +663,37 @@
         if (e.loadMsg) e.loadMsg.classList.toggle('text-danger', st.load === 'error');
         this._renderDataWarnings();
         this._renderMotion();
+    };
+
+    /** Плашка «рамка изменена после загрузки»: что именно изменилось и кнопка вернуть загруженную рамку (шаги 2–4
+     *  снова доступны сразу, без повторного чтения файла); или «сессия закрыта». */
+    StepFov.prototype._renderDirty = function () {
+        var self = this, st = this.st, e = this.e;
+        if (!e.dirty) return;
+        var dirty = st.load === 'ready' && st.roiDirty && !!st.loadedRoi;
+        var key = dirty ? 'dirty:' + core.roiDiffText(st.loadedRoi, st.roi) : st.load === 'lost' ? 'lost' : '';
+        ui.show(e.dirty, !!key);
+        if (key === this._dirtyKey) return;        // не пересоздавать кнопку на каждом тике загрузки
+        this._dirtyKey = key;
+        while (e.dirty.firstChild) e.dirty.removeChild(e.dirty.firstChild);
+        if (key === 'lost') {
+            ui.text(e.dirty, 'Сессия закрыта — загрузите область снова.');
+        } else if (dirty) {
+            e.dirty.appendChild(ui.el('div', {text: 'Рамка изменена после загрузки — шаги 2–4 устарели: ' +
+                core.roiDiffText(st.loadedRoi, st.roi) + '. Загрузите область заново или верните загруженную рамку.'}));
+            e.dirty.appendChild(ui.el('button', {type: 'button', class: 'btn btn-default btn-xs', id: 'fov-restore',
+                style: 'margin-top: 4px', text: 'Вернуть загруженную рамку',
+                title: 'Рамка загруженной области: x ' + st.loadedRoi.x0 + '…' + st.loadedRoi.x1 + ', y ' +
+                    st.loadedRoi.y0 + '…' + st.loadedRoi.y1, onclick: function () { self.restoreLoadedRoi(); }}));
+        }
+    };
+
+    /** Вернуть рамку загруженной области: шаги 2–4 снова действительны. */
+    StepFov.prototype.restoreLoadedRoi = function () {
+        var st = this.st;
+        if (!st.loadedRoi || !st.frame) return;
+        st.roi = roiOf(st.loadedRoi);
+        this._roiChanged('restore', true);
     };
 
     // --- смещение образца --------------------------------------------------------------------------------------

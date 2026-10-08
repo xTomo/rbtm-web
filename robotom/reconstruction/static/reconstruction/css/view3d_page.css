@@ -1,0 +1,48 @@
+/* Сохранённый 3D-вид (view3d_page.js): панель слева, вид справа на всё окно. Правила .sv-* — те же, что у 3D-вида
+ * студии (studio.css), продублированы: файл открывается без сайта. */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #fff; color: #333;
+    font: 13px/1.4 "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.hidden { display: none !important; }
+#v3-app { display: flex; height: 100%; }
+.v3-panel { width: 290px; flex: none; overflow-y: auto; padding: 12px 14px; border-right: 1px solid #ddd; }
+.v3-panel h1 { font-size: 17px; font-weight: 600; margin: 0 0 6px; overflow-wrap: anywhere; }
+.v3-line { color: #555; font-size: 12px; margin-bottom: 3px; overflow-wrap: anywhere; }
+.v3-sec { margin-top: 12px; padding-top: 8px; border-top: 1px solid #eee; }
+.v3-sec-title { font-weight: 600; margin-bottom: 6px; }
+.v3-seg { display: flex; margin-bottom: 6px; }
+.v3-seg button { flex: 1; padding: 3px 4px; border: 1px solid #ccc; background: #fff; cursor: pointer; font: inherit;
+    margin-left: -1px; }
+.v3-seg button:first-child { margin-left: 0; border-radius: 3px 0 0 3px; }
+.v3-seg button:last-child { border-radius: 0 3px 3px 0; }
+.v3-seg button.on { background: #222; color: #fff; border-color: #222; }
+.v3-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-weight: normal; }
+.v3-row input[type=range] { flex: 1; min-width: 0; }
+.v3-lab { width: 70px; flex: none; color: #555; }
+.v3-val { width: 76px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.v3-num { width: 84px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; font: inherit; }
+.v3-sel { padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; font: inherit; }
+.v3-row button, .v3-btn { padding: 2px 8px; border: 1px solid #ccc; border-radius: 3px; background: #fff;
+    cursor: pointer; font: inherit; }
+.v3-check { display: block; margin: 3px 0; font-weight: normal; }
+.v3-hist { display: block; width: 100%; height: 48px; background: #f7f7f7; border: 1px solid #e3e3e3; }
+.v3-hint { margin-top: 12px; color: #777; font-size: 12px; }
+.v3-foot { margin-top: 8px; color: #999; font-size: 11px; }
+.v3-error { position: absolute; left: 20px; top: 20px; right: 20px; color: #f2dede; }
+
+.v3-stage, .sv-stage { position: relative; flex: 1; min-width: 0; background: #000; overflow: hidden;
+    touch-action: none; user-select: none; -webkit-user-select: none; }
+.sv-stage.sv-panning { cursor: grabbing; }
+.sv-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.sv-gl { cursor: grab; touch-action: none; }
+.sv-edge-label { position: absolute; transform: translate(-50%, -50%); pointer-events: none; color: #ddd;
+    font-size: 11px; white-space: nowrap; text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.sv-cbar { position: absolute; right: 10px; top: 14px; height: 180px; display: flex; gap: 6px; pointer-events: none; }
+.sv-cbar-grad { width: 14px; height: 100%; border: 1px solid #888; image-rendering: auto; }
+.sv-cbar-labels { display: flex; flex-direction: column; justify-content: space-between; margin: -7px 0;
+    color: #ddd; font-size: 11px; line-height: 14px; text-shadow: 0 0 3px #000; white-space: nowrap; }
+
+@media (max-width: 700px) {
+    #v3-app { flex-direction: column; }
+    .v3-panel { width: auto; max-height: 45%; border-right: 0; border-bottom: 1px solid #ddd; }
+}

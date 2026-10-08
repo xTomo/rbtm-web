@@ -72,6 +72,7 @@ RUN_REQUESTS = (
     ('post', 'sessions/' + SID + '/motion'),
     ('post', 'jobs'),
     ('post', 'jobs/' + SID + '/cancel'),
+    ('post', 'results/exp-1/view3d-html'),
 )
 
 
@@ -416,6 +417,7 @@ class ApiWhitelistTest(StudioUsersMixin, ServiceMockMixin, TestCase):
             ('post', 'results/exp-1'),
             ('post', 'results/exp-1/recipes/current'),
             ('post', 'results/exp-1/volume3d'),
+            ('get', 'results/exp-1/view3d-html'),
             ('get', 'results/exp-1/volume3d/x'),
         ))
 

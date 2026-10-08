@@ -516,6 +516,16 @@
         return !!(a && b && a.x0 === b.x0 && a.x1 === b.x1 && a.y0 === b.y0 && a.y1 === b.y1);
     };
 
+    /** Чем рамка cur отличается от загруженной loaded: «x0 1850 → 1857, x1 2760 → 2759»; '' — ничем. */
+    core.roiDiffText = function (loaded, cur) {
+        if (!loaded || !cur) return '';
+        return ['x0', 'x1', 'y0', 'y1'].filter(function (k) {
+            return loaded[k] !== cur[k];
+        }).map(function (k) {
+            return k + ' ' + loaded[k] + ' → ' + cur[k];
+        }).join(', ');
+    };
+
     /** Рамка полного кадра → координаты изображения, уменьшенного в bin раз. */
     core.roiToImage = function (roi, bin) {
         return {x0: roi.x0 / bin, x1: roi.x1 / bin, y0: roi.y0 / bin, y1: roi.y1 / bin};

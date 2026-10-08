@@ -29,6 +29,23 @@
             title: 'Где проходит оболочка — долей окна контраста (едет вместе с окном)'}
     };
 
+    /** Рецепт результата коротко: [«кольца: средне», «сглаживание σ 2,5», …]. */
+    function recipeParts(rc) {
+        rc = rc || {};
+        var parts = [];
+        if (rc.rings && rc.rings.preset) parts.push('кольца: ' + (RINGS[rc.rings.preset] || rc.rings.preset));
+        var smooth = core.smoothingText(rc.smoothing);          // выключено (или старый рецепт без блока) — ничего
+        if (smooth) parts.push('сглаживание ' + smooth);
+        var motionText = core.motionText(rc.motion);             // не компенсировалось (или старый рецепт) — ничего
+        if (motionText) parts.push(motionText);
+        if (rc.recon && rc.recon.angles) parts.push(ANGLES[rc.recon.angles] || rc.recon.angles);
+        if (rc.axis && core.isNum(rc.axis.center_x)) {
+            parts.push('ось ' + core.fmtNum(rc.axis.center_x, 2) + ' px, наклон ' + core.fmtNum(rc.axis.tilt_deg || 0, 3) + '°');
+        }
+        if (rc.recon && rc.recon.slices) parts.push('строки ' + rc.recon.slices[0] + '…' + rc.recon.slices[1]);
+        return parts;
+    }
+
     /** Ссылки на полный объём: [{name, href, size}] по ответу results/<id> (full: [{name, rel, size}]) и префиксу
      *  раздачи статики base; без префикса или без файлов — []. */
     function fullVolumeLinks(doc, base) {
@@ -51,8 +68,8 @@
             v3d: ui.$('res-3d'), info3d: ui.$('res-3d-info'), mode3d: ui.$('res-3d-mode'),
             gamma: ui.$('res-3d-gamma'), gammaVal: ui.$('res-3d-gamma-val'), depth: ui.$('res-3d-depth'),
             depthLabel: ui.$('res-3d-depth-label'), depthVal: ui.$('res-3d-depth-val'), box: ui.$('res-3d-box'),
-            slice3d: ui.$('res-3d-slice'), clip: ui.$('res-3d-clip'), clipAxis: ui.$('res-3d-clip-axis'),
-            clipFlip: ui.$('res-3d-flip'), clipPos: ui.$('res-3d-clip-pos')
+            slice3d: ui.$('res-3d-slice'), clip: ui.$('res-3d-clip'), clipFlip: ui.$('res-3d-flip'),
+            save3d: ui.$('res-3d-save')
         };
         this.view3d = null;         // S.View3D — создаётся при первом показе
         this.vol3d = null;          // {run_id, meta, shape} загруженного объёма
@@ -166,22 +183,64 @@
         on(e.slice3d, 'change', function () {
             self._set3d({slice: self._slicePlane()});
         });
-        // при включении и смене оси остаётся дальняя от глаза половина: срезанная грань видна сразу; ⇄ — другая
-        var facing = function (axis) {
-            return self.view3d ? self.view3d.farSide(axis, r.clip.pos) : r.clip.side;
-        };
+        // разрез идёт по срезу, выбранному выше (ось z/y/x и номер); при включении остаётся дальняя от глаза
+        // половина — срезанная грань видна сразу; ⇄ — другая
         on(e.clip, 'change', function () {
-            self._set3d({clip: e.clip.checked ? {enabled: true, side: facing(r.clip.axis)} : {enabled: false}});
-        });
-        on(e.clipAxis, 'change', function () {
-            var axis = parseInt(e.clipAxis.value, 10) || 0;
-            self._set3d({clip: {axis: axis, side: facing(axis)}});
+            if (!e.clip.checked) {
+                self._set3d({clip: {enabled: false}});
+                return;
+            }
+            var c = self._clipFromSlice() || {axis: r.clip.axis, pos: r.clip.pos};
+            var side = self.view3d ? self.view3d.farSide(c.axis, c.pos) : r.clip.side;
+            self._set3d({clip: {enabled: true, axis: c.axis, pos: c.pos, side: side}});
         });
         on(e.clipFlip, 'click', function () {
             self._set3d({clip: {side: -r.clip.side}});
         });
-        on(e.clipPos, 'input', function () {
-            self._set3d({clip: {pos: (parseInt(e.clipPos.value, 10) || 0) / 1000}});
+        on(e.save3d, 'click', function () {
+            self.save3dHtml();
+        });
+    };
+
+    /** Сохранить 3D-вид в HTML (S.export3d): оболочка с настройками вида → сервис вставляет объём и кладёт файл в
+     *  каталог результата → файл скачивается, список файлов обновляется. */
+    StepResult.prototype.save3dHtml = function () {
+        var self = this, app = this.app, st = this.st, v3 = this.view3d, id = this.id, e = this.e;
+        if (!v3 || !this.vol3d || !st.resultDoc || !S.export3d || this._saving3d) return;
+        var r = st.resultDoc.result || {}, vol = r.volume || {};
+        var title = app.config.specimen || id;
+        var lines = ['Эксперимент ' + id, 'Реконструкция ' + core.fmtDate(r.created) +
+            (r.run_id ? ' · запуск ' + String(r.run_id).slice(0, 8) : '')];
+        var rp = recipeParts(r.recipe);
+        if (rp.length) lines.push('Рецепт: ' + rp.join(' · '));
+        if (vol.shape) lines.push('Полный объём ' + vol.shape.join(' × ') +
+            (core.isNum(vol.voxel_mm) ? ', воксель ' + core.fmtNum(vol.voxel_mm * 1000, 3) + ' мкм' : ''));
+        var opts = JSON.parse(JSON.stringify(v3.opts));
+        opts.slice = null;
+        var state = {title: title, lines: lines, opts: opts, win: v3.win ? v3.win.slice() : null,
+            cam: JSON.parse(JSON.stringify(v3.cam)), saved: core.fmtDate(new Date().toISOString()) +
+                (app.config.user ? ' · ' + app.config.user : '')};
+        this._saving3d = true;
+        ui.enable(e.save3d, false, 'Идёт сохранение');
+        var what = 'Сохранение 3D-вида';
+        S.export3d.collect({title: '3D: ' + title, state: state}).then(function (html) {
+            return self.api.postText('results/' + id + '/view3d-html', html, 'text/html; charset=utf-8',
+                {max_side: v3.maxSide()}, {what: what});
+        }).then(function (res) {
+            ui.toast('3D-вид сохранён в папку результата: ' + res.name + ' (' + core.fmtBytes(res.size) + ')', 'success',
+                8000);
+            var a = root.document.createElement('a');
+            a.href = self.api.url('results/' + id + '/file/' + encodeURIComponent(res.name));
+            a.download = res.name;
+            root.document.body.appendChild(a);
+            a.click();
+            a.parentNode.removeChild(a);
+            return self.load();
+        }).catch(function (err) {
+            if (err && !err.reported && !err.status) ui.toast(what + ': ' + (err.message || err), 'error', 8000);
+        }).then(function () {
+            self._saving3d = false;
+            ui.enable(e.save3d, true);
         });
     };
 
@@ -204,8 +263,25 @@
         return {axis: AXIS3D[this.axis], pos: S.vol3d.slicePosition(i, this.vol3d.meta.downsample || 1)};
     };
 
+    /** Плоскость разреза 3D-вида по текущему срезу: {axis (0 — x, 1 — y, 2 — z), pos — доля стороны объёма} или
+     *  null (нет объёма или среза). Не зависит от флажка «плоскость среза». */
+    StepResult.prototype._clipFromSlice = function () {
+        if (!this.vol3d) return null;
+        var i = this.index[this.axis];
+        if (i === null || i === undefined || !this.n[this.axis]) return null;
+        return S.vol3d.clipFromSlice(AXIS3D[this.axis], i, this.vol3d.meta.downsample || 1, this.vol3d.shape);
+    };
+
+    /** Срез сменился: оранжевая плоскость и разрез — туда же (сторона разреза остаётся прежней). */
     StepResult.prototype._syncSlicePlane = function () {
-        if (this.view3d && this.vol3d) this.view3d.set({slice: this._slicePlane()});
+        if (!this.view3d || !this.vol3d) return;
+        var patch = {slice: this._slicePlane()};
+        var c = this._clipFromSlice();
+        if (c) {
+            this.r3d.clip = Object.assign({}, this.r3d.clip, c);
+            patch.clip = {axis: c.axis, pos: c.pos};
+        }
+        this.view3d.set(patch);
     };
 
     /** Показать объём в 3D: запросить (если ещё нет или результат новее) и выбрать вид при select. */
@@ -234,7 +310,7 @@
             var m = img.meta || {};
             self.vol3d = {run_id: m.run_id || runId, meta: m, shape: [img.k, img.h, img.w]};
             v3.setVolume(img);
-            v3.set({slice: self._slicePlane()});
+            self._syncSlicePlane();
             var first = !app.viewer.has('volume3d');
             app.viewer.show('volume3d', img, {
                 kind: 'volume3d', unit: '1/мм', external: v3, hint: v3.hint,
@@ -394,8 +470,7 @@
         }
         if (e.box) e.box.checked = !!r.box;
         if (e.clip) e.clip.checked = !!r.clip.enabled;
-        if (e.clipAxis) e.clipAxis.value = String(r.clip.axis);
-        if (e.clipPos) e.clipPos.value = Math.round(r.clip.pos * 1000);
+        ui.show(e.save3d, !!this.app.config.can_run);
         var v = this.vol3d;
         ui.text(e.info3d, v ? v.shape.join(' × ') + ' (копия ×' + (v.meta.source_binning || '?') +
             (v.meta.downsample > 1 ? ', уменьшена ещё в ' + v.meta.downsample + ' раза' : '') + ')' : '');
@@ -420,18 +495,7 @@
         row('Создан', core.fmtDate(r.created));
         var t = r.timings || {};
         if (core.isNum(t.total_s)) row('Считался', core.fmtDuration(t.total_s));
-        var rc = r.recipe || {};
-        var parts = [];
-        if (rc.rings && rc.rings.preset) parts.push('кольца: ' + (RINGS[rc.rings.preset] || rc.rings.preset));
-        var smooth = core.smoothingText(rc.smoothing);          // выключено (или старый рецепт без блока) — ничего
-        if (smooth) parts.push('сглаживание ' + smooth);
-        var motionText = core.motionText(rc.motion);             // не компенсировалось (или старый рецепт) — ничего
-        if (motionText) parts.push(motionText);
-        if (rc.recon && rc.recon.angles) parts.push(ANGLES[rc.recon.angles] || rc.recon.angles);
-        if (rc.axis && core.isNum(rc.axis.center_x)) {
-            parts.push('ось ' + core.fmtNum(rc.axis.center_x, 2) + ' px, наклон ' + core.fmtNum(rc.axis.tilt_deg || 0, 3) + '°');
-        }
-        if (rc.recon && rc.recon.slices) parts.push('строки ' + rc.recon.slices[0] + '…' + rc.recon.slices[1]);
+        var parts = recipeParts(r.recipe);
         if (parts.length) row('Рецепт', parts.join(' · '));
         el.appendChild(dl);
 

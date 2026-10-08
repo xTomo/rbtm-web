@@ -191,6 +191,14 @@
         return (i + 0.5) / Math.max(1, f);
     }
 
+    /** Разрез по срезу копии: ось 3D-вида axis (0 — x, 1 — y, 2 — z), номер среза i, объём уменьшен ещё в f раз,
+     *  shape — [nz, ny, nx] 3D-объёма → {axis, pos — доля стороны 0…1, как в clip}. */
+    function clipFromSlice(axis, i, f, shape) {
+        var dims = [shape[2], shape[1], shape[0]];
+        var n = dims[axis] || 1;
+        return {axis: axis, pos: Math.max(0, Math.min(1, slicePosition(i, f) / n))};
+    }
+
     /** Рёбра коробки [0, nx] × [0, ny] × [0, nz]: 24 вершины (12 отрезков). */
     function boxEdges(dims) {
         var x = dims[0], y = dims[1], z = dims[2], out = [];
@@ -266,7 +274,7 @@
         jet: core.jet, paletteTable: core.paletteTable, PALETTES: core.PALETTES, colorbarTicks: colorbarTicks,
         m4: m4, extents: extents, fitDistance: fitDistance, defaultCamera: defaultCamera, eyePosition: eyePosition,
         frameMatrices: frameMatrices, orbit: orbit, pan: pan, zoom: zoom, texWindow: texWindow,
-        slicePosition: slicePosition, boxEdges: boxEdges, edgeLabelPlacement: edgeLabelPlacement, planeEdges: planeEdges, axesEdges: axesEdges, MODES: MODES,
+        slicePosition: slicePosition, clipFromSlice: clipFromSlice, boxEdges: boxEdges, edgeLabelPlacement: edgeLabelPlacement, planeEdges: planeEdges, axesEdges: axesEdges, MODES: MODES,
         FOVY: FOVY
     };
 
